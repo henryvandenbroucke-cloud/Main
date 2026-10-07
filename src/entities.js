@@ -243,6 +243,7 @@ function damageMob(m, dmg, kx, kz, crit, src) {
   else if (m.invT > 0) { if (dmg <= m.lastDmg) return; const full = dmg; dmg -= m.lastDmg; m.lastDmg = full; }
   else { m.invT = 0.5; m.lastDmg = dmg; }
   m.hp -= dmg; m.flash = 0.22; m.hurtT = 0.32; m.anger = 30;
+  m.sqV = (m.sqV || 0) - (m.def.boss ? 1.2 : 3.2); m.twistV = (m.twistV || 0) + (Math.random() < 0.5 ? -1 : 1) * (m.def.boss ? 0.8 : 3);
   Sound.hit(m.def.heavy || m.def.boss);
   damageNumber(m.x, m.y + m.h * m.scale + 0.3, m.z, dmg, crit);
   const kb = m.def.boss ? 0 : (m.def.heavy ? 0.4 : 1);
@@ -344,8 +345,9 @@ function hearts(m, n) { for (let i = 0; i < n; i++) emit(m.x + (Math.random() - 
 
 // ---------------------------------------------------------------- AI
 function mobLight(m) { const L = lightAt(m.x, m.y + m.h * 0.6, m.z); const v = Math.max(L[0] / 15 * U.uDay.value, L[1] / 15) * 0.85 + 0.15; return m.def.boss ? Math.max(0.7, v) : v; }
-function mobTint(c, m) {
+function mobTint(c, m, mt) {
   const L = lightAt(m.x, m.y + m.h * 0.6, m.z), sky = L[0] / 15, blk = L[1] / 15;
+  if (mt && mt.userData.entity) { mt.uniforms.uEnv.value.set(m.def.boss ? Math.max(sky, 0.7) : sky, blk); c.setRGB(1, 1, 1); return; }
   const out = Math.max(0.18, Math.pow(sky, 1.5)), torch = Math.pow(blk, 2.2) * 1.4;
   c.setRGB(out + torch * U.uTorch.value.r, out + torch * U.uTorch.value.g, out + torch * U.uTorch.value.b);
   if (m.def.boss) { c.r = Math.max(c.r, 0.75); c.g = Math.max(c.g, 0.75); c.b = Math.max(c.b, 0.75); }
@@ -631,6 +633,9 @@ function rot(g, x, y, z) { if (!g) return; if (!g.r0) g.r0 = g.rotation.clone();
 function pose(g, x, y, z, k) { if (!g) return; if (!g.r0) g.r0 = g.rotation.clone(); const r = g.rotation; r.x += (g.r0.x + x - r.x) * k; r.y += (g.r0.y + y - r.y) * k; r.z += (g.r0.z + z - r.z) * k; }
 function shift(g, x, y, z, k) { if (!g) return; if (!g.p0) g.p0 = g.position.clone(); const p = g.position; k = k === undefined ? 1 : k; p.x += (g.p0.x + x - p.x) * k; p.y += (g.p0.y + y - p.y) * k; p.z += (g.p0.z + z - p.z) * k; }
 const wrapA = a => ((a + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+// damped spring on a named value of a creature (value m[k], velocity m[k+'V'])
+function spring(m, k, target, stiff, damp, dt) { const v = (m[k + 'V'] || 0) + ((target - (m[k] || 0)) * stiff - (m[k + 'V'] || 0) * damp) * dt; m[k + 'V'] = v; m[k] = (m[k] || 0) + v * dt; return m[k]; }
+const SQUASH_KINDS = { quad: 1, biped: 1, bird: 1, hop: 1, spider: 1, turtle: 1, boss: 0.4 };
 function animateMob(m, dt, chase, P, dist) {
   const A = m.A, R = m.P, def = m.def, t = m.t;
   const sp = Math.hypot(m.vx, m.vz);
@@ -642,16 +647,36 @@ function animateMob(m, dt, chase, P, dist) {
   else if (m.talkT > 0 || (m.aim && chase) || (chase && def.ranged && sp < 1)) m.yaw = Math.atan2(P.x - m.x, P.z - m.z);
   else if (sp > 0.25) m.yaw = Math.atan2(m.vx, m.vz);
   const cur = m.g.rotation.y; m.g.rotation.order = 'YXZ';
-  m.g.rotation.y = cur + wrapA(m.yaw - cur) * Math.min(1, dt * (def.boss ? 5 : 8));
+  const yawErr = wrapA(m.yaw - cur);
+  m.g.rotation.y = cur + yawErr * Math.min(1, dt * (def.boss ? 5 : 8));
+  // banking into turns and leaning into speed changes, both on springs so they settle softly
+  const turn = wrapA(m.g.rotation.y - (m.prevYaw === undefined ? m.g.rotation.y : m.prevYaw)) / Math.max(dt, 1e-3); m.prevYaw = m.g.rotation.y;
+  const accel = (sp - (m.prevSp || 0)) / Math.max(dt, 1e-3); m.prevSp = sp;
+  const flier = A.kind === 'fly' || A.kind === 'bird' && !m.onGround;
+  const bank = spring(m, 'bank', Math.max(-0.3, Math.min(0.3, -turn * Math.min(sp, 5) * (flier ? 0.06 : 0.018))), 50, 11, dt);
+  const lean = spring(m, 'lean', Math.max(-0.14, Math.min(0.14, accel * 0.012)), 40, 9, dt);
+  // landing: a squash that springs back; hits pop the same spring and twist the body
+  if (!m.onGround) m.airVy = Math.min(m.airVy || 0, m.vy);
+  else { if ((m.airVy || 0) < -5.5) m.sqV = (m.sqV || 0) - Math.min(4, -m.airVy * 0.22); m.airVy = 0; }
+  const sq = spring(m, 'sq', 0, 140, 11, dt), tw = spring(m, 'twist', 0, 90, 10, dt);
   // hurt recoil
   if (m.hurtT > 0) m.hurtT -= dt;
-  m.g.rotation.x = m.hurtT > 0 ? -Math.sin(m.hurtT / 0.32 * Math.PI) * 0.22 : 0;
-  m.g.rotation.z = 0;
+  m.g.rotation.x = (m.hurtT > 0 ? -Math.sin(m.hurtT / 0.32 * Math.PI) * 0.22 : 0) + lean;
+  m.g.rotation.z = bank + tw * 0.08;
+  const sk = SQUASH_KINDS[A.kind];
+  if (sk && !m.fuse) { const q = Math.max(-0.35, Math.min(0.3, sq * 0.12 * sk)); m.g.scale.set(m.scale * (1 - q * 0.5), m.scale * (1 + q), m.scale * (1 - q * 0.5)); }
   // where the head looks
-  let lookY = 0, lookX = 0;
+  let lookY = 0, lookX = 0, engaged = false;
   if (R.head && A.look && dist < 10 && (chase || (def.passive && !m.anger) || m.talkT > 0)) {
     const rel = wrapA(Math.atan2(P.x - m.x, P.z - m.z) - m.g.rotation.y);
-    if (Math.abs(rel) < 2.2) { lookY = Math.max(-A.look, Math.min(A.look, rel)); lookX = -Math.max(-0.5, Math.min(0.5, Math.atan2(P.y + 1.5 - (m.y + m.h * 0.8), dist))); }
+    if (Math.abs(rel) < 2.2) { engaged = true; lookY = Math.max(-A.look, Math.min(A.look, rel)); lookX = -Math.max(-0.5, Math.min(0.5, Math.atan2(P.y + 1.5 - (m.y + m.h * 0.8), dist))); }
+  }
+  if (A.look && !engaged) {
+    // idle: glance around now and then; walking: the head leads the turn
+    m.idleT = (m.idleT === undefined ? Math.random() * 3 : m.idleT) - dt;
+    if (m.idleT <= 0) { m.idleT = 1.6 + Math.random() * 3.5; m.idleLook = sp < 0.3 && Math.random() < 0.7 ? [(Math.random() - 0.5) * 1.4 * A.look, (Math.random() - 0.6) * 0.4] : [0, 0]; }
+    if (m.idleLook) { lookY = m.idleLook[0]; lookX = m.idleLook[1]; }
+    lookY += Math.max(-0.5, Math.min(0.5, yawErr * 0.6));
   }
   const graze = m.grazing && sp < 0.2 && !m.anger;
   m.grazeK = (m.grazeK || 0) + ((graze ? 1 : 0) - (m.grazeK || 0)) * Math.min(1, dt * 3);
@@ -669,7 +694,7 @@ function animateMob(m, dt, chase, P, dist) {
       const g = m.grazeK, chew = g > 0.6 ? Math.sin(t * 9) * 0.06 : 0;
       if (R.neck) { rot(R.neck, g * 0.95 + m.lookX * 0.4, m.lookY * 0.5, 0); rot(R.head, g * 0.35 + chew + m.lookX * 0.6, m.lookY * 0.5, 0); }
       else rot(R.head, g * 0.9 + chew + m.lookX, m.lookY, 0);
-      if (R.tail) { const wag = (m.tamed || m.love > 0) ? 9 : (m.type === 'wolf' || m.type === 'fox') && chase ? 6 : 1.4; rot(R.tail, Math.sin(t * 1.3) * 0.05 + w * 0.2, Math.sin(t * wag) * (wag > 2 ? 0.5 : 0.18), 0); }
+      if (R.tail) { const wag = (m.tamed || m.love > 0) ? 9 : (m.type === 'wolf' || m.type === 'fox') && chase ? 6 : 1.4; rot(R.tail, Math.sin(t * 1.3) * 0.05 + w * 0.2 - lean * 1.5, Math.sin(t * wag) * (wag > 2 ? 0.5 : 0.18) - bank * 2.5, 0); }
       earTwitch(m, dt);
       if (R.angry) R.angry.visible = m.anger > 0 && !m.tamed;
       break;
@@ -795,7 +820,7 @@ function tintMob(m, dt) {
     if (m.flash > 0 || m.dying !== undefined && !m.def.boss) mt.color.setRGB(1, 0.32, 0.32);
     else if (fuse) mt.color.setRGB(2, 2, 2);
     else if (mt.userData.emissive) mt.color.setScalar(m.dying !== undefined ? 0.6 + Math.random() * 0.6 : 1);
-    else mobTint(mt.color, m);
+    else mobTint(mt.color, m, mt);
   }
   if (m.flash > 0) m.flash -= dt;
 }
@@ -811,7 +836,7 @@ function mobParticles(m, dt) {
 function updateDying(m, dt) {
   m.dying -= dt;
   if (m.def.boss) { bossDeath(m, dt); return; }
-  const k = Math.min(1, (m.dyingMax - m.dying) * 4);
+  const e = Math.min(1, (m.dyingMax - m.dying) * 3.2), k = e < 1 ? 1 - Math.pow(1 - e, 3) + Math.sin(e * Math.PI) * 0.08 : 1;
   m.g.rotation.order = 'YXZ';
   m.g.rotation.z = m.fallSide * k * Math.PI / 2 * (m.A.kind === 'fly' || m.A.kind === 'swim' || m.A.kind === 'slime' ? 0 : 1);
   if (m.A.kind === 'fly' || m.A.kind === 'swim') { m.g.rotation.x = Math.PI * k; }
@@ -862,6 +887,7 @@ function bossAI(m, dt, P, dx, dz, dist) {
           const ix = m.x + fwdX * 3.2, iz = m.z + fwdZ * 3.2;
           shake(0.7); Sound.slam(); Game.hitStop = 0.06;
           burst(ix, m.y + 0.2, iz, 40, { life: 0.8, size: 0.18, r: 0.35, g: 0.42, b: 0.32, grav: 16, spread: 7, up: 7 });
+          burst(ix, m.y + 0.3, iz, 24, { life: 1.3, size: 0.42, r: 0.55, g: 0.55, b: 0.5, a: 0.55, spread: 6, up: 1.2, drag: 3, grow: 1.5 });
           burst(ix, m.y + 0.3, iz, 24, { life: 0.5, size: 0.14, r: 0.45, g: 1, b: 0.9, glow: true, spread: 9, up: 3 });
           telegraphs.push({ kind: 'ring', x: ix, y: m.y, z: iz, radius: 2.5, dmg: 4, t0: performance.now(), done: false });
           if (Math.hypot(P.x - ix, P.z - iz) < 2.3 && Math.abs(P.y - m.y) < 3) hurtPlayer(m.def.dmg, null, fwdX * 2.5, fwdZ * 2.5, { mob: m });
@@ -962,7 +988,8 @@ function bossAnimate(m, dt, w, ph) {
   // torso: lean into blows, rear back to roar
   let cx = Math.sin(t * 1.6) * 0.03, cz = Math.sin(ph) * 0.06 * w, cy = 0;
   if (st === 'windup' || st === 'punchUp' || st === 'slamUp') cx = -0.25 * ease(k);
-  if (st === 'chop' || st === 'punch' || st === 'slam') cx = 0.35;
+  if (st === 'chop' || st === 'punch' || st === 'slam') cx = 0.35 * Math.min(1, k * 2);
+  if ((st === 'windup' || st === 'slamUp' || st === 'punchUp') && k > 0.75) cz += (Math.random() - 0.5) * 0.03;
   if (st === 'recover') cx = 0.35 * (1 - k * 0.6);
   if (st === 'roar') cx = -0.35 * Math.sin(k * Math.PI);
   if (st === 'stagger') cx = 0.45;
@@ -975,11 +1002,11 @@ function bossAnimate(m, dt, w, ph) {
   const [aL, aR] = R.arms;
   let lx = -Math.sin(ph) * 0.35 * w, rx = Math.sin(ph) * 0.35 * w - 0.3, lz = -0.12, rz = 0.12, ry = 0, le = -0.3, re = -0.5;
   switch (st) {
-    case 'windup': rx = -2.7 * ease(k); re = -0.6; rz = 0.1; break;
-    case 'chop': rx = -2.7 + 3.3 * ease(k); re = -0.1; break;
-    case 'recover': rx = big ? -1.2 : 0.5; re = 0; lx = big ? -1.2 : lx; break;
+    case 'windup': rx = -2.7 * ease(k / 0.75) + (k > 0.75 ? (Math.random() - 0.5) * 0.05 : 0); re = -0.6; rz = 0.1; break;
+    case 'chop': rx = -2.7 + 3.3 * k * k; re = -0.1; break;
+    case 'recover': rx = (big ? -1.2 : 0.5) + Math.sin(Math.min(1, k * 3) * Math.PI) * 0.25 * (1 - k); re = 0; lx = big ? -1.2 : lx; break;
     case 'stompUp': case 'slamUp': lx = rx = -2.6 * ease(k); le = re = -0.3; break;
-    case 'stomp': case 'slam': lx = rx = -2.6 + 2.2 * ease(k); break;
+    case 'stomp': case 'slam': lx = rx = -2.6 + 2.2 * Math.min(1, k * k * 1.6); break;
     case 'crouch': lx = rx = 0.6 * ease(k); break;
     case 'air': lx = rx = -2.2; le = re = -0.4; break;
     case 'sweepUp': rx = -1.5; rz = 1.0 * ease(k); break;
@@ -987,7 +1014,7 @@ function bossAnimate(m, dt, w, ph) {
     case 'roar': lz = -1.1 * Math.sin(k * Math.PI); rz = 1.1 * Math.sin(k * Math.PI); lx = rx = -0.6 * Math.sin(k * Math.PI); break;
     case 'stagger': lx = rx = 0.4; le = re = -0.1; lz = -0.3; rz = 0.3; break;
     case 'punchUp': rx = -1.4; re = -1.6 * ease(k); rz = 0.3; break;
-    case 'punch': rx = -1.6; re = -1.6 + 1.6 * ease(k); break;
+    case 'punch': rx = -1.6; re = -1.6 + 1.6 * k * k; break;
     case 'spikesUp': lx = -2.4 * ease(k); break;
     case 'orbs': lz = -1.0 * ease(k); rz = 1.0 * ease(k); lx = rx = -0.8; break;
   }
@@ -1033,12 +1060,15 @@ function bossDeath(m, dt) {
   if (m.dying <= 0) removeMob(m);
 }
 const telegraphs = [];
+const RING_GEO = new THREE.RingGeometry(0.82, 1, 56), DISC_GEO = new THREE.CircleGeometry(1, 40);
+function teleMesh(geo, color, opacity) { const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })); m.rotation.x = -Math.PI / 2; m.renderOrder = 6; scene.add(m); return m; }
+function dropTele(t) { if (t.mesh) { scene.remove(t.mesh); t.mesh.material.dispose(); t.mesh = null; } }
 function shockwave(x, y, z, radius, dmg, color) {
   shake(0.6);
   const c = new THREE.Color(color);
   for (let i = 0; i < 64; i++) { const a = i / 64 * Math.PI * 2; emit(x, y + 0.2, z, { vx: Math.cos(a) * radius * 1.4, vz: Math.sin(a) * radius * 1.4, vy: 0.5, life: 0.7, size: 0.3, r: c.r, g: c.g, b: c.b, glow: true }); }
   const t0 = performance.now();
-  telegraphs.push({ kind: 'ring', x, y, z, radius, dmg, t0, done: false });
+  telegraphs.push({ kind: 'ring', x, y, z, radius, dmg, t0, done: false, color });
 }
 function spikeField(P, n) {
   for (let k = 0; k < n; k++) {
@@ -1052,14 +1082,18 @@ function updateTelegraphs(dt, P) {
     if (t.kind === 'ring') {
       const el = (performance.now() - t.t0) / 1000, R = el * t.radius * 1.4;
       if (!t.done && P.onGround && Math.abs(Math.hypot(P.x - t.x, P.z - t.z) - R) < 1.0 && Math.abs(P.y - t.y) < 2) { t.done = true; hurtPlayer(t.dmg, null, (P.x - t.x) / R, (P.z - t.z) / R, { mob: ActiveBoss, how: 'shockwave' }); P.vy = 7; }
-      if (el > 0.75) telegraphs.splice(i, 1);
+      if (!t.mesh) t.mesh = teleMesh(RING_GEO, t.color || 0x9af0ff, 0.9);
+      t.mesh.position.set(t.x, t.y + 0.12, t.z); t.mesh.scale.setScalar(Math.max(0.05, R)); t.mesh.material.opacity = 0.9 * Math.max(0, 1 - el / 0.75);
+      if (el > 0.75) { dropTele(t); telegraphs.splice(i, 1); }
     } else {
       t.t -= dt;
       if (Math.random() < 0.6) { const a = Math.random() * 6.28; emit(t.x + Math.cos(a) * 1.2, t.y + 0.1, t.z + Math.sin(a) * 1.2, { life: 0.3, size: 0.12, r: 1, g: 0.3, b: 0.2, glow: true }); }
+      if (!t.mesh) t.mesh = teleMesh(DISC_GEO, 0xff3a22, 0.3);
+      const urg = 1 - Math.max(0, t.t) / 1.1; t.mesh.position.set(t.x, t.y + 0.08, t.z); t.mesh.scale.setScalar(1.5 * (0.6 + 0.4 * urg)); t.mesh.material.opacity = 0.18 + 0.3 * urg * (0.6 + 0.4 * Math.sin(performance.now() / 50));
       if (t.t <= 0) {
         for (let k = 0; k < 20; k++) emit(t.x + (Math.random() - 0.5) * 1.4, t.y, t.z + (Math.random() - 0.5) * 1.4, { vy: 9 + Math.random() * 4, life: 0.5, size: 0.18, r: 0.6, g: 0.95, b: 1, glow: true, grav: 20 });
         if (Math.hypot(P.x - t.x, P.z - t.z) < 1.5 && Math.abs(P.y - t.y) < 2) { hurtPlayer(7, null, 0, 0, { mob: ActiveBoss, how: 'spikes' }); P.vy = 9; }
-        telegraphs.splice(i, 1);
+        dropTele(t); telegraphs.splice(i, 1);
       }
     }
   }

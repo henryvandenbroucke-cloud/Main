@@ -42,7 +42,7 @@ const ThirdPerson = (() => {
     for (const a of R.arms) rot(a.u, (a.sx > 0 ? -s : s) * 0.6 * w + (a.sx > 0 && swing < 0.35 ? -1.8 + swing * 5 : 0), 0, a.sx * 0.05);
     rot(R.body, P.sneak ? 0.35 : 0, 0, 0);
     rot(R.head, -P.pitch * 0.9, 0, 0);
-    const lv = lightAt(P.x, P.y + 1.2, P.z); for (const mt of m.mats) if (!mt.userData.emissive) { const v = Math.max(lv[0] / 15 * U.uDay.value, lv[1] / 15) * 0.85 + 0.15; mt.color.setScalar(v); }
+    const lv = lightAt(P.x, P.y + 1.2, P.z); for (const mt of m.mats) if (mt.userData.entity) mt.uniforms.uEnv.value.set(lv[0] / 15, lv[1] / 15); else if (!mt.userData.emissive) { const v = Math.max(lv[0] / 15 * U.uDay.value, lv[1] / 15) * 0.85 + 0.15; mt.color.setScalar(v); }
   }
   return { update };
 })();
@@ -65,7 +65,7 @@ const CharView = (() => {
   function build() {
     if (root) { scene.remove(root); for (const mt of m.mats || []) mt.dispose(); }
     const held = heldItem();
-    root = buildPlayerModel(m, Inv.armor.map(s => s ? s.id : 0), key);
+    m.plain = true; root = buildPlayerModel(m, Inv.armor.map(s => s ? s.id : 0), key);
     if (held) { const im = itemMesh(held.id); im.scale.setScalar(0.42); im.position.set(0, -0.62, 0.16); im.rotation.set(-1.0, Math.PI / 2, 0); m.P.arms[1].u.add(im); }
     scene.add(root);
   }

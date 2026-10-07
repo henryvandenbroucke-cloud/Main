@@ -77,10 +77,11 @@ function buildCreature(key, m, fn) {
   root.updateMatrixWorld(true);
   let cache = MODEL_CACHE[key];
   if (!cache) cache = MODEL_CACHE[key] = bakeCreature(st, key);
+  // in the world creatures share the world's lighting; m.plain (the inventory portrait, its own renderer) keeps simple lights
   const mats = [
-    cache.used[0] ? new THREE.MeshLambertMaterial({ map: cache.tex }) : null,
+    cache.used[0] ? (m.plain ? new THREE.MeshLambertMaterial({ map: cache.tex }) : entityMat(cache.tex)) : null,
     cache.used[1] ? new THREE.MeshBasicMaterial({ map: cache.tex }) : null,
-    cache.used[2] ? new THREE.MeshLambertMaterial({ map: cache.tex, transparent: true, opacity: 0.62, depthWrite: false }) : null,
+    cache.used[2] ? (m.plain ? new THREE.MeshLambertMaterial({ map: cache.tex, transparent: true, opacity: 0.62, depthWrite: false }) : entityMat(cache.tex, { transparent: true, opacity: 0.62 })) : null,
   ];
   if (mats[1]) mats[1].userData.emissive = true;
   for (let i = 0; i < st.groups.length; i++) {

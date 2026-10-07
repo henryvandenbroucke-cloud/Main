@@ -1021,64 +1021,81 @@ function updateSky(dt) {
 }
 
 // ---------------------------------------------------------------- held item view model
+// Classic first-person hand: an empty hand shows your arm reaching in from the lower right; anything held is drawn
+// on its own, small, in the lower right, without the arm. The swing, the equip dip when you switch items and the
+// walking bob follow the original game's arcs.
 const handScene = new THREE.Scene(), handCam = new THREE.PerspectiveCamera(70, 1, 0.01, 10);
 const viewModel = new THREE.Group(); handScene.add(viewModel);
 const handHemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.9); handScene.add(handHemi);
 const handSun = new THREE.DirectionalLight(0xffffff, 0.6); handSun.position.set(0.3, 1, 0.5); handScene.add(handSun);
 window.addEventListener('resize', () => { handCam.aspect = window.innerWidth / window.innerHeight; handCam.updateProjectionMatrix(); });
-// first-person arm: a pivot at the shoulder (off-screen, bottom right) with a sleeve, a forearm and a hand
+// the arm: a sleeve and a hand, pivoting at the shoulder below the bottom-right corner
 const armPivot = new THREE.Group(); viewModel.add(armPivot);
 const armSkin = new THREE.MeshLambertMaterial({ map: skin('fparm', 0xd9a37c, { noise: 0.06, flat: true }) });
 const armSleeve = new THREE.MeshLambertMaterial({ map: skin('fpsleeve', 0x3f5f9a, { accent: 0x2f4a7c, stripes: 1, noise: 0.08 }) });
 const armCuff = new THREE.MeshLambertMaterial({ map: skin('fpcuff', 0x2c3f66, { noise: 0.05 }) });
-const sleeveMesh = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.17, 0.34), armSleeve); sleeveMesh.position.z = -0.17; armPivot.add(sleeveMesh);
-const cuffMesh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.04), armCuff); cuffMesh.position.z = -0.36; armPivot.add(cuffMesh);
-const foreMesh = new THREE.Mesh(new THREE.BoxGeometry(0.155, 0.155, 0.22), armSkin); foreMesh.position.z = -0.48; armPivot.add(foreMesh);
-const hand = new THREE.Group(); hand.position.set(0, 0.04, -0.57); armPivot.add(hand);
+const sleeveMesh = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 0.5), armSleeve); sleeveMesh.position.z = -0.25; armPivot.add(sleeveMesh);
+const cuffMesh = new THREE.Mesh(new THREE.BoxGeometry(0.262, 0.262, 0.05), armCuff); cuffMesh.position.z = -0.5; armPivot.add(cuffMesh);
+const foreMesh = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.24), armSkin); foreMesh.position.z = -0.64; armPivot.add(foreMesh);
+const hand = new THREE.Group(); armPivot.add(hand); // kept for anything attached to the palm
 const armParts = [armSkin, armSleeve, armCuff];
-let viewId = -1, viewMesh = null;
-// shared light for the view model (Lambert): follows the sun, plus a lantern term computed per frame
-
+// held items: translation swing -> arm offset -> swing rotations -> display transform
+const vmT = new THREE.Group(), vmArm = new THREE.Group(), vmR1 = new THREE.Group(), vmR2 = new THREE.Group(), vmR3 = new THREE.Group(), vmR4 = new THREE.Group(), vmDisp = new THREE.Group();
+viewModel.add(vmT); vmT.add(vmArm); vmArm.add(vmR1); vmR1.add(vmR2); vmR2.add(vmR3); vmR3.add(vmR4); vmR4.add(vmDisp);
+let viewId = -1, viewMesh = null, equip = 1, lastYaw = 0, lastPitch = 0;
+const VM = { swayX: 0, swayY: 0, bobDist: 0, bob: 0 };
+// resting poses (view space, metres; rotations in radians)
+const HOLD = { item: { pos: [0.5, -0.25, -0.72], rot: [-0.2, 0.35, 1.0], scale: 0.5 }, block: { pos: [0.54, -0.27, -0.7], rot: [0.32, 0.78, 0], scale: 0.33 }, arm: { pos: [0.7, -0.6, -0.36], rot: [1.0, 0.45, -0.2] } };
+const D2R = Math.PI / 180;
 function updateViewModel(dt) {
   const s = heldItem(), id = s ? s.id : 0;
   if (id !== viewId) {
-    if (viewMesh) hand.remove(viewMesh);
-    viewMesh = id ? itemMesh(id) : null; viewId = id;
-    if (viewMesh) hand.add(viewMesh);
+    if (viewMesh) vmDisp.remove(viewMesh);
+    viewMesh = id ? itemMesh(id) : null; viewId = id; equip = 0;
+    if (viewMesh) vmDisp.add(viewMesh);
   }
-  // swing: a quick forward-and-down chop that eases back (loops while mining)
+  equip = Math.min(1, equip + dt * 5);
+  const eqDrop = (1 - equip) * (1 - equip) * -0.6;
+  // swing: quick forward arc that eases back (loops while mining)
   const dur = 0.3;
   swingT = Math.min(1, swingT + dt / dur);
   if (Input.mouseL && Game.mine && swingT >= 1) swingT = 0;
-  const p = swingT >= 1 ? 0 : swingT;
-  const s1 = Math.sin(p * p * Math.PI), s2 = Math.sin(Math.sqrt(p) * Math.PI);
-  const moving = Math.hypot(Player.vx, Player.vz) > 0.5 && Player.onGround;
-  const t = U.uTime.value;
-  const bobX = moving ? Math.sin(t * 9) * 0.018 : 0, bobY = moving ? -Math.abs(Math.cos(t * 9)) * 0.022 : Math.sin(t * 1.6) * 0.004;
-  viewModel.position.set(bobX - s2 * 0.16, bobY + Math.sin(Math.sqrt(p) * Math.PI * 2) * 0.07, -s1 * 0.12);
-  // resting pose: arm comes in from the lower right, angled up and inward
-  armPivot.position.set(0.46, -0.44, -0.18);
-  armPivot.rotation.set(0.32 - s2 * 0.95, 0.2 + s1 * 0.25, -0.12 - s2 * 0.35);
+  const p = swingT >= 1 ? 0 : swingT, sq = Math.sqrt(p);
+  // walking bob: distance-driven, like the original
+  const hs = Player.onGround && !Player.flying ? Math.hypot(Player.vx, Player.vz) : 0;
+  VM.bobDist += hs * dt * 0.6; VM.bob += (Math.min(1, hs / 4.3) - VM.bob) * Math.min(1, dt * 8);
+  const g = VM.bobDist * Math.PI, bh = VM.bob * 0.06;
+  viewModel.position.set(Math.sin(g) * bh * 0.5, -Math.abs(Math.cos(g) * bh), 0);
+  viewModel.rotation.set(Math.abs(Math.cos(g - 0.2) * bh) * 5 * D2R * 10, 0, Math.sin(g) * bh * 3 * D2R * 10);
+  // the hand lags a touch behind fast mouse turns
+  const dyaw = wrapA(Player.yaw - lastYaw), dpit = Player.pitch - lastPitch; lastYaw = Player.yaw; lastPitch = Player.pitch;
+  VM.swayX += (Math.max(-0.08, Math.min(0.08, dyaw * 0.9)) - VM.swayX) * Math.min(1, dt * 12); VM.swayY += (Math.max(-0.06, Math.min(0.06, -dpit * 0.9)) - VM.swayY) * Math.min(1, dt * 12);
   // lighting: world light at the player's head, lantern-tinted
   const L = lightAt(Player.x, Player.y + 1.6, Player.z), sky = L[0] / 15, blk = L[1] / 15;
-  const out = 0.25 + 0.75 * Math.pow(sky, 1.4), tor = Math.pow(blk, 2.2) * 1.2;
+  const out = 0.22 + 0.78 * Math.pow(sky, 1.4), tor = Math.pow(blk, 2.2) * 1.2;
   for (const mt of armParts) mt.color.setRGB(out * 0.62 + tor * U.uTorch.value.r * 0.7, out * 0.62 + tor * U.uTorch.value.g * 0.7, out * 0.62 + tor * U.uTorch.value.b * 0.7);
   const lv = Math.max(out, tor);
-  armPivot.visible = true;
-  if (viewMesh) {
-    viewMesh.material.color.setScalar(Math.min(1.2, lv * 0.95 + 0.05));
-    const d = itemDef(id);
-    if (id < 256) { // a block sits in the palm
-      viewMesh.scale.setScalar(0.16); viewMesh.position.set(0, 0.1, -0.05); viewMesh.rotation.set(0.1, 0.75, 0);
-    } else if (d.kind === 'bow') {
-      const pd = drawing ? Math.min(1, bowDraw) : 0;
-      viewMesh.scale.setScalar(0.4); viewMesh.position.set(-0.04, 0.16, -0.04 + pd * 0.1); viewMesh.rotation.set(0.1, Math.PI / 2, -0.35);
-      armPivot.rotation.x += pd * 0.15;
-    } else { // tools/weapons: handle in the fist, head pointing up and forward
-      viewMesh.scale.setScalar(0.38); viewMesh.position.set(0.0, 0.13, -0.03); viewMesh.rotation.set(0.0, -Math.PI / 2, 0.0);
-      viewMesh.rotation.z = 0.0; viewMesh.rotateX(-0.25);
-    }
+  armPivot.visible = !viewMesh;
+  vmT.visible = !!viewMesh;
+  if (!viewMesh) {
+    // empty hand: the arm swings in an arc toward the crosshair
+    const f1 = -0.3 * Math.sin(sq * Math.PI), f2 = 0.4 * Math.sin(sq * Math.PI * 2), f3 = -0.4 * Math.sin(p * Math.PI);
+    const A = HOLD.arm;
+    armPivot.position.set(A.pos[0] + f1 + VM.swayX, A.pos[1] + f2 + eqDrop + VM.swayY, A.pos[2] + f3);
+    const s4 = Math.sin(p * p * Math.PI), s5 = Math.sin(sq * Math.PI);
+    armPivot.rotation.set(A.rot[0] - s5 * 0.55, A.rot[1] + s5 * 0.75, A.rot[2] - s4 * 0.35);
+    return;
   }
+  viewMesh.material.color.setScalar(Math.min(1.2, lv * 0.95 + 0.05));
+  vmT.position.set(-0.4 * Math.sin(sq * Math.PI) * 0.7 + VM.swayX, 0.2 * Math.sin(sq * Math.PI * 2) * 0.7 + VM.swayY, -0.2 * Math.sin(p * Math.PI));
+  const d = itemDef(id), H = id < 256 ? HOLD.block : HOLD.item;
+  vmArm.position.set(H.pos[0], H.pos[1] + eqDrop, H.pos[2]);
+  // the swing: the held thing chops forward and down toward the crosshair, then eases back
+  const f = Math.sin(p * p * Math.PI), f1 = Math.sin(sq * Math.PI);
+  vmR1.rotation.set(0, (45 - f * 20) * D2R, 0); vmR2.rotation.set(0, 0, -f1 * 20 * D2R); vmR3.rotation.set(-f1 * 70 * D2R, 0, 0); vmR4.rotation.set(0, -45 * D2R, 0);
+  const pd = d.kind === 'bow' && drawing ? Math.min(1, bowDraw) : 0;
+  vmDisp.position.set(-pd * 0.16, pd * 0.06, pd * 0.12); vmDisp.rotation.set(H.rot[0], H.rot[1] - pd * 0.5, H.rot[2] - pd * 0.9); vmDisp.scale.setScalar(H.scale);
+  viewMesh.scale.setScalar(1); viewMesh.position.set(0, 0, 0); viewMesh.rotation.set(0, 0, 0);
 }
 
 // ---------------------------------------------------------------- main loop
@@ -1137,8 +1154,10 @@ function frame(now) {
     const e = eye();
     // stepping onto a stair or slab eases the view up instead of jumping it
     Player.eyeOff = ((Player.eyeOff || 0) - (Player.stepUp || 0)) * Math.exp(-dt * 16); Player.stepUp = 0; e[1] += Player.eyeOff;
-    camera.position.set(e[0], e[1], e[2]);
-    camera.rotation.set(Player.pitch, Player.yaw, 0);
+    // view bobbing: a gentle dip with each step and a slight sway
+    const bg = VM.bobDist * Math.PI, bh = VM.bob * 0.06;
+    camera.position.set(e[0], e[1] - Math.abs(Math.cos(bg) * bh) * 0.9, e[2]);
+    camera.rotation.set(Player.pitch + Math.abs(Math.cos(bg - 0.2) * bh) * 0.04, Player.yaw, Math.sin(bg) * bh * 0.07);
     if (Game.view > 0 && Game.state === 'play') { // third person: pull the camera back (or around to the front), stopping at walls
       const d = lookDir(), dir = Game.view === 1 ? -1 : 1;
       if (Game.view === 1 && !solidAt(Math.floor(e[0]), Math.floor(e[1] + 0.6), Math.floor(e[2]))) e[1] += 0.45; // look over the shoulder

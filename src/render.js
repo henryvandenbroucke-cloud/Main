@@ -275,6 +275,57 @@ const matWater = voxelMat(0.0, 0.62, true);
 const matGlass = voxelMat(0.05, 1, true);
 for (const m of [matSolid, matCross, matWater, matGlass]) for (const k of Object.keys(U)) m.uniforms[k] = U[k];
 
+// ---------------------------------------------------------------- creature material
+// Creatures and the third-person player use the same light as the world: sun with soft shadows, sky ambient
+// from where they stand (uEnv.x), torch light (uEnv.y), distance fog and a faint rim so silhouettes read at night.
+// `color` stays a plain multiplier so hit flashes and fuse blinks keep working.
+const ENT_VERT = `varying vec2 vUv; varying vec3 vN; varying vec3 vW; varying float vFog;
+void main(){ vUv=uv; vN=normalize(mat3(modelMatrix)*normal); vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; vec4 mv=viewMatrix*w; vFog=length(mv.xyz); gl_Position=projectionMatrix*mv; }`;
+const ENT_FRAG = `uniform sampler2D map; uniform vec3 color; uniform float uOpacity; uniform vec2 uEnv;
+uniform vec3 uSunDir, uSunCol, uAmbCol, uTorch, uFogColor, uHazeCol; uniform float uFogNear, uFogFar, uUnder;
+uniform sampler2D uShadowMap; uniform mat4 uShadowMatrix; uniform float uShadowOn, uShadowSize;
+varying vec2 vUv; varying vec3 vN; varying vec3 vW; varying float vFog;
+vec3 toLin(vec3 c){ return pow(c, vec3(2.2)); }
+vec3 toSrgb(vec3 c){ return pow(max(c, 0.0), vec3(1.0/2.2)); }
+float ign(vec2 p){ return fract(52.9829189*fract(dot(p,vec2(0.06711056,0.00583715)))); }
+float shadowAt(vec3 wp, vec3 n){
+  if(uShadowOn<0.5) return 1.0;
+  vec4 sc=uShadowMatrix*vec4(wp+n*0.05,1.0); vec3 c=sc.xyz/sc.w*0.5+0.5;
+  if(c.x<0.0||c.x>1.0||c.y<0.0||c.y>1.0||c.z>1.0) return 1.0;
+  float t=1.6/uShadowSize, a=ign(gl_FragCoord.xy)*6.2832, s=0.0;
+  for(int i=0;i<6;i++){ float an=a+float(i)*1.0472; vec2 o=vec2(cos(an),sin(an))*t*(0.6+0.4*float(i-i/2*2)); s+=(c.z-0.0015>texture2D(uShadowMap,c.xy+o).r)?0.0:1.0; }
+  return s/6.0;
+}
+void main(){
+  vec4 t=texture2D(map,vUv);
+  if(t.a<0.5) discard;
+  vec3 alb=toLin(t.rgb);
+  vec3 n=normalize(vN); if(!gl_FrontFacing) n=-n;
+  float sky=uEnv.x, blk=uEnv.y, outdoor=smoothstep(0.35,0.9,sky);
+  float ndl=max(dot(n,uSunDir),0.0);
+  float sh=outdoor>0.0?shadowAt(vW,n):0.0;
+  vec3 direct=uSunCol*ndl*sh*outdoor*1.1;
+  vec3 hemi=mix(vec3(0.68,0.62,0.55),vec3(1.05,1.07,1.14),n.y*0.5+0.5);
+  vec3 amb=uAmbCol*hemi*(0.12+0.88*pow(sky,1.6));
+  vec3 light=amb+direct+uTorch*pow(blk,2.4)*3.0+vec3(0.012,0.013,0.018);
+  vec3 V=normalize(cameraPosition-vW);
+  float rim=pow(1.0-max(dot(n,V),0.0),3.0);
+  vec3 col=alb*light*toLin(color)+alb*rim*(uAmbCol*0.6+uSunCol*0.15*outdoor+vec3(0.02))*0.6;
+  vec3 outc=toSrgb(col);
+  float f=smoothstep(uFogNear,uFogFar,vFog); f*=f*(3.0-2.0*f);
+  vec3 fogc=uFogColor+uHazeCol*pow(max(dot(-V,uSunDir),0.0),6.0)*0.4;
+  if(uUnder>0.5){ f=smoothstep(2.0,24.0,vFog); fogc=uFogColor; }
+  gl_FragColor=vec4(mix(outc,fogc,f),uOpacity);
+}`;
+function entityMat(tex, o) {
+  o = o || {};
+  const u = { map: { value: tex }, color: { value: new THREE.Color(1, 1, 1) }, uOpacity: { value: o.opacity === undefined ? 1 : o.opacity }, uEnv: { value: new THREE.Vector2(1, 0) } };
+  for (const k of ['uSunDir', 'uSunCol', 'uAmbCol', 'uTorch', 'uFogColor', 'uHazeCol', 'uFogNear', 'uFogFar', 'uUnder', 'uShadowMap', 'uShadowMatrix', 'uShadowOn', 'uShadowSize']) u[k] = U[k];
+  const m = new THREE.ShaderMaterial({ uniforms: u, vertexShader: ENT_VERT, fragmentShader: ENT_FRAG, transparent: !!o.transparent, depthWrite: !o.transparent, side: o.side || THREE.FrontSide });
+  m.color = u.color.value; m.userData.entity = true;
+  return m;
+}
+
 // ---------------------------------------------------------------- mesher
 const TILEPOS = {};
 for (const k in Atlas.tiles) { const i = Atlas.tiles[k]; TILEPOS[k] = [i % ATLAS_N, Math.floor(i / ATLAS_N)]; }
@@ -693,9 +744,17 @@ function tileAvgColor(name) {
   for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 100) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
   return (tileAvgColor.c[name] = n ? [r / n / 255, g / n / 255, b / n / 255] : [0.5, 0.5, 0.5]);
 }
+// the actual pixels of a tile, so breaking a block scatters chips of its own texture
+function tilePixels(name) {
+  if (!tilePixels.c) tilePixels.c = {};
+  if (tilePixels.c[name]) return tilePixels.c[name];
+  const [tx, ty] = TILEPOS[name] || [0, 0], out = [];
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const o = ((ty * 16 + y) * 256 + tx * 16 + x) * 4; if (Atlas.data[o + 3] > 127) out.push([Atlas.data[o] / 255, Atlas.data[o + 1] / 255, Atlas.data[o + 2] / 255]); }
+  return (tilePixels.c[name] = out.length ? out : [[0.5, 0.5, 0.5]]);
+}
 function blockBurst(x, y, z, id, n) {
-  const c = tileAvgColor(BLK[id].tex.side);
-  for (let i = 0; i < (n || 14); i++) emit(x + Math.random(), y + Math.random(), z + Math.random(), { vx: (Math.random() - 0.5) * 3, vy: Math.random() * 3, vz: (Math.random() - 0.5) * 3, grav: 14, life: 0.5 + Math.random() * 0.4, size: 0.07 + Math.random() * 0.05, r: c[0] * (0.8 + Math.random() * 0.3), g: c[1] * (0.8 + Math.random() * 0.3), b: c[2] * (0.8 + Math.random() * 0.3) });
+  const px = tilePixels(BLK[id].tex.side), tint = id === B.GRASS || id === B.LEAVES || id === B.LEAVES_DARK || id === B.TALLGRASS ? 0.85 : 1;
+  for (let i = 0; i < (n || 18); i++) { const c = px[Math.floor(Math.random() * px.length)]; emit(x + 0.15 + Math.random() * 0.7, y + 0.15 + Math.random() * 0.7, z + 0.15 + Math.random() * 0.7, { vx: (Math.random() - 0.5) * 3.2, vy: 1 + Math.random() * 2.6, vz: (Math.random() - 0.5) * 3.2, grav: 16, life: 0.45 + Math.random() * 0.5, size: 0.06 + Math.random() * 0.05, r: c[0] * tint, g: c[1] * tint, b: c[2] * tint, fade: false }); }
 }
 
 // ---------------------------------------------------------------- floating damage numbers
