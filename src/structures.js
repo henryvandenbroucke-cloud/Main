@@ -139,6 +139,7 @@ function house(cx, gy, cz, r, hw, hd, wh, st, kind, loot) {
   }
   P(0, 1, -hd, B.AIR); P(0, 2, -hd, B.AIR);
   P(-1, 3, -hd - 1, B.LAMP);
+  if (st.boxes) for (const sx of [-1, 1]) if (getB(...P.at(sx * (hw + 1), 1, -hd - 1)) === B.AIR) P(sx * (hw + 1), 1, -hd - 1, B.LEAVES); // hedges by the front corners
   P(0, 0, -hd - 1, B.PATH); P(0, -1, -hd - 1, B.DIRT);
   // roof
   if (st.roofType === 'flat') {
@@ -180,6 +181,7 @@ function house(cx, gy, cz, r, hw, hd, wh, st, kind, loot) {
       P(hw - 1, 1, -hd + 1, B.BARREL); P(-hw + 1, 1, -hd + 1, B.FENCE); P(-hw + 1, 2, -hd + 1, B.POT);
       for (let lx = -1; lx <= 1; lx++) for (let lz = -1; lz <= 0; lz++) if (Math.abs(lx) < hw - 1) P(lx, 0, lz, kind === 'desert' ? B.WOOL_BLUE : B.WOOL_RED);
       if (hw >= 3) P(hw - 1, 1, 0, B.BOOKSHELF);
+      if (hw >= 3 && kind !== 'desert') { P(-1, 1, 0, B.FENCE); P(-1, 2, 0, B.OAK_SLAB); P(-1, 1, -1, B.OAK_STAIRS, 0); } // a little table and a chair
     }
     if (kind === 'library') {
       for (let lz = -hd + 1; lz <= hd - 1; lz++) for (let ly = 1; ly <= 3; ly++) { P(-hw + 1, ly, lz, B.BOOKSHELF); P(hw - 1, ly, lz, B.BOOKSHELF); }
@@ -260,6 +262,7 @@ function villageWheatmere(s) {
   waystone(cx + 5, gy, cz - 5);
   s.spawn = [cx + 5.5, gy + 1, cz - 3.5];
   lampPost(cx - 6, gy, cz - 6); lampPost(cx + 6, gy, cz + 6); lampPost(cx - 6, gy, cz + 6); lampPost(cx + 6, gy, cz - 6);
+  for (let k = -1; k <= 1; k++) { setB(cx - 5, gy + 1, cz + k, B.OAK_STAIRS, 3); setB(cx + k, gy + 1, cz + 5, B.OAK_STAIRS, 2); } // benches facing the fountain
   stall(cx - 9, gy, cz - 1, 1, B.WOOL_BLUE, B.WOOL_WHITE); stall(cx + 9, gy, cz + 1, 3, B.WOOL_RED, B.WOOL_WHITE); stall(cx + 1, gy, cz + 9, 2, B.WOOL_YELLOW, B.WOOL_RED);
   const homes = [[-14, -12, 3, 3], [0, -16, 3, 3], [14, -12, 3, 2], [-17, 4, 2, 3], [-12, 16, 3, 3], [16, 14, 2, 3]];
   for (const [ox, oz, hw, hd] of homes) {

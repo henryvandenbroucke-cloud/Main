@@ -2,7 +2,7 @@
 /* Game core: player, input, combat, survival, saving, main loop. */
 const SAVE_KEY = 'blockhollow_save_v3', SET_KEY = 'blockhollow_settings';
 const SAVED_SETTINGS = (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || null; } catch (e) { return null; } })();
-const Settings = Object.assign({ sens: 1, fov: 72, view: 1, hunger: true, cine: true, fps: false, shaders: true, shadows: true, preset: 'high', scale: 1, auto: true, particles: 1, bloom: true, vMaster: 0.8, vMusic: 0.6, vSfx: 0.8, target: 0 }, (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || {}; } catch (e) { return {}; } })());
+const Settings = Object.assign({ autoJump: false, sens: 1, fov: 72, view: 1, hunger: true, cine: true, fps: false, shaders: true, shadows: true, preset: 'high', scale: 1, auto: true, particles: 1, bloom: true, vMaster: 0.8, vMusic: 0.6, vSfx: 0.8, target: 0 }, (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || {}; } catch (e) { return {}; } })());
 function saveSettings() { try { localStorage.setItem(SET_KEY, JSON.stringify(Settings)); } catch (e) { } }
 
 const Game = { state: 'title', ui: null, sel: 0, follow: null, cine: null, peaceful: false, day: 0, time: 0.32, seedName: '', zone: -1, zoneT: 0, halls: null, mods: new Map(), spawn: [128, 40, 128], save: null };
@@ -316,11 +316,11 @@ function refreshTitle() {
 }
 function openSettings() {
   $('setSens').value = Settings.sens; $('setFov').value = Settings.fov; $('setView').value = Settings.view;
-  $('setHunger').checked = Settings.hunger; $('setShaders').checked = Settings.shaders; $('setShadows').checked = Settings.shadows; $('setPreset').value = Settings.preset; $('setScale').value = Settings.scale; $('setAuto').checked = Settings.auto; $('setTarget').value = Settings.target || 0; $('setParticles').value = Settings.particles; $('setBloom').checked = Settings.bloom; $('setVMaster').value = Settings.vMaster; $('setVMusic').value = Settings.vMusic; $('setVSfx').value = Settings.vSfx; refreshSystemInfo(); $('setCine').checked = Settings.cine; $('setFps').checked = Settings.fps;
+  $('setHunger').checked = Settings.hunger; $('setShaders').checked = Settings.shaders; $('setShadows').checked = Settings.shadows; $('setPreset').value = Settings.preset; $('setScale').value = Settings.scale; $('setAuto').checked = Settings.auto; $('setTarget').value = Settings.target || 0; $('setParticles').value = Settings.particles; $('setBloom').checked = Settings.bloom; $('setVMaster').value = Settings.vMaster; $('setVMusic').value = Settings.vMusic; $('setVSfx').value = Settings.vSfx; refreshSystemInfo(); $('setCine').checked = Settings.cine; $('setFps').checked = Settings.fps; $('setAutoJump').checked = Settings.autoJump;
   refreshOptLabels();
   $('settings').classList.remove('hidden');
 }
-for (const [id, k, num] of [['setSens', 'sens', 1], ['setFov', 'fov', 1], ['setView', 'view', 1], ['setHunger', 'hunger', 0], ['setCine', 'cine', 0], ['setFps', 'fps', 0], ['setShaders', 'shaders', 0], ['setShadows', 'shadows', 0], ['setScale', 'scale', 1], ['setAuto', 'auto', 0], ['setParticles', 'particles', 1], ['setBloom', 'bloom', 0], ['setVMaster', 'vMaster', 1], ['setVMusic', 'vMusic', 1], ['setVSfx', 'vSfx', 1]]) {
+for (const [id, k, num] of [['setSens', 'sens', 1], ['setFov', 'fov', 1], ['setView', 'view', 1], ['setHunger', 'hunger', 0], ['setCine', 'cine', 0], ['setFps', 'fps', 0], ['setShaders', 'shaders', 0], ['setShadows', 'shadows', 0], ['setScale', 'scale', 1], ['setAuto', 'auto', 0], ['setAutoJump', 'autoJump', 0], ['setParticles', 'particles', 1], ['setBloom', 'bloom', 0], ['setVMaster', 'vMaster', 1], ['setVMusic', 'vMusic', 1], ['setVSfx', 'vSfx', 1]]) {
   $(id).addEventListener('input', e => { Settings[k] = num ? +e.target.value : e.target.checked; applySettings(); });
 }
 $('setTarget').addEventListener('change', e => { Settings.target = +e.target.value; saveSettings(); refreshOptLabels(); });
@@ -898,7 +898,13 @@ function updatePlayer(dt) {
   }
   else {
     P.vy -= 28 * dt;
-    if (K.Space && P.onGround && !Game.ui && P.alive) {
+    // auto-jump (optional, like the original): walking into a one-block step hops onto it
+    let auto = false;
+    if (Settings.autoJump && P.onGround && f > 0 && !P.sneak && !Game.ui && P.alive && P.wallHit) {
+      const ax = P.x + fx * (P.hw + 0.35), az = P.z + fz * (P.hw + 0.35);
+      if (collides(ax, P.y + 0.05, az, 0.1, 0.9) && !collides(ax, P.y + 1.05, az, 0.1, P.h) && !collides(P.x, P.y + 1.05, P.z, P.hw, P.h)) auto = true;
+    }
+    if ((K.Space || auto) && P.onGround && !Game.ui && P.alive) {
       P.vy = 8.6 + 2.6 * Effects.lvl('leap');
       if (P.sprinting) { P.vx += fx * 1.6; P.vz += fz * 1.6; } // sprint-jump boost
     }

@@ -4,8 +4,42 @@ A voxel fantasy RPG that runs in the browser. It is plain JavaScript on Three.js
 All textures, models, creatures, structures, names and lore are original and generated in code.
 
 ## Run it
-Open `index.html` in a browser, or serve the folder (`python3 -m http.server`) and visit http://localhost:8000.
-Click **Play → Create New World**, enter a world name (it doubles as the seed), pick **Survival** or **Creative**, and click to begin. Progress autosaves to the browser; the save card under **Play** resumes it.
+Open `index.html` (or the single-file `Blockhollow.html`) in a browser, or serve the folder (`python3 -m http.server`) and visit http://localhost:8000.
+Click **Play → Create New World**, enter a world name (it doubles as the seed), pick **Survival**, **Creative** or **Parkour**, and click to begin. Progress autosaves to the browser; the save card under **Play** resumes it.
+
+## What's new in the revamp (v18)
+The core game is unchanged: the world, structures, quests, items, creatures and bosses all work as before. What changed is how it looks and feels. The plan and the design critique behind it are in `REVAMP_PLAN.md`.
+- **Blocks:** every texture is repainted as crisp 16×16 pixel art in the classic style, shown with sharp pixels. Each pixel has a tiny bevel that catches the light. Grass and leaves change colour by biome.
+- **Shaders, in the style of popular shader packs:**
+  - soft rotated-Poisson sun shadows;
+  - god rays that only pass where the sky is visible, so leaves, buildings and clouds cut them into beams;
+  - ACES filmic colour;
+  - plants that bend in gusts of wind and leaves that sway;
+  - clearer water;
+  - warmer torch light and moonlit nights.
+- **Sky:**
+  - clear blue days, orange-and-violet sunsets and navy nights;
+  - a square pixel sun, a moon with 8 phases and twinkling stars;
+  - **blocky 3D-shaded clouds** with silver linings that cast drifting shadows on the land.
+- **The Knelt Sovereign is a real king now:**
+  - steel plate armour, a red cape with a gold hem pooling behind him, an ermine mantle, a long white beard and a jewelled crown;
+  - both hands rest on a planted greatsword;
+  - he kneels on a stepped plinth with braziers, banners, hedges and flowers.
+- **Stairs and slabs:** ten materials, with shape-accurate collision and a 0.6-block step-up. Village roofs now slope up to a ridge, with gable windows and porch roofs. Wheatmere has benches, front hedges and little tables and chairs.
+- **Creatures** share the world's lighting: sun with soft shadows, sky light, torch light, fog and a rim light. They bank into turns, lean into speed changes, glance around when idle, squash on landing, flinch on hits and tip over with a bounce when they die.
+- **Bosses:**
+  - strikes accelerate into the impact;
+  - wind-ups hold with a tremble;
+  - impacts kick up dust;
+  - shockwaves draw glowing expanding rings;
+  - spike attacks show pulsing warning circles.
+- **First-person view:** an empty hand shows your arm, while held items and blocks sit small in the lower right. There's a classic swing arc, an equip dip when you switch items, walking bob, hand sway, and break particles made from the block's own pixels.
+- **Interface:**
+  - one pixel font throughout;
+  - grey bevelled windows and slots, stone buttons and the classic tooltip;
+  - a centred title screen with a splash line;
+  - Options in tabs, with sliders that show their value;
+  - an optional **Auto-Jump**.
 
 ## Features
 - **Game modes:**
@@ -69,6 +103,6 @@ Creative: double-tap Space to fly, Space up, Shift down
 ## Layout
 `src/textures.js` texture atlas · `blocks.js` block registry · `world.js` terrain + lighting · `items.js` items, recipes, loot, icons ·
 `structures.js` villages/landmarks/dungeons · `models.js` creature skins, atlases, rigs and models · `render.js` mesher, shaders, sky, particles · `entities.js` creature AI, animation, bosses, spawning, projectiles ·
-`postfx.js` shadows + post-processing · `ui.js` HUD, menus, creative inventory · `quests.js` quest chain and power-ups · `audio.js` synthesised sound · `main.js` player, combat, survival, saving, main loop. `lib/three.min.js` is Three.js r147 (MIT).
+`postfx.js` shadows, god rays + post-processing · `ui.js` HUD, menus, creative inventory · `quests.js` quest chain and power-ups · `audio.js` synthesised sound · `main.js` player, combat, survival, saving, main loop. `lib/three.min.js` is Three.js r147 (MIT). The interface font is Pixelify Sans (SIL Open Font License 1.1, `lib/fonts/PixelifySans-OFL.txt`), embedded in `src/style.css`.
 
 Run `python3 tools/build_single.py` to rebuild the one-file `Blockhollow.html`.

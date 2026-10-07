@@ -1,5 +1,7 @@
 # Blockhollow revamp plan
 
+**Status:** all six phases are built and committed. Below is the plan as it was written; the README's "What's new" section lists what changed.
+
 The goal is to make Blockhollow look and feel like Minecraft with a top-tier shader pack (BSL or Complementary style), while keeping everything the game already has.
 
 ## What stays the same
