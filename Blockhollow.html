@@ -3820,9 +3820,9 @@ function tileAvgColor(name) {
   if (!tileAvgColor.c) tileAvgColor.c = {};
   if (tileAvgColor.c[name]) return tileAvgColor.c[name];
   const [tx, ty] = TILEPOS[name] || [0, 0];
-  const d = Atlas.canvas.getContext('2d').getImageData(tx * 16, ty * 16, 16, 16).data;
+  const d = Atlas.data, S = Atlas.canvas.width; // read the pixels directly (no slow canvas readback)
   let r = 0, g = 0, b = 0, n = 0;
-  for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 100) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const i = ((ty * 16 + y) * S + tx * 16 + x) * 4; if (d[i + 3] > 100) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; } }
   return (tileAvgColor.c[name] = n ? [r / n / 255, g / n / 255, b / n / 255] : [0.5, 0.5, 0.5]);
 }
 // the actual pixels of a tile, so breaking a block scatters chips of its own texture
@@ -5011,8 +5011,8 @@ function updateDrops(dt, p) {
     if (!d.fits && d.t > 0.5 && dist < 1.4) toastOnce('invfull', 'Your inventory is full.');
     if (d.t > 0.5 && dist < 2.6 && d.fits) { d.vx += dx / dist * 40 * dt; d.vy += dy / dist * 40 * dt; d.vz += dz / dist * 40 * dt; d.x += d.vx * dt; d.y += d.vy * dt; d.z += d.vz * dt; d.vx *= 0.9; d.vy *= 0.9; d.vz *= 0.9; }
     else { d.vy -= 18 * dt; d.vx *= 0.96; d.vz *= 0.96; moveBody(d, dt); }
-    if (d.t > 0.5 && dist < 0.8 && d.fits) { const left = d.ench ? giveStack({ id: d.id, n: d.n, ench: d.ench }) : giveItem(d.id, d.n); if (left <= 0) { scene.remove(d.mesh); Drops.splice(i, 1); continue; } d.n = left; }
-    if (d.t > 300) { scene.remove(d.mesh); Drops.splice(i, 1); continue; }
+    if (d.t > 0.5 && dist < 0.8 && d.fits) { const left = d.ench ? giveStack({ id: d.id, n: d.n, ench: d.ench }) : giveItem(d.id, d.n); if (left <= 0) { scene.remove(d.mesh); d.mesh.material.dispose(); Drops.splice(i, 1); continue; } d.n = left; }
+    if (d.t > 300) { scene.remove(d.mesh); d.mesh.material.dispose(); Drops.splice(i, 1); continue; }
     d.mesh.position.set(d.x, d.y + 0.25 + Math.sin(d.t * 3) * 0.06, d.z); d.mesh.rotation.y = d.t * 1.5;
     const L = lightAt(d.x, d.y + 0.3, d.z), lv = Math.max(L[0] / 15 * U.uDay.value, L[1] / 15) * 0.85 + 0.15;
     d.mesh.material.color.setScalar(lv);
@@ -5401,7 +5401,7 @@ function updateMobs(dt, P) {
       if (def.hop) {
         m.hopT = (m.hopT || 0) - dt;
         if (m.onGround) { m.vx *= Math.max(0, 1 - dt * 12); m.vz *= Math.max(0, 1 - dt * 12); if (m.landed === false) { m.squash = 1; m.landed = true; } }
-        if (m.onGround && (tx || tz) && speed > 0 && m.hopT <= 0) { m.vy = m.A.hop || 5; m.vx = tx * speed * 1.4; m.vz = tz * speed * 1.4; m.hopT = (chase ? 0.25 : 0.6) + Math.random() * 0.6; m.landed = false; if (def.split) Sound.voice('squish', dist, 0.4); }
+        if (m.onGround && (tx || tz) && speed > 0 && m.hopT <= 0) { m.vy = m.A.hop || 5; m.vx = tx * speed * 1.4; m.vz = tz * speed * 1.4; m.hopT = (chase ? 0.25 : 0.6) + Math.random() * 0.6; m.landed = false; if (def.split) Sound.mob(m, 'say', 0.5); }
       } else if (def.swim) {
         if (inWater) {
           m.wt -= dt; if (m.wt <= 0 || m.hitX || m.hitZ) { m.wt = 1.5 + Math.random() * 3; const a = Math.random() * 6.28; m.wx = Math.cos(a); m.wz = Math.sin(a); m.wy = (Math.random() - 0.5) * 0.8; }
@@ -7839,7 +7839,7 @@ async function createWorld(seedName, save, mode, showcase) {
   await nextFrame(); if (stale()) return false;
   // reset everything
   for (const m of Mobs.slice()) removeMob(m);
-  for (const d of Drops) scene.remove(d.mesh); Drops.length = 0;
+  for (const d of Drops) { scene.remove(d.mesh); d.mesh.material.dispose(); } Drops.length = 0;
   for (const p of Projectiles) scene.remove(p.mesh); Projectiles.length = 0;
   for (const w of windmillMeshes) scene.remove(w.g); windmillMeshes.length = 0;
   for (let k = 0; k < chunkMeshes.length; k++) if (chunkMeshes[k]) { for (const m of chunkMeshes[k]) if (m) { scene.remove(m); m.geometry.dispose(); } chunkMeshes[k] = null; }
@@ -8618,7 +8618,7 @@ function updatePlayer(dt) {
   P.wallHit = P.hitX || P.hitZ;
   P.inWater = inWater;
   if (P.flying && P.onGround && vyBefore < -0.5) P.flying = false; // land to stop flying
-  if (P.onGround && !wasGround && vyBefore < -15 - 4 * Effects.lvl('leap') && !inWater && !climbing && !creative && !hasRelic('fall') && !Run.on) hurtPlayer((-vyBefore - 15 - 4 * Effects.lvl('leap')) * 0.9 * (1 - Math.min(0.8, 0.12 * enchOf(Inv.armor[3], 'feather'))), 0, 0, 'fall');
+  if (P.onGround && !wasGround && vyBefore < -15 - 4 * Effects.lvl('leap') && !inWater && !climbing && !creative && !hasRelic('fall') && !Run.on) hurtPlayer((-vyBefore - 15 - 4 * Effects.lvl('leap')) * 0.9 * (1 - Math.min(0.8, 0.12 * enchOf(Inv.armor[3], 'feather'))), null, 0, 0, 'fall');
   if (inWater && !wasWater && vyBefore < -6) { Sound.splash(); burst(P.x, P.y + 0.8, P.z, 18, { life: 0.7, size: 0.08, r: 0.7, g: 0.85, b: 1, grav: 12, spread: 3, up: 4 }); }
   if (P.y < -10) { if (creative) { P.y = surfaceY(Math.floor(P.x), Math.floor(P.z)) + 2; P.vy = 0; } else { P.hp = 0; die('void'); } }
   // walking: quest progress + footsteps
@@ -8657,7 +8657,7 @@ function updateWorldEvents(dt) {
   }
   for (const r of BossRooms) if (!r.done && !ActiveBoss && Math.hypot(r.x - P.x, r.z - P.z) < r.r - 3 && Math.abs(P.y - r.y) < 5) startBoss(r);
   if (ActiveBoss && (Math.hypot(ActiveBoss.room.x - P.x, ActiveBoss.room.z - P.z) > ActiveBoss.room.r + 25 || Math.abs(P.y - ActiveBoss.room.y) > 14)) { removeMob(ActiveBoss); ActiveBoss = null; toast('You fled. The guardian returns to its slumber.', 3000); }
-  for (const p of Portals) if (Math.abs(P.x - (p.x + 0.5)) < 1.6 && Math.abs(P.z - (p.z + 0.5)) < 0.9 && Math.abs(P.y - p.y) < 2) { P.x = p.to[0]; P.y = surfaceY(Math.floor(p.to[0]), Math.floor(p.to[2])) + 1.2; P.z = p.to[2]; P.vy = 0; bossBanner('Back to the surface', 'The night air is cool'); burst(P.x, P.y + 1, P.z, 40, { life: 1, size: 0.12, r: 0.7, g: 0.95, b: 1, glow: true, spread: 4, up: 4 }); }
+  for (const p of Portals) if (Math.abs(P.x - (p.x + 0.5)) < 1.6 && Math.abs(P.z - (p.z + 0.5)) < 0.9 && Math.abs(P.y - p.y) < 2) { P.x = p.to[0]; P.y = surfaceY(Math.floor(p.to[0]), Math.floor(p.to[2])) + 1.2; P.z = p.to[2]; P.vy = 0; Sound.portal(); bossBanner('Back to the surface', 'The night air is cool'); burst(P.x, P.y + 1, P.z, 40, { life: 1, size: 0.12, r: 0.7, g: 0.95, b: 1, glow: true, spread: 4, up: 4 }); }
   ambientEmitters(dt, P);
 
   // biome ambience: fireflies, spores, ash, dust
@@ -9062,7 +9062,7 @@ async function startTitleTour() {
 }
 function beginTour() {
   for (const m of Mobs.slice()) removeMob(m);
-  for (const d of Drops) scene.remove(d.mesh); Drops.length = 0;
+  for (const d of Drops) { scene.remove(d.mesh); d.mesh.material.dispose(); } Drops.length = 0;
   for (const p of Projectiles) scene.remove(p.mesh); Projectiles.length = 0;
   // alternate biomes so consecutive shots look different
   const byBiome = {};

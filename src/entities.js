@@ -141,8 +141,8 @@ function updateDrops(dt, p) {
     if (!d.fits && d.t > 0.5 && dist < 1.4) toastOnce('invfull', 'Your inventory is full.');
     if (d.t > 0.5 && dist < 2.6 && d.fits) { d.vx += dx / dist * 40 * dt; d.vy += dy / dist * 40 * dt; d.vz += dz / dist * 40 * dt; d.x += d.vx * dt; d.y += d.vy * dt; d.z += d.vz * dt; d.vx *= 0.9; d.vy *= 0.9; d.vz *= 0.9; }
     else { d.vy -= 18 * dt; d.vx *= 0.96; d.vz *= 0.96; moveBody(d, dt); }
-    if (d.t > 0.5 && dist < 0.8 && d.fits) { const left = d.ench ? giveStack({ id: d.id, n: d.n, ench: d.ench }) : giveItem(d.id, d.n); if (left <= 0) { scene.remove(d.mesh); Drops.splice(i, 1); continue; } d.n = left; }
-    if (d.t > 300) { scene.remove(d.mesh); Drops.splice(i, 1); continue; }
+    if (d.t > 0.5 && dist < 0.8 && d.fits) { const left = d.ench ? giveStack({ id: d.id, n: d.n, ench: d.ench }) : giveItem(d.id, d.n); if (left <= 0) { scene.remove(d.mesh); d.mesh.material.dispose(); Drops.splice(i, 1); continue; } d.n = left; }
+    if (d.t > 300) { scene.remove(d.mesh); d.mesh.material.dispose(); Drops.splice(i, 1); continue; }
     d.mesh.position.set(d.x, d.y + 0.25 + Math.sin(d.t * 3) * 0.06, d.z); d.mesh.rotation.y = d.t * 1.5;
     const L = lightAt(d.x, d.y + 0.3, d.z), lv = Math.max(L[0] / 15 * U.uDay.value, L[1] / 15) * 0.85 + 0.15;
     d.mesh.material.color.setScalar(lv);
@@ -531,7 +531,7 @@ function updateMobs(dt, P) {
       if (def.hop) {
         m.hopT = (m.hopT || 0) - dt;
         if (m.onGround) { m.vx *= Math.max(0, 1 - dt * 12); m.vz *= Math.max(0, 1 - dt * 12); if (m.landed === false) { m.squash = 1; m.landed = true; } }
-        if (m.onGround && (tx || tz) && speed > 0 && m.hopT <= 0) { m.vy = m.A.hop || 5; m.vx = tx * speed * 1.4; m.vz = tz * speed * 1.4; m.hopT = (chase ? 0.25 : 0.6) + Math.random() * 0.6; m.landed = false; if (def.split) Sound.voice('squish', dist, 0.4); }
+        if (m.onGround && (tx || tz) && speed > 0 && m.hopT <= 0) { m.vy = m.A.hop || 5; m.vx = tx * speed * 1.4; m.vz = tz * speed * 1.4; m.hopT = (chase ? 0.25 : 0.6) + Math.random() * 0.6; m.landed = false; if (def.split) Sound.mob(m, 'say', 0.5); }
       } else if (def.swim) {
         if (inWater) {
           m.wt -= dt; if (m.wt <= 0 || m.hitX || m.hitZ) { m.wt = 1.5 + Math.random() * 3; const a = Math.random() * 6.28; m.wx = Math.cos(a); m.wz = Math.sin(a); m.wy = (Math.random() - 0.5) * 0.8; }

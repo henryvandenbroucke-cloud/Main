@@ -50,6 +50,14 @@ The core game is unchanged: the world, structures, quests, items, creatures and 
 - **Sound and Creative:**
   - every sound is now a real recording instead of a synthesized beep (see Features below);
   - in Creative, a click breaks the block you're looking at instantly, and holding the button keeps breaking at a steady pace.
+- **Bug fixes from a full review:**
+  - the Mirewarden's reward chest (with the Deepseal Key) could vanish after a reload or a long walk away, blocking the story; boss reward chests are now saved;
+  - quests you already finished out of order (finding the Drowned Halls, beating a boss, breaking the Seal) now count instead of stalling the quest chain;
+  - enchanted items keep their enchantments when dropped, picked up, placed with a right click or left on the cursor when saving;
+  - a new world no longer inherits creative flight, poison or stuck keys; Alt+Tab no longer leaves you walking;
+  - saving while dead no longer reloads you alive with no hearts; fall deaths are named correctly;
+  - the Shattered Oath's sword no longer gets cut off at the top of the world;
+  - the hostile-mobs setting is saved with the world, and dropped items no longer slowly leak memory.
 
 ## Features
 - **Game modes:**

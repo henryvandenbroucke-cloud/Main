@@ -165,7 +165,7 @@ async function createWorld(seedName, save, mode, showcase) {
   await nextFrame(); if (stale()) return false;
   // reset everything
   for (const m of Mobs.slice()) removeMob(m);
-  for (const d of Drops) scene.remove(d.mesh); Drops.length = 0;
+  for (const d of Drops) { scene.remove(d.mesh); d.mesh.material.dispose(); } Drops.length = 0;
   for (const p of Projectiles) scene.remove(p.mesh); Projectiles.length = 0;
   for (const w of windmillMeshes) scene.remove(w.g); windmillMeshes.length = 0;
   for (let k = 0; k < chunkMeshes.length; k++) if (chunkMeshes[k]) { for (const m of chunkMeshes[k]) if (m) { scene.remove(m); m.geometry.dispose(); } chunkMeshes[k] = null; }
@@ -944,7 +944,7 @@ function updatePlayer(dt) {
   P.wallHit = P.hitX || P.hitZ;
   P.inWater = inWater;
   if (P.flying && P.onGround && vyBefore < -0.5) P.flying = false; // land to stop flying
-  if (P.onGround && !wasGround && vyBefore < -15 - 4 * Effects.lvl('leap') && !inWater && !climbing && !creative && !hasRelic('fall') && !Run.on) hurtPlayer((-vyBefore - 15 - 4 * Effects.lvl('leap')) * 0.9 * (1 - Math.min(0.8, 0.12 * enchOf(Inv.armor[3], 'feather'))), 0, 0, 'fall');
+  if (P.onGround && !wasGround && vyBefore < -15 - 4 * Effects.lvl('leap') && !inWater && !climbing && !creative && !hasRelic('fall') && !Run.on) hurtPlayer((-vyBefore - 15 - 4 * Effects.lvl('leap')) * 0.9 * (1 - Math.min(0.8, 0.12 * enchOf(Inv.armor[3], 'feather'))), null, 0, 0, 'fall');
   if (inWater && !wasWater && vyBefore < -6) { Sound.splash(); burst(P.x, P.y + 0.8, P.z, 18, { life: 0.7, size: 0.08, r: 0.7, g: 0.85, b: 1, grav: 12, spread: 3, up: 4 }); }
   if (P.y < -10) { if (creative) { P.y = surfaceY(Math.floor(P.x), Math.floor(P.z)) + 2; P.vy = 0; } else { P.hp = 0; die('void'); } }
   // walking: quest progress + footsteps
@@ -983,7 +983,7 @@ function updateWorldEvents(dt) {
   }
   for (const r of BossRooms) if (!r.done && !ActiveBoss && Math.hypot(r.x - P.x, r.z - P.z) < r.r - 3 && Math.abs(P.y - r.y) < 5) startBoss(r);
   if (ActiveBoss && (Math.hypot(ActiveBoss.room.x - P.x, ActiveBoss.room.z - P.z) > ActiveBoss.room.r + 25 || Math.abs(P.y - ActiveBoss.room.y) > 14)) { removeMob(ActiveBoss); ActiveBoss = null; toast('You fled. The guardian returns to its slumber.', 3000); }
-  for (const p of Portals) if (Math.abs(P.x - (p.x + 0.5)) < 1.6 && Math.abs(P.z - (p.z + 0.5)) < 0.9 && Math.abs(P.y - p.y) < 2) { P.x = p.to[0]; P.y = surfaceY(Math.floor(p.to[0]), Math.floor(p.to[2])) + 1.2; P.z = p.to[2]; P.vy = 0; bossBanner('Back to the surface', 'The night air is cool'); burst(P.x, P.y + 1, P.z, 40, { life: 1, size: 0.12, r: 0.7, g: 0.95, b: 1, glow: true, spread: 4, up: 4 }); }
+  for (const p of Portals) if (Math.abs(P.x - (p.x + 0.5)) < 1.6 && Math.abs(P.z - (p.z + 0.5)) < 0.9 && Math.abs(P.y - p.y) < 2) { P.x = p.to[0]; P.y = surfaceY(Math.floor(p.to[0]), Math.floor(p.to[2])) + 1.2; P.z = p.to[2]; P.vy = 0; Sound.portal(); bossBanner('Back to the surface', 'The night air is cool'); burst(P.x, P.y + 1, P.z, 40, { life: 1, size: 0.12, r: 0.7, g: 0.95, b: 1, glow: true, spread: 4, up: 4 }); }
   ambientEmitters(dt, P);
 
   // biome ambience: fireflies, spores, ash, dust
@@ -1388,7 +1388,7 @@ async function startTitleTour() {
 }
 function beginTour() {
   for (const m of Mobs.slice()) removeMob(m);
-  for (const d of Drops) scene.remove(d.mesh); Drops.length = 0;
+  for (const d of Drops) { scene.remove(d.mesh); d.mesh.material.dispose(); } Drops.length = 0;
   for (const p of Projectiles) scene.remove(p.mesh); Projectiles.length = 0;
   // alternate biomes so consecutive shots look different
   const byBiome = {};

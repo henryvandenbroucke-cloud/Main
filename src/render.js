@@ -739,9 +739,9 @@ function tileAvgColor(name) {
   if (!tileAvgColor.c) tileAvgColor.c = {};
   if (tileAvgColor.c[name]) return tileAvgColor.c[name];
   const [tx, ty] = TILEPOS[name] || [0, 0];
-  const d = Atlas.canvas.getContext('2d').getImageData(tx * 16, ty * 16, 16, 16).data;
+  const d = Atlas.data, S = Atlas.canvas.width; // read the pixels directly (no slow canvas readback)
   let r = 0, g = 0, b = 0, n = 0;
-  for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 100) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const i = ((ty * 16 + y) * S + tx * 16 + x) * 4; if (d[i + 3] > 100) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; } }
   return (tileAvgColor.c[name] = n ? [r / n / 255, g / n / 255, b / n / 255] : [0.5, 0.5, 0.5]);
 }
 // the actual pixels of a tile, so breaking a block scatters chips of its own texture
