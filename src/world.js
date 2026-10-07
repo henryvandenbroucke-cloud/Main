@@ -354,6 +354,21 @@ function collides(px, py, pz, hw, h) {
   }
   return false;
 }
+// the highest solid surface under a body's footprint between its old and new feet height (null if none)
+function landingTop(px, oldY, ny, pz, hw) {
+  const x0 = Math.floor(px - hw), x1 = Math.floor(px + hw), z0 = Math.floor(pz - hw), z1 = Math.floor(pz + hw);
+  let best = null;
+  for (let y = Math.floor(ny); y <= Math.floor(oldY); y++) for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
+    if (!solidAt(x, y, z)) continue;
+    const id = y >= 0 && y < H && resident(x, z) ? wb[IDX(x, y, z)] : 0, sh = SHAPE[id];
+    if (!sh) { if (y + 1 <= oldY + 1e-6 && (best === null || y + 1 > best)) best = y + 1; continue; }
+    for (const bx of SHAPE_BOXES[sh][wm[IDX(x, y, z)] & 7]) {
+      if (!(px + hw > x + bx[0] && px - hw < x + bx[3] && pz + hw > z + bx[2] && pz - hw < z + bx[5])) continue;
+      const t = y + bx[4]; if (t <= oldY + 1e-6 && (best === null || t > best)) best = t;
+    }
+  }
+  return best;
+}
 // the smallest lift (up to `max`) that frees a body: used to walk up stairs and slabs and to land on them
 function freeLift(px, py, pz, hw, h, max) { for (let d = 0.0625; d <= max + 1e-6; d += 0.0625) if (!collides(px, py + d, pz, hw, h)) return d; return -1; }
 function touching(px, py, pz, hw, h, table) {
@@ -378,7 +393,8 @@ function moveBody(b, dt) {
     const ny = b.y + b.vy * sdt;
     if (!collides(b.x, ny, b.z, b.hw, b.h)) b.y = ny;
     else {
-      if (b.vy < 0) { b.onGround = true; const up = freeLift(b.x, ny, b.z, b.hw, b.h, 1); if (up >= 0) b.y = ny + up; }
+      // landing: rest exactly on the highest surface under the feet (a block top, a slab or a stair step)
+      if (b.vy < 0) { b.onGround = true; const top = landingTop(b.x, b.y, ny, b.z, b.hw); if (top !== null && !collides(b.x, top, b.z, b.hw, b.h)) b.y = top; else { const up = freeLift(b.x, ny, b.z, b.hw, b.h, 1); if (up >= 0) b.y = ny + up; } }
       b.vy = 0;
     }
   }
