@@ -6,8 +6,8 @@
 const TILE = 16, ATLAS_N = 16;
 const Atlas = { canvas: null, data: null, tint: null, tiles: {}, count: 0 };
 // biome colours (Meadowbrook, Ancient Forest, Mystic Marsh, Sunscorch Dunes, Crystal Highlands, Ashlands)
-const BIOME_GRASS = [0x8fbd59, 0x6fb54f, 0x6a7a3c, 0xbcb35a, 0x7fb28f, 0x8f8452];
-const BIOME_FOLIAGE = [0x6fa82e, 0x4f9a2a, 0x5f7036, 0xa8a034, 0x5c9c74, 0x8c7a46];
+const BIOME_GRASS = [0x7fb956, 0x6fb54f, 0x6a7a3c, 0xbcb35a, 0x7fb28f, 0x8f8452];
+const BIOME_FOLIAGE = [0x67a330, 0x4f9a2a, 0x5f7036, 0xa8a034, 0x5c9c74, 0x8c7a46];
 
 (function buildAtlas() {
   const S = TILE * ATLAS_N;
@@ -173,7 +173,7 @@ const BIOME_FOLIAGE = [0x6fa82e, 0x4f9a2a, 0x5f7036, 0xa8a034, 0x5c9c74, 0x8c7a4
     let t = c.n(x, y, 1) * 0.6 + c.v(x, y, 4, 1, 2) * 0.4; if ((y & 3) === 3) t *= 0.35; if ((y & 3) === 0) t = t * 0.7 + 0.3;
     c.px(x, y, pick([0x2e1c10, 0x3c2615, 0x4a301b, 0x563823, 0x643f27], t));
   }));
-  tile('path', c => c.each((x, y) => c.px(x, y, pick([0x6f5530, 0x7f6439, 0x8c6f3f, 0x947847, 0x9f844e, 0xab9058], c.n(x, y, 1) * 0.65 + c.v(x, y, 2, 2, 3) * 0.35))));
+  tile('path', c => c.each((x, y) => c.px(x, y, pick([0x5e4a30, 0x6c5638, 0x78603e, 0x826a45, 0x8c744d, 0x998256], c.n(x, y, 1) * 0.65 + c.v(x, y, 2, 2, 3) * 0.35))));
   tile('mud', c => c.each((x, y) => c.px(x, y, pick([0x2a2626, 0x332f2e, 0x3c3836, 0x46413e, 0x524c47], c.n(x, y, 1) * 0.6 + c.v(x, y, 3, 3, 2) * 0.4))));
   const MARSH = [0x3f4a22, 0x4a572a, 0x566432, 0x617139, 0x6c7c42];
   tile('swamp_grass', c => c.each((x, y) => c.px(x, y, pick(MARSH, c.n(x, y, 1) * 0.6 + c.v(x, y, 2, 2, 1) * 0.4))));

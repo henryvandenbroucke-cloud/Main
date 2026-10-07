@@ -78,17 +78,31 @@ const U = {
   uReflTex: { value: null }, uReflMat: { value: new THREE.Matrix4() }, uReflOn: { value: 0 }, uReflH: { value: 22.88 }, uClipY: { value: -1000 },
   uSkyTop: { value: new THREE.Color(0x4a8ad8) }, uSkyHor: { value: new THREE.Color(0xbfd8ee) },
   uShadowMap: { value: null }, uShadowMatrix: { value: new THREE.Matrix4() }, uShadowOn: { value: 0 }, uShadowSize: { value: 2048 },
+  uCloudMap: { value: null }, uCloud: { value: new THREE.Vector4(0, 0, 384, 96) }, uCloudOn: { value: 1 },
 };
 const VERT = `
 attribute vec3 aTile; attribute vec2 aLocal; attribute vec4 aLight; attribute vec3 aTint;
 varying vec3 vTile; varying vec2 vLocal; varying vec4 vLight; varying float vFog; varying vec3 vWorld; varying vec3 vTint;
-uniform float uTime;
+uniform float uTime; uniform float uPlant;
 void main(){
   vTile=aTile; vLocal=aLocal; vLight=aLight; vTint=aTint;
   vec3 p=position;
   float anim=mod(aTile.z,10.0);
+  vec4 w0=modelMatrix*vec4(p,1.0);
+  // gusty wind: a slow swell that rolls across the land plus a quicker flutter
+  float gust=0.55+0.45*sin(uTime*0.35+w0.x*0.05+w0.z*0.03);
   if(anim>1.5&&anim<2.5){ float sh=clamp(aLight.z*8.0,0.0,1.0); p.y+=(sin(p.x*0.9+uTime*1.7)*0.03+cos(p.z*0.8+uTime*1.3)*0.03+sin((p.x+p.z)*0.37+uTime*0.9)*0.025)*sh; }
-  if(anim>2.5&&anim<3.5){ float w=sin(uTime*1.4+p.x*0.5+p.z*0.3); p.x+=w*0.04*aLocal.y; p.z+=cos(uTime*1.1+p.x*0.4)*0.03*aLocal.y; }
+  if(anim>2.5&&anim<3.5){
+    if(uPlant>0.5){ // plants bend from the root: only the top edge moves
+      float k=aLocal.y*gust;
+      p.x+=(sin(uTime*1.9+w0.x*0.7+w0.z*0.3)*0.09+sin(uTime*4.3+w0.z)*0.025)*k;
+      p.z+=(cos(uTime*1.6+w0.z*0.6+w0.x*0.2)*0.07+cos(uTime*3.7+w0.x)*0.02)*k;
+    } else { // leaves: every corner sways by its world position, so neighbouring blocks stay joined
+      p.x+=(sin(uTime*1.7+w0.x*0.6+w0.y*0.4)*0.035+sin(uTime*3.9+w0.z*1.3)*0.012)*gust;
+      p.y+=sin(uTime*2.3+w0.x*0.5+w0.z*0.7)*0.02*gust;
+      p.z+=(cos(uTime*1.4+w0.z*0.6+w0.y*0.3)*0.035+cos(uTime*4.1+w0.x*1.1)*0.012)*gust;
+    }
+  }
   vec4 wp=modelMatrix*vec4(p,1.0);
   vWorld=wp.xyz;
   vec4 mv=viewMatrix*wp;
@@ -102,26 +116,40 @@ uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uAmbCol; uniform vec3 u
 uniform vec4 uPLight;
 uniform sampler2D uReflTex; uniform mat4 uReflMat; uniform float uReflOn; uniform float uReflH; uniform float uClipY; uniform vec3 uSkyTop; uniform vec3 uSkyHor;
 uniform sampler2D uShadowMap; uniform mat4 uShadowMatrix; uniform float uShadowOn; uniform float uShadowSize;
+uniform sampler2D uCloudMap; uniform vec4 uCloud; uniform float uCloudOn;
 varying vec3 vTile; varying vec2 vLocal; varying vec4 vLight; varying float vFog; varying vec3 vWorld; varying vec3 vTint;
 vec3 toLin(vec3 c){ return pow(c, vec3(2.2)); }
 vec3 toSrgb(vec3 c){ return pow(max(c, 0.0), vec3(1.0/2.2)); }
+float ign(vec2 p){ return fract(52.9829189*fract(dot(p,vec2(0.06711056,0.00583715)))); } // interleaved gradient noise
+// soft shadows: 12 Poisson taps, rotated per pixel so the penumbra is smooth instead of banded
 float shadowAt(vec3 wp, vec3 n){
   if(uShadowOn<0.5) return 1.0;
-  vec4 sc=uShadowMatrix*vec4(wp+n*0.07,1.0);
+  vec4 sc=uShadowMatrix*vec4(wp+n*0.06,1.0);
   vec3 c=sc.xyz/sc.w*0.5+0.5;
   if(c.x<0.0||c.x>1.0||c.y<0.0||c.y>1.0||c.z>1.0) return 1.0;
-  float t=1.0/uShadowSize, s=0.0;
-  for(int i=-1;i<=1;i++) for(int j=-1;j<=1;j++){ float d=texture2D(uShadowMap,c.xy+vec2(float(i),float(j))*t*1.25).r; s+= (c.z-0.0012>d)?0.0:1.0; }
-  s/=9.0;
+  float t=1.0/uShadowSize, a=ign(gl_FragCoord.xy)*6.2832, ca=cos(a), sa=sin(a), s=0.0;
+  vec2 P[12]; P[0]=vec2(-0.326,-0.406); P[1]=vec2(-0.840,-0.074); P[2]=vec2(-0.696,0.457); P[3]=vec2(-0.203,0.621); P[4]=vec2(0.962,-0.195); P[5]=vec2(0.473,-0.480);
+  P[6]=vec2(0.519,0.767); P[7]=vec2(0.185,-0.893); P[8]=vec2(0.507,0.064); P[9]=vec2(0.896,0.412); P[10]=vec2(-0.322,-0.933); P[11]=vec2(-0.792,-0.598);
+  float r=1.9*t;
+  for(int i=0;i<12;i++){ vec2 o=vec2(P[i].x*ca-P[i].y*sa,P[i].x*sa+P[i].y*ca)*r; float d=texture2D(uShadowMap,c.xy+o).r; s+=(c.z-0.0011>d)?0.0:1.0; }
+  s/=12.0;
   vec2 e=min(c.xy,1.0-c.xy); float edge=smoothstep(0.0,0.08,min(e.x,e.y));
   return mix(1.0,s,edge);
+}
+// shadows of the drifting cloud layer: project along the sun ray up to the cloud height and look up the cloud map
+float cloudShadow(vec3 wp){
+  if(uCloudOn<0.5||uSunDir.y<0.05) return 1.0;
+  vec3 p=wp+uSunDir*((uCloud.w-wp.y)/uSunDir.y);
+  vec2 uv=(p.xz-vec2(uCloud.x,0.0))/uCloud.z;
+  float cov=texture2D(uCloudMap,uv+vec2(0.5/32.0)).r;
+  return 1.0-cov*0.5;
 }
 vec3 V0(){ return normalize(cameraPosition-vWorld); }
 // ---- water: summed directional waves (analytic slopes) + small ripples
 vec2 waveSlope(vec2 p, float t){
   vec2 g=vec2(0.0);
   vec4 D[6]; D[0]=vec4(0.86,0.5,0.55,1.1); D[1]=vec4(-0.32,0.95,0.9,1.5); D[2]=vec4(0.6,-0.8,1.6,2.1); D[3]=vec4(-0.9,-0.43,2.7,2.6); D[4]=vec4(0.2,0.98,4.3,3.4); D[5]=vec4(-0.7,0.71,6.9,4.1);
-  float A[6]; A[0]=0.11; A[1]=0.08; A[2]=0.05; A[3]=0.035; A[4]=0.022; A[5]=0.014;
+  float A[6]; A[0]=0.1; A[1]=0.07; A[2]=0.045; A[3]=0.03; A[4]=0.02; A[5]=0.012;
   for(int i=0;i<6;i++){ float k=D[i].z; float ph=dot(D[i].xy,p)*k+t*D[i].w; g+=D[i].xy*k*A[i]*cos(ph); }
   return g;
 }
@@ -143,36 +171,37 @@ void main(){
   vec4 t=texture2DGradEXT(uAtlas,uv,dFdx(guv),dFdy(guv));
   if(t.a<uCut) discard;
   vec3 alb=toLin(t.rgb);
-  float tmask=texture2DGradEXT(uNormal,uv,dFdx(guv),dFdy(guv)).a; alb*=mix(vec3(1.0),vTint,tmask); // biome grass & foliage colour
+  vec4 nm=texture2DGradEXT(uNormal,uv,dFdx(guv),dFdy(guv));
+  alb*=mix(vec3(1.0),vTint,nm.a); // biome grass & foliage colour
   vec3 n0=normalize(cross(dFdx(vWorld),dFdy(vWorld)));
   // tiny per-block colour variation breaks up repetition on big flat areas
-  if(vTile.z<10.0 && !(anim>1.5&&anim<2.5)){ vec3 bp=floor(vWorld-n0*0.01); float hv=fract(sin(dot(bp,vec3(12.9898,78.233,37.719)))*43758.5453); alb*=0.95+hv*0.1; }
-  vec3 n=normalize(cross(dFdx(vWorld),dFdy(vWorld)));
+  if(vTile.z<10.0 && !(anim>1.5&&anim<2.5)){ vec3 bp=floor(vWorld-n0*0.01); float hv=fract(sin(dot(bp,vec3(12.9898,78.233,37.719)))*43758.5453); alb*=0.96+hv*0.08; }
+  vec3 n=n0;
   bool water=anim>1.5&&anim<2.5;
   if(uClipY>-999.0 && vWorld.y<uClipY) discard; // mirror pass: nothing below the water plane
   float wdepth=2.0; // side faces of water count as open water
   if(water&&n.y>0.5){ wdepth=vLight.z*8.0; vec2 sl=waveSlope(vWorld.xz,uTime)*(0.35+0.65*clamp(wdepth,0.0,1.0)); n=normalize(vec3(-sl.x,1.0,-sl.y)); }
   vec3 ng=n; // geometric normal, kept for shadow lookups
   if(!water && uPlant<0.5 && vTile.z<10.0){
-    vec3 tn=texture2DGradEXT(uNormal,uv,dFdx(guv),dFdy(guv)).xyz*2.0-1.0;
+    vec3 tn=nm.xyz*2.0-1.0;
     vec3 dp1=dFdx(vWorld), dp2=dFdy(vWorld); vec2 du1=dFdx(guv), du2=dFdy(guv);
     vec3 p2=cross(dp2,n), p1=cross(n,dp1);
     vec3 Tg=p2*du1.x+p1*du2.x, Bg=p2*du1.y+p1*du2.y;
     float im=inversesqrt(max(max(dot(Tg,Tg),dot(Bg,Bg)),1e-20));
-    float fade=1.0-smoothstep(18.0,48.0,vFog); // distant surfaces stay flat (no shimmer)
+    float fade=1.0-smoothstep(20.0,56.0,vFog); // distant surfaces stay flat (no shimmer)
     n=normalize(mix(n,normalize(Tg*im*tn.x+Bg*im*tn.y+n*tn.z),fade));
   }
   float sky=vLight.x, blk=vLight.y, ao=water?1.0:vLight.z;
-  float ndl=uPlant>0.5 ? 0.65 : max(dot(n,uSunDir),0.0)*smoothstep(-0.02,0.12,dot(ng,uSunDir)); // relief can't light a face that points away from the sun
+  float ndl=uPlant>0.5 ? 0.7 : max(dot(n,uSunDir),0.0)*smoothstep(-0.02,0.12,dot(ng,uSunDir)); // relief can't light a face that points away from the sun
   float outdoor=smoothstep(0.45,0.93,sky);
-  float sh=outdoor>0.0 ? shadowAt(vWorld,ng) : 0.0;
-  vec3 direct=uSunCol*ndl*sh*outdoor*1.1;
-  vec3 hemi=mix(vec3(0.72,0.66,0.58),vec3(1.06,1.06,1.12),n.y*0.5+0.5); // sky above, warm bounce below
-  vec3 amb=uAmbCol*hemi*(0.08+0.92*pow(sky,1.6));
-  float flick=0.93+0.07*sin(uTime*10.0+vWorld.x*2.7+vWorld.z*1.9)*sin(uTime*6.3+vWorld.y);
-  float tl=pow(blk,2.2)*2.7*flick;
+  float sh=outdoor>0.0 ? shadowAt(vWorld,ng)*cloudShadow(vWorld) : 0.0;
+  vec3 direct=uSunCol*ndl*sh*outdoor*1.15;
+  vec3 hemi=mix(vec3(0.7,0.64,0.56),vec3(1.05,1.07,1.14),n.y*0.5+0.5); // sky above, warm bounce below
+  vec3 amb=uAmbCol*hemi*(0.07+0.93*pow(sky,1.6));
+  float flick=0.94+0.06*sin(uTime*10.0+vWorld.x*2.7+vWorld.z*1.9)*sin(uTime*6.3+vWorld.y);
+  float tl=pow(blk,2.4)*3.0*flick;
   if(uPLight.w>0.0){ float pd=distance(vWorld,uPLight.xyz); tl=max(tl,pow(max(0.0,1.0-pd/9.0),2.0)*1.6*uPLight.w*flick); }
-  vec3 light=(amb+direct)*ao*mix(1.0,vLight.w,0.55)+uTorch*tl*mix(1.0,ao,0.6)+vec3(0.004,0.005,0.008);
+  vec3 light=(amb+direct)*ao*mix(1.0,vLight.w,0.5)+uTorch*tl*mix(1.0,ao,0.6)+vec3(0.004,0.005,0.008);
   vec3 col=alb*light;
   if(!water && vTile.z<10.0){ // PBR specular: Blinn-Phong lobe from glossiness, metals tint it with their own colour
     vec2 gm=texture2D(uGloss,(vTile.xy+0.5)/16.0).rg;
@@ -183,20 +212,18 @@ void main(){
       float fr=0.04+0.96*pow(1.0-max(dot(Vv,Hh),0.0),5.0);
       vec3 F=mix(vec3(fr),alb*1.6,gm.g);
       col+=uSunCol*F*spec*ndl*sh*outdoor*1.4;
-      // a hint of sky reflected in shiny things
-      vec3 Rr=reflect(-Vv,n); col+=mix(toLin(uFogColor),toLin(uFogColor)*0.6+vec3(0.02,0.04,0.09),clamp(Rr.y,0.0,1.0))*F*gm.r*gm.r*0.35*sky;
+      vec3 Rr=reflect(-Vv,n); col+=mix(toLin(uSkyHor),toLin(uSkyTop),clamp(Rr.y,0.0,1.0))*F*gm.r*gm.r*0.35*sky;
     }
   }
-  if(!water && vTile.z<10.0 && vWorld.y<uReflH-0.12 && sky>0.3 && uUnder<0.5){ float cdep=uReflH-vWorld.y; col+=alb*uSunCol*caustic(vWorld.xz+n0.xz*0.0+vec2(vWorld.y*0.3),uTime)*0.55*smoothstep(0.0,0.6,cdep)*exp(-cdep*0.18)*(0.3+0.7*ndl); }
-  if(uPlant>0.5){ float tr=pow(max(dot(-V0(),uSunDir),0.0),3.0); col+=alb*uSunCol*tr*0.55*outdoor*sh; } // sunlight through leaves
-  if(vTile.z>=10.0){ float lm=dot(alb,vec3(0.33)); col=mix(alb,alb*vec3(1.0,0.78,0.5)*1.25,smoothstep(0.35,0.8,lm)*step(alb.b,alb.r))*(2.0+0.3*sin(uTime*2.0+vLocal.x*3.0)); }
+  if(!water && vTile.z<10.0 && vWorld.y<uReflH-0.12 && sky>0.3 && uUnder<0.5){ float cdep=uReflH-vWorld.y; col+=alb*uSunCol*caustic(vWorld.xz+vec2(vWorld.y*0.3),uTime)*0.5*smoothstep(0.0,0.6,cdep)*exp(-cdep*0.18)*(0.3+0.7*ndl); }
+  if(uPlant>0.5 || (anim>2.5&&anim<3.5)){ float tr=pow(max(dot(-V0(),uSunDir),0.0),3.0); col+=alb*uSunCol*tr*(uPlant>0.5?0.55:0.3)*outdoor*sh; } // sunlight glowing through leaves and grass
+  if(vTile.z>=10.0){ float lm=dot(alb,vec3(0.33)); col=mix(alb,alb*vec3(1.0,0.8,0.55)*1.2,smoothstep(0.35,0.8,lm)*step(alb.b,alb.r))*(2.2+0.25*sin(uTime*2.0+vLocal.x*3.0)); }
   vec3 V=normalize(cameraPosition-vWorld);
   float alpha=water? uOpacity : t.a;
   if(water){
     float cosT=max(dot(V,n),0.0);
     float fres=0.02+0.98*pow(1.0-cosT,5.0);                    // Schlick Fresnel for water (F0 = 0.02)
     vec3 R=reflect(-V,n);
-    // reflection: the mirrored world where available, otherwise the sky
     vec3 skyR=mix(toLin(uSkyHor),toLin(uSkyTop),pow(clamp(R.y,0.0,1.0),0.55));
     skyR+=toLin(uHazeCol)*pow(max(dot(R,uSunDir),0.0),8.0)*0.4;
     vec3 refl=skyR;
@@ -206,32 +233,30 @@ void main(){
       float edge=smoothstep(0.0,0.04,min(min(ruv.x,1.0-ruv.x),min(ruv.y,1.0-ruv.y)));
       refl=mix(skyR,rw,edge);
     }
-    // body colour: light is absorbed with depth, red first, so shallows read turquoise and depths deep blue
+    // body colour: light is absorbed with depth, red first, so shallows read clear aqua and depths deep blue
     float dep=max(wdepth,0.05);
-    vec3 absorb=exp(-vec3(0.45,0.11,0.07)*dep*1.6);
-    vec3 deep=vec3(0.006,0.03,0.06), shallow=vec3(0.06,0.32,0.32);
+    vec3 absorb=exp(-vec3(0.5,0.13,0.08)*dep*1.5);
+    vec3 deep=vec3(0.004,0.022,0.07), shallow=vec3(0.05,0.24,0.38);
     vec3 body=mix(deep,shallow,absorb.g)*(amb*0.9+direct*0.5+0.02);
-    // light scattering through the wave crests toward the viewer
     float sss=pow(max(dot(-V,uSunDir)*0.5+0.5,0.0),4.0)*max(n.y-0.92,0.0)*12.0;
-    body+=vec3(0.05,0.3,0.25)*uSunCol*sss*outdoor;
-    // sun glints: a tight highlight plus a broad sheen
+    body+=vec3(0.04,0.24,0.26)*uSunCol*sss*outdoor;
     vec3 Hh=normalize(V+uSunDir);
-    float glint=pow(max(dot(n,Hh),0.0),900.0)*28.0+pow(max(dot(n,Hh),0.0),90.0)*0.6;
+    float glint=pow(max(dot(n,Hh),0.0),900.0)*30.0+pow(max(dot(n,Hh),0.0),90.0)*0.5;
     col=mix(body,refl*(0.25+0.75*sky),fres)+uSunCol*glint*sh*outdoor;
-    // foam where the water meets the shore, drifting with the waves
-    float shore=1.0-smoothstep(0.08,0.75,wdepth);
+    // a thin line of foam where the water meets the shore
+    float shore=1.0-smoothstep(0.06,0.5,wdepth);
     float fn=vnoise2(vWorld.xz*3.2+vec2(uTime*0.35,uTime*0.21))*0.6+vnoise2(vWorld.xz*7.0-uTime*0.5)*0.4;
-    float foam=smoothstep(0.55,0.72,fn+shore*0.55)*shore;
-    col=mix(col,vec3(0.85,0.9,0.92)*(amb+direct*0.8+0.05),foam*0.85);
-    // shallow water is clear, deep water and grazing angles are opaque
-    alpha=clamp(mix(0.22,0.93,1.0-absorb.g)+fres*0.5+foam,0.0,1.0);
+    float foam=smoothstep(0.6,0.75,fn+shore*0.5)*shore;
+    col=mix(col,vec3(0.85,0.9,0.92)*(amb+direct*0.8+0.05),foam*0.7);
+    alpha=clamp(mix(0.2,0.92,1.0-absorb.g)+fres*0.5+foam*0.6,0.0,1.0);
     if(uUnder>0.5){ col=mix(body*2.0,refl,0.15); alpha=0.75; }
   }
   vec3 outc=toSrgb(col);
-  float f=smoothstep(uFogNear,uFogFar,vFog);
-  float aer=smoothstep(uFogNear*0.35,uFogFar,vFog)*0.35; outc=mix(outc,mix(vec3(dot(outc,vec3(0.3,0.59,0.11))),outc,0.7)*0.97+uFogColor*0.03,aer);
-  vec3 fogc=uFogColor+uHazeCol*pow(max(dot(-V,uSunDir),0.0),6.0)*0.35;
-  if(uMist>0.001){ float hgt=max(vWorld.y-uSeaY+1.0,0.0); float mist=(1.0-exp(-vFog*0.02*uMist))*exp(-hgt*0.16); f=max(f,clamp(mist,0.0,0.85)); }
+  // distance fog matches the sky's horizon, glowing toward the sun; a touch of aerial blue in between
+  float f=smoothstep(uFogNear,uFogFar,vFog); f*=f*(3.0-2.0*f);
+  float aer=smoothstep(uFogNear*0.3,uFogFar,vFog)*0.18; outc=mix(outc,mix(outc,uFogColor,0.35),aer);
+  vec3 fogc=uFogColor+uHazeCol*pow(max(dot(-V,uSunDir),0.0),6.0)*0.4;
+  if(uMist>0.001){ float hgt=max(vWorld.y-uSeaY+1.0,0.0); float mist=(1.0-exp(-vFog*0.02*uMist))*exp(-hgt*0.16); f=max(f,clamp(mist,0.0,0.8)); }
   if(uUnder>0.5){ f=smoothstep(2.0,24.0,vFog); fogc=uFogColor; }
   gl_FragColor=vec4(mix(outc,fogc,f),alpha);
 }`;
@@ -463,123 +488,134 @@ function flushDirty(budget) {
 }
 
 // ---------------------------------------------------------------- sky
-const skyGeo = new THREE.SphereGeometry(300, 24, 12);
-// tileable value-noise texture (4 independent channels) for cheap fbm in the sky shader
-const skyNoiseTex = (() => {
-  const N = 128, d = new Uint8Array(N * N * 4);
-  const h = (x, y, c) => { let v = Math.imul(x & (N - 1), 374761393) ^ Math.imul(y & (N - 1), 668265263) ^ Math.imul(c + 1, 2246822519); v = Math.imul(v ^ (v >>> 13), 1274126177); return ((v ^ (v >>> 16)) >>> 0) / 4294967295; };
-  for (let c = 0; c < 4; c++) { const cell = [4, 8, 16, 32][c];
-    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-      const gx = x / N * cell, gy = y / N * cell, ix = Math.floor(gx), iy = Math.floor(gy), fx = gx - ix, fy = gy - iy, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
-      const hh = (a, b) => h(((a % cell) + cell) % cell * 7919, ((b % cell) + cell) % cell * 104729, c);
-      d[(x + y * N) * 4 + c] = 255 * ((hh(ix, iy) * (1 - u) + hh(ix + 1, iy) * u) * (1 - v) + (hh(ix, iy + 1) * (1 - u) + hh(ix + 1, iy + 1) * u) * v);
-    } }
-  const t = new THREE.DataTexture(d, N, N, THREE.RGBAFormat); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.needsUpdate = true; return t;
-})();
-// Physically based sky: Rayleigh + Mie single scattering with optical depth that grows toward the horizon,
-// and a raymarched layer of volumetric clouds (self-shadowed, silver-lined) drifting with the wind.
+// Sky dome: a zenith-to-horizon gradient with a sunset band that warms toward the sun, a soft glow around the
+// sun and moon, and darkening below the horizon. Colours come from updateSky() so fog always matches the horizon.
+const skyGeo = new THREE.SphereGeometry(300, 32, 16);
 const skyMat = new THREE.ShaderMaterial({
-  uniforms: { uTop: { value: new THREE.Color(0x4a8ad8) }, uHorizon: { value: new THREE.Color(0xbfd8ee) }, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uGlow: { value: new THREE.Color(0xffc080) },
-    uNoise: { value: skyNoiseTex }, uTime: U.uTime, uCover: { value: 0.5 }, uSteps: { value: 10 }, uDay: U.uDay, uMoonDir: { value: new THREE.Vector3(0, -1, 0) }, uCam: { value: new THREE.Vector2() } },
+  uniforms: { uZenith: { value: new THREE.Color(0x3d72d0) }, uHorizon: { value: new THREE.Color(0xa9c8ee) }, uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uMoonDir: { value: new THREE.Vector3(0, -1, 0) },
+    uDusk: { value: 0 }, uDay: U.uDay, uTime: U.uTime, uGlow: { value: new THREE.Color(0xffc080) }, uMoonGlow: { value: 0 } },
   vertexShader: 'varying vec3 vP; void main(){ vP=normalize(position); vec4 p=projectionMatrix*modelViewMatrix*vec4(position,1.0); gl_Position=p.xyww; }',
-  fragmentShader: `uniform vec3 uTop, uHorizon, uSunDir, uGlow, uMoonDir; uniform sampler2D uNoise; uniform float uTime, uCover, uDay, uSteps; uniform vec2 uCam; varying vec3 vP;
-  const vec3 BR=vec3(5.8,13.5,33.1)*0.055; const vec3 BM=vec3(0.21)*0.11;
-  float odepth(float h){ h=max(h,-0.05); return 1.0/(h+0.11*exp(-h*10.0)+0.022); }
-  vec3 atmos(vec3 rd, vec3 sd, float strength){
-    // Rayleigh look: deep blue zenith fading to a pale horizon; low sun reddens the band toward it (Mie halo around the sun)
-    float zen=max(rd.y,0.0), sunH=sd.y, mu=dot(rd,sd);
-    float hz=pow(1.0-zen,3.5);
-    vec3 c=mix(vec3(0.20,0.42,0.86),vec3(0.66,0.80,0.96),hz);
-    float low=1.0-smoothstep(-0.05,0.4,sunH);
-    float toward=pow(max(dot(normalize(rd.xz+1e-4),normalize(sd.xz+1e-4)),0.0)*0.5+0.5,2.0);
-    vec3 dusk=mix(vec3(1.0,0.42,0.16),vec3(1.0,0.72,0.42),zen*2.0);
-    c=mix(c,dusk,clamp(low*hz*(0.25+0.75*toward)*1.25,0.0,1.0));
-    c=mix(c,c*vec3(0.55,0.5,0.8),low*(1.0-hz)*0.5);  // the zenith turns violet at dusk
-    c*=mix(0.18,1.0,smoothstep(-0.18,0.22,sunH));
-    c+=vec3(1.0,0.86,0.62)*(pow(max(mu,0.0),32.0)*0.45+pow(max(mu,0.0),5.0)*0.12*(0.3+hz));
-    return c*strength;
-  }
-  float fbm(vec2 p){ return texture2D(uNoise,p*0.25).r*0.5+texture2D(uNoise,p*0.25+0.37).g*0.27+texture2D(uNoise,p*0.25+0.71).b*0.15+texture2D(uNoise,p*0.25+0.13).a*0.08; }
-  float cloudDens(vec3 p){ // p in cloud-layer space, y in 0..1 across the layer
-    vec2 w=p.xz+vec2(uTime*0.012,uTime*0.004);
-    float base=fbm(w*0.3);
-    float shape=smoothstep(0.0,0.25,p.y)*smoothstep(1.0,0.45,p.y);
-    float d=base-(1.0-uCover)*0.62-0.18;
-    d+= (texture2D(uNoise,w*0.9+p.y*0.3).a-0.5)*0.1;   // erode the edges
-    return max(d*shape*3.2,0.0);
-  }
+  fragmentShader: `uniform vec3 uZenith, uHorizon, uSunDir, uMoonDir, uGlow; uniform float uDusk, uDay, uTime, uMoonGlow; varying vec3 vP;
   void main(){
     vec3 rd=normalize(vP);
-    float day=clamp(uDay*1.25-0.2,0.0,1.0);
-    // daytime sky from scattering, night falls back to the authored gradient
-    vec3 atm=atmos(rd,uSunDir,1.0);
-    vec3 grad=mix(uHorizon,uTop,pow(max(rd.y,0.0),0.6));
-    vec3 c=mix(grad, atm, day*0.9);
-    // keep the horizon band matched to the fog so distant land blends in
-    c=mix(c, uHorizon, (1.0-smoothstep(0.0,0.14,rd.y))*0.65);
-    c+=uGlow*pow(max(dot(rd,uSunDir),0.0),8.0)*0.35*(1.0-rd.y);
-    // volumetric clouds
-    if(rd.y>0.015 && uSteps>0.5){
-      float t0=1.0/rd.y, t1=1.55/rd.y; const int STEPS=14;
-      float dt=(t1-t0)/uSteps, T=1.0; vec3 acc=vec3(0.0);
-      vec3 sd=uSunDir.y>-0.1 ? uSunDir : uMoonDir;
-      float mu=dot(rd,sd), hg=(1.0-0.36)/pow(1.0+0.36-1.2*mu,1.5)*0.6+0.45; // forward scattering: silver linings
-      vec3 sunC=mix(vec3(0.18,0.22,0.35),mix(vec3(1.0,0.55,0.32),vec3(1.0,0.97,0.92),smoothstep(0.0,0.35,uSunDir.y)),day);
-      vec3 ambC=mix(vec3(0.05,0.06,0.1),mix(grad,vec3(0.75,0.82,0.95),0.5),day);
-      float jit=0.5;
-      for(int i=0;i<STEPS;i++){ if(float(i)>=uSteps) break;
-        float t=t0+dt*(float(i)+jit); vec3 wp=rd*t; vec3 p=vec3(wp.x+uCam.x,(wp.y-1.0)/0.55,wp.z+uCam.y);
-        float d=cloudDens(p); if(d<=0.001) continue;
-        float ld=0.0; for(int k=1;k<=3;k++){ if(k>1 && uSteps<7.0) break; ld+=cloudDens(p+vec3(sd.x,sd.y*1.6,sd.z)*0.09*float(k)); }
-        if(uSteps<7.0) ld*=2.2;
-        float beer=exp(-ld*0.9), powder=1.0-exp(-d*2.0);
-        vec3 lit=sunC*beer*hg*powder*1.6+ambC*(0.5+0.5*p.y);
-        float a=1.0-exp(-d*dt*2.4);
-        acc+=T*a*lit; T*=1.0-a; if(T<0.03) break;
-      }
-      float fade=smoothstep(0.015,0.12,rd.y);
-      c=mix(c, acc+c*T, fade);
-    }
+    float up=max(rd.y,0.0), hz=pow(1.0-up,2.6);
+    vec3 c=mix(uZenith,uHorizon,hz);
+    // sunset: an orange band along the horizon, strongest toward the sun, pink-violet on the far side
+    float toward=dot(normalize(rd.xz+1e-4),normalize(uSunDir.xz+1e-4))*0.5+0.5;
+    vec3 band=mix(vec3(0.78,0.45,0.62),vec3(1.0,0.52,0.2),pow(toward,1.6));
+    c=mix(c,band,uDusk*pow(1.0-up,5.0)*(0.45+0.55*toward));
+    c=mix(c,c*vec3(0.85,0.72,1.0),uDusk*up*0.6);
+    // glow around the sun and the moon
+    float mu=max(dot(rd,uSunDir),0.0), mm=max(dot(rd,uMoonDir),0.0);
+    c+=uGlow*(pow(mu,6.0)*0.32+pow(mu,48.0)*0.5+pow(mu,600.0)*1.4);
+    c+=vec3(0.45,0.55,0.8)*uMoonGlow*(pow(mm,18.0)*0.12+pow(mm,300.0)*0.5);
+    // the void below the horizon fades a little darker
+    c*=1.0-smoothstep(0.0,-0.35,rd.y)*0.35;
     gl_FragColor=vec4(c,1.0);
   }`,
   side: THREE.BackSide, depthWrite: false, fog: false,
 });
 const sky = new THREE.Mesh(skyGeo, skyMat); sky.renderOrder = -10; sky.frustumCulled = false; scene.add(sky);
 const celestial = new THREE.Group(); scene.add(celestial);
-function discTex(inner, outer, size) {
-  const c = document.createElement('canvas'); c.width = c.height = size;
-  const g = c.getContext('2d'), gr = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  gr.addColorStop(0, inner); gr.addColorStop(0.35, inner); gr.addColorStop(0.42, outer); gr.addColorStop(1, 'rgba(0,0,0,0)');
-  g.fillStyle = gr; g.fillRect(0, 0, size, size);
-  const t = new THREE.CanvasTexture(c); return t;
+// the square pixel sun and the moon (with phases), plus a soft additive halo behind each
+function pixelTex(size, paint) {
+  const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d'), img = g.createImageData(size, size);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) { const col = paint(x, y); const o = (x + y * size) * 4; img.data[o] = col[0]; img.data[o + 1] = col[1]; img.data[o + 2] = col[2]; img.data[o + 3] = col[3]; }
+  g.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; return t;
 }
-const sunMesh = new THREE.Mesh(new THREE.PlaneGeometry(70, 70), new THREE.MeshBasicMaterial({ map: discTex('#fffbe0', 'rgba(255,220,140,0.35)', 64), transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }));
-const moonMesh = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ map: discTex('#e8eeff', 'rgba(180,200,255,0.25)', 64), transparent: true, depthWrite: false, fog: false }));
-sunMesh.position.set(0, 0, -260); moonMesh.position.set(0, 0, 260); sunMesh.lookAt(0, 0, 0); moonMesh.lookAt(0, 0, 0);
-celestial.add(sunMesh, moonMesh);
-// stars
-const starGeo = new THREE.BufferGeometry(), sp = [];
-for (let i = 0; i < 900; i++) { const u = Math.random() * 2 - 1, a = Math.random() * 6.283, r = Math.sqrt(1 - u * u); sp.push(Math.cos(a) * r * 250, Math.abs(u) * 250, Math.sin(a) * r * 250); }
-starGeo.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
-const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false });
-const stars = new THREE.Points(starGeo, starMat); stars.renderOrder = -9; celestial.add(stars);
-// blocky clouds
+const sunTex = pixelTex(16, (x, y) => { const e = Math.min(x, y, 15 - x, 15 - y); return e === 0 ? [255, 214, 90, 255] : e === 1 ? [255, 236, 140, 255] : e === 2 ? [255, 248, 200, 255] : [255, 255, 236, 255]; });
+const moonPhaseTex = [0, 1, 2, 3, 4, 5, 6, 7].map(ph => pixelTex(16, (x, y) => {
+  const e = Math.min(x, y, 15 - x, 15 - y); if (e < 2) return [0, 0, 0, 0];
+  // the lit part sweeps across with the phase; craters are a few darker pixels
+  const k = (x - 2) / 11, lit = ph === 0 ? 1 : ph < 4 ? (k > ph / 4 ? 1 : 0.12) : ph === 4 ? 0.1 : (k < (ph - 4) / 4 ? 1 : 0.12);
+  const crater = (x === 5 && y === 5) || (x === 6 && y === 5) || (x === 10 && y === 8) || (x === 9 && y === 11) || (x === 6 && y === 10) || (x === 11 && y === 4);
+  const base = crater ? 196 : (x + y) % 5 === 0 ? 226 : 238;
+  return [base * lit, base * lit, (base + 10) * lit, 255 * (0.25 + 0.75 * lit)];
+}));
+function haloTex(r, g, b) { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), gr = x.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, `rgba(${r},${g},${b},0.55)`); gr.addColorStop(0.25, `rgba(${r},${g},${b},0.18)`); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); }
+const sunMesh = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshBasicMaterial({ map: sunTex, transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending, color: new THREE.Color(1.4, 1.35, 1.2) }));
+const sunHalo = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshBasicMaterial({ map: haloTex(255, 220, 160), transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }));
+const moonMesh = new THREE.Mesh(new THREE.PlaneGeometry(22, 22), new THREE.MeshBasicMaterial({ map: moonPhaseTex[0], transparent: true, depthWrite: false, fog: false }));
+const moonHalo = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshBasicMaterial({ map: haloTex(170, 190, 255), transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending, opacity: 0.6 }));
+sunMesh.position.set(0, 0, -260); sunHalo.position.set(0, 0, -262); moonMesh.position.set(0, 0, 260); moonHalo.position.set(0, 0, 262);
+for (const m of [sunMesh, sunHalo, moonMesh, moonHalo]) { m.lookAt(0, 0, 0); m.renderOrder = -9; }
+celestial.add(sunHalo, sunMesh, moonHalo, moonMesh);
+function setMoonPhase(day) { const ph = Math.floor(day) % 8; if (moonMesh.material.map !== moonPhaseTex[ph]) { moonMesh.material.map = moonPhaseTex[ph]; moonMesh.material.needsUpdate = true; } }
+// stars: points that twinkle gently, brighter ones a little bigger
+const starGeo = new THREE.BufferGeometry(), sp = [], sseed = [];
+for (let i = 0; i < 1400; i++) { const u = Math.random() * 2 - 1, a = Math.random() * 6.283, r = Math.sqrt(1 - u * u); sp.push(Math.cos(a) * r * 250, Math.abs(u) * 250 - 20, Math.sin(a) * r * 250); sseed.push(Math.random()); }
+starGeo.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3)); starGeo.setAttribute('aSeed', new THREE.Float32BufferAttribute(sseed, 1));
+const starMat = new THREE.ShaderMaterial({
+  uniforms: { uTime: U.uTime, uAlpha: { value: 0 }, opacity: { value: 0 } },
+  vertexShader: 'attribute float aSeed; varying float vB; uniform float uTime; void main(){ vB=(0.35+0.65*aSeed*aSeed)*(0.75+0.25*sin(uTime*(1.5+aSeed*3.0)+aSeed*40.0)); vec4 mv=modelViewMatrix*vec4(position,1.0); gl_PointSize=1.0+aSeed*aSeed*2.2; gl_Position=projectionMatrix*mv; }',
+  fragmentShader: 'uniform float opacity; varying float vB; void main(){ gl_FragColor=vec4(vec3(0.9,0.93,1.0)*vB*1.4,opacity*vB); }',
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+});
+Object.defineProperty(starMat, 'opacity', { get() { return this.uniforms.opacity.value; }, set(v) { if (this.uniforms) this.uniforms.opacity.value = v; } });
+const stars = new THREE.Points(starGeo, starMat); stars.renderOrder = -9; stars.frustumCulled = false; celestial.add(stars);
+
+// ---------------------------------------------------------------- clouds
+// Blocky clouds like the classic game, but with volume: 12x12x4 cells from a tileable noise map, each face shaded
+// by how it faces the sun, fading into the distance. The same map is handed to the world shader so clouds cast
+// soft shadows that drift across the land.
+const CLOUD_CELL = 12, CLOUD_N = 32, CLOUD_TILE = CLOUD_CELL * CLOUD_N, CLOUD_Y = 122, CLOUD_H = 4;
+const cloudData = new Uint8Array(CLOUD_N * CLOUD_N * 4);
+(function cloudMap() {
+  const hh = (x, y, s) => { let v = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(s, 2246822519); v = Math.imul(v ^ (v >>> 13), 1274126177); return ((v ^ (v >>> 16)) >>> 0) / 4294967296; };
+  const tv = (x, y, cell, s) => { const L = CLOUD_N / cell, gx = x / cell, gy = y / cell, ix = Math.floor(gx), iy = Math.floor(gy), fx = gx - ix, fy = gy - iy, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+    const g = (a, b) => hh(((a % L) + L) % L, ((b % L) + L) % L, s); return (g(ix, iy) * (1 - u) + g(ix + 1, iy) * u) * (1 - v) + (g(ix, iy + 1) * (1 - u) + g(ix + 1, iy + 1) * u) * v; };
+  for (let y = 0; y < CLOUD_N; y++) for (let x = 0; x < CLOUD_N; x++) {
+    const n = tv(x, y, 8, 11) * 0.55 + tv(x, y, 4, 12) * 0.3 + tv(x, y, 2, 13) * 0.15;
+    const on = n > 0.6 ? 255 : 0, o = (x + y * CLOUD_N) * 4;
+    cloudData[o] = on; cloudData[o + 1] = on; cloudData[o + 2] = on; cloudData[o + 3] = 255;
+  }
+})();
+const cloudTex = new THREE.DataTexture(cloudData, CLOUD_N, CLOUD_N, THREE.RGBAFormat);
+cloudTex.wrapS = cloudTex.wrapT = THREE.RepeatWrapping; cloudTex.magFilter = THREE.LinearFilter; cloudTex.minFilter = THREE.LinearFilter; cloudTex.needsUpdate = true;
+U.uCloudMap.value = cloudTex;
+const cloudMat = new THREE.ShaderMaterial({
+  uniforms: { uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uLit: { value: new THREE.Color(1, 1, 1) }, uShade: { value: new THREE.Color(0.75, 0.8, 0.9) }, uFogCol: { value: new THREE.Color(0xa9c8ee) }, uFar: { value: 380 } },
+  vertexShader: 'attribute vec3 aN; varying vec3 vN; varying vec3 vW; void main(){ vN=aN; vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }',
+  fragmentShader: `uniform vec3 uSunDir, uLit, uShade, uFogCol; uniform float uFar; varying vec3 vN; varying vec3 vW;
+    void main(){
+      float face=vN.y>0.5?1.0:vN.y<-0.5?-0.35:(abs(vN.x)>0.5?0.55:0.42);
+      float sun=clamp(dot(vN,uSunDir)*0.5+0.5,0.0,1.0);
+      vec3 col=mix(uShade*(vN.y<-0.5?0.82:1.0),uLit,clamp(face*0.75+sun*0.4-0.12,0.0,1.0));
+      // thin edges glow when the sun is behind the cloud (silver lining)
+      col+=uLit*pow(max(dot(normalize(vW-cameraPosition),uSunDir),0.0),12.0)*0.35;
+      float d=length(vW.xz-cameraPosition.xz);
+      float fade=1.0-smoothstep(uFar*0.45,uFar,d);
+      col=mix(uFogCol,col,0.25+0.75*fade);
+      gl_FragColor=vec4(col,0.86*fade);
+    }`,
+  transparent: true, depthWrite: true, fog: false,
+});
 const cloudGroup = new THREE.Group(); scene.add(cloudGroup);
 (function buildClouds() {
-  const pos = [], idx = [];
-  let n = 0;
-  const box = (x0, z0, x1, z1, y0, y1) => {
-    const v = [[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0], [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]];
-    for (const p of v) pos.push(p[0], p[1], p[2]);
-    const f = [[0, 1, 2, 0, 2, 3], [5, 4, 7, 5, 7, 6], [4, 0, 3, 4, 3, 7], [1, 5, 6, 1, 6, 2], [3, 2, 6, 3, 6, 7], [4, 5, 1, 4, 1, 0]];
-    for (const q of f) for (const k of q) idx.push(n + k);
-    n += 8;
-  };
-  for (let z = -40; z < 40; z++) for (let x = -40; x < 40; x++) if (vnoise(x / 4, z / 4, 991) > 0.62 && vnoise(x / 11, z / 11, 992) > 0.45) box(x * 12, z * 12, x * 12 + 12, z * 12 + 12, 0, 4);
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
-  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false }));
-  m.renderOrder = -5; cloudGroup.add(m); cloudGroup.userData.mat = m.material; cloudGroup.visible = false; // replaced by volumetric clouds in the sky shader
+  const pos = [], nrm = [], idx = []; let n = 0;
+  const on = (x, z) => cloudData[((((x % CLOUD_N) + CLOUD_N) % CLOUD_N) + (((z % CLOUD_N) + CLOUD_N) % CLOUD_N) * CLOUD_N) * 4] > 0;
+  const face = (v, nn) => { for (const p of v) { pos.push(p[0], p[1], p[2]); nrm.push(nn[0], nn[1], nn[2]); } idx.push(n, n + 1, n + 2, n, n + 2, n + 3); n += 4; };
+  const C = CLOUD_CELL, Hh = CLOUD_H;
+  for (let z = 0; z < CLOUD_N; z++) for (let x = 0; x < CLOUD_N; x++) {
+    if (!on(x, z)) continue;
+    const x0 = x * C, x1 = x0 + C, z0 = z * C, z1 = z0 + C;
+    face([[x0, Hh, z1], [x1, Hh, z1], [x1, Hh, z0], [x0, Hh, z0]], [0, 1, 0]);
+    face([[x0, 0, z0], [x1, 0, z0], [x1, 0, z1], [x0, 0, z1]], [0, -1, 0]);
+    if (!on(x + 1, z)) face([[x1, 0, z1], [x1, 0, z0], [x1, Hh, z0], [x1, Hh, z1]], [1, 0, 0]);
+    if (!on(x - 1, z)) face([[x0, 0, z0], [x0, 0, z1], [x0, Hh, z1], [x0, Hh, z0]], [-1, 0, 0]);
+    if (!on(x, z + 1)) face([[x0, 0, z1], [x1, 0, z1], [x1, Hh, z1], [x0, Hh, z1]], [0, 0, 1]);
+    if (!on(x, z - 1)) face([[x1, 0, z0], [x0, 0, z0], [x0, Hh, z0], [x1, Hh, z0]], [0, 0, -1]);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('aN', new THREE.Float32BufferAttribute(nrm, 3)); g.setIndex(idx);
+  for (let k = 0; k < 9; k++) { const m = new THREE.Mesh(g, cloudMat); m.renderOrder = 1; m.frustumCulled = false; m.userData.k = k; cloudGroup.add(m); }
 })();
+// cloud tiles follow the camera; the whole layer drifts slowly west
+function updateClouds(cam, t) {
+  const drift = t * 0.9, ox = Math.floor((cam.x - drift) / CLOUD_TILE) * CLOUD_TILE + drift, oz = Math.floor(cam.z / CLOUD_TILE) * CLOUD_TILE;
+  for (const m of cloudGroup.children) { const k = m.userData.k; m.position.set(ox + ((k % 3) - 1) * CLOUD_TILE, CLOUD_Y, oz + (Math.floor(k / 3) - 1) * CLOUD_TILE); }
+  U.uCloud.value.set(drift, 0, CLOUD_TILE, CLOUD_Y);
+}
+
 // aurora ribbons (highlands at night)
 const auroraMat = new THREE.ShaderMaterial({
   uniforms: { uTime: U.uTime, uAlpha: { value: 0 } },

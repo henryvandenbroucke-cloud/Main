@@ -951,7 +951,11 @@ function updateWorldEvents(dt) {
 
 // ---------------------------------------------------------------- sky & atmosphere
 const fogCur = { c: new THREE.Color(0xbfd8ee), near: 60, far: 150 };
-const C_NIGHT_TOP = new THREE.Color(0x03050f), C_DAY_TOP = new THREE.Color(0x3d7fd8), C_NIGHT_H = new THREE.Color(0x0e1428), C_SUNSET = new THREE.Color(0xe87a4a);
+// sky palette (display colours): clear blue days, orange-and-violet sunsets, deep navy nights
+const SKYC = { dayZen: new THREE.Color(0x3a70d2), dayHor: new THREE.Color(0xa6c7ef), duskZen: new THREE.Color(0x40508e), duskHor: new THREE.Color(0xf29a5e),
+  nightZen: new THREE.Color(0x03050c), nightHor: new THREE.Color(0x0c1324), cloudDay: new THREE.Color(1.02, 1.02, 1.0), cloudDayS: new THREE.Color(0.7, 0.76, 0.86),
+  cloudDusk: new THREE.Color(1.0, 0.66, 0.44), cloudDuskS: new THREE.Color(0.48, 0.4, 0.5), cloudNight: new THREE.Color(0.12, 0.14, 0.2), cloudNightS: new THREE.Color(0.06, 0.07, 0.11) };
+const _c1 = new THREE.Color(), _c2 = new THREE.Color(), _rayCol = new THREE.Color();
 function updateSky(dt) {
   Game.time = (Game.time + dt / 600) % 1; Game.day += dt / 600;
   const sunH = Math.sin((Game.time - 0.25) * Math.PI * 2);
@@ -959,42 +963,47 @@ function updateSky(dt) {
   U.uDay.value = day; U.uTime.value += dt;
   const bi = Game.zone >= 0 ? Game.zone : 0, bio = BIOMES[bi];
   const k = Math.min(1, dt * 0.6);
-  fogCur.c.lerp(new THREE.Color(bio.fog), k); fogCur.near += (bio.fogNear * Settings.view - fogCur.near) * k; fogCur.far += (bio.fogFar * Settings.view - fogCur.far) * k;
+  fogCur.c.lerp(_c1.set(bio.fog), k); fogCur.near += (bio.fogNear * Settings.view - fogCur.near) * k; fogCur.far += (bio.fogFar * Settings.view - fogCur.far) * k;
   const dn = clamp((day - 0.2) / 0.8, 0, 1);
-  const sunset = clamp(1 - Math.abs(sunH) * 4.5, 0, 1);
-  const horizon = C_NIGHT_H.clone().lerp(fogCur.c, dn).lerp(C_SUNSET, sunset * 0.55);
-  const top = C_NIGHT_TOP.clone().lerp(C_DAY_TOP, dn);
-  skyMat.uniforms.uTop.value.copy(top); skyMat.uniforms.uHorizon.value.copy(horizon);
+  const sunset = clamp(1 - Math.abs(sunH) * 4.2, 0, 1);
+  // the horizon leans toward the biome's air (greener in the marsh, ruddy over the Ashlands)
+  const airW = [0.25, 0.3, 0.55, 0.3, 0.25, 0.75][bi];
+  const horizon = SKYC.nightHor.clone().lerp(_c1.copy(SKYC.dayHor).lerp(fogCur.c, airW), dn).lerp(SKYC.duskHor, sunset * 0.5);
+  const top = SKYC.nightZen.clone().lerp(_c2.copy(SKYC.dayZen).lerp(fogCur.c, airW * airW * 0.8), dn).lerp(SKYC.duskZen, sunset * 0.45);
+  skyMat.uniforms.uZenith.value.copy(top); skyMat.uniforms.uHorizon.value.copy(horizon);
   U.uSkyTop.value.copy(top); U.uSkyHor.value.copy(horizon);
   const ang = (Game.time - 0.25) * Math.PI * 2;
-  skyMat.uniforms.uSunDir.value.set(0, Math.sin(ang), -Math.cos(ang)).normalize();
-  skyMat.uniforms.uGlow.value.setRGB(1, 0.6, 0.3).multiplyScalar(sunset + 0.2 * dn);
-  skyMat.uniforms.uMoonDir.value.copy(skyMat.uniforms.uSunDir.value).negate();
-  skyMat.uniforms.uSteps.value = qualityFor().clouds;
+  const sunDir = skyMat.uniforms.uSunDir.value.set(0, Math.sin(ang), -Math.cos(ang)).normalize();
+  skyMat.uniforms.uMoonDir.value.copy(sunDir).negate();
+  skyMat.uniforms.uDusk.value = sunset;
+  skyMat.uniforms.uGlow.value.setRGB(1, 0.93 - sunset * 0.4, 0.8 - sunset * 0.55).multiplyScalar(clamp(sunH * 3 + 0.35, 0, 1) * (0.45 + sunset * 0.7));
+  skyMat.uniforms.uMoonGlow.value = 1 - dn;
   // morning mist: rises around dawn, lingers in the marsh, burns off by midday
-  const dawn = Math.max(0, 1 - Math.abs(Game.time - 0.27) / 0.09), wantMist = Settings.shaders ? Math.max(dawn * 1.4, bi === 2 ? 0.7 : 0, dn < 0.3 ? 0.35 : 0) : 0;
+  const dawn = Math.max(0, 1 - Math.abs(Game.time - 0.27) / 0.09), wantMist = Settings.shaders ? Math.max(dawn * 1.2, bi === 2 ? 0.6 : 0, dn < 0.3 ? 0.25 : 0) : 0;
   U.uMist.value += (wantMist - U.uMist.value) * Math.min(1, dt * 0.3);
-  skyMat.uniforms.uCam.value.set(camera.position.x / 160, camera.position.z / 160); // clouds stay put as you walk under them
-  const wantCover = [0.5, 0.55, 0.75, 0.2, 0.6, 0.65][bi] + Math.sin(U.uTime.value * 0.004) * 0.12;
-  skyMat.uniforms.uCover.value += (wantCover - skyMat.uniforms.uCover.value) * Math.min(1, dt * 0.2);
-  if (U.uUnder.value > 0.5) U.uFogColor.value.setRGB(0.08, 0.2, 0.42).multiplyScalar(0.4 + 0.6 * dn);
+  if (U.uUnder.value > 0.5) U.uFogColor.value.setRGB(0.06, 0.18, 0.4).multiplyScalar(0.4 + 0.6 * dn);
   else U.uFogColor.value.copy(horizon);
   const farCap = (VIEW_CHUNKS - 0.9) * CS;
-  U.uFogFar.value = Math.min(fogCur.far, farCap); U.uFogNear.value = Math.min(fogCur.near, U.uFogFar.value - 30);
+  U.uFogFar.value = Math.min(fogCur.far, farCap); U.uFogNear.value = Math.min(fogCur.near, U.uFogFar.value * 0.6);
   sky.position.copy(camera.position); celestial.position.copy(camera.position);
   celestial.rotation.x = ang;
   starMat.opacity = clamp(1 - dn * 1.6, 0, 1);
-  cloudGroup.position.set(camera.position.x - ((U.uTime.value * 1.2) % 12) - 240, 92, camera.position.z - 240);
-  cloudGroup.position.x = Math.floor(camera.position.x / 12) * 12 - 480 + ((U.uTime.value * 1.2) % 12);
-  cloudGroup.position.z = Math.floor(camera.position.z / 12) * 12 - 480;
-  cloudGroup.userData.mat.color.copy(new THREE.Color(0x2a3048).lerp(new THREE.Color(0xffffff), dn).lerp(C_SUNSET, sunset * 0.4));
+  setMoonPhase(Game.day);
+  // clouds: lit from the sun (or moon), tinted at sunset, fading into the horizon
+  updateClouds(camera.position, U.uTime.value);
+  cloudMat.uniforms.uLit.value.copy(SKYC.cloudNight).lerp(SKYC.cloudDay, dn).lerp(SKYC.cloudDusk, sunset * 0.75);
+  cloudMat.uniforms.uShade.value.copy(SKYC.cloudNightS).lerp(SKYC.cloudDayS, dn).lerp(SKYC.cloudDuskS, sunset * 0.75);
+  cloudMat.uniforms.uFogCol.value.copy(horizon);
+  cloudMat.uniforms.uSunDir.value.copy(sunH > -0.05 ? sunDir : skyMat.uniforms.uMoonDir.value);
+  cloudMat.uniforms.uFar.value = 340 * Math.max(0.8, Settings.view);
+  cloudGroup.visible = Settings.shaders || Settings.preset !== 'low';
+  U.uCloudOn.value = Settings.shaders ? 1 : 0;
   auroraMat.uniforms.uAlpha.value += (((bi === 4 && dn < 0.3) ? 0.9 : 0) - auroraMat.uniforms.uAlpha.value) * k;
   aurora.position.set(camera.position.x, 0, camera.position.z);
   aurora.visible = auroraMat.uniforms.uAlpha.value > 0.01;
-  U.uTorch.value.setRGB(1.0, 0.58 + 0.03 * Math.sin(U.uTime.value * 9), 0.26);
+  U.uTorch.value.setRGB(1.0, 0.56 + 0.03 * Math.sin(U.uTime.value * 9), 0.24);
   // light direction + colours: golden hour at the horizon, cool moonlight at night
-  const sunDir = skyMat.uniforms.uSunDir.value;
-  const golden = new THREE.Color(1.25, 0.62, 0.3), noon = new THREE.Color(1.05, 0.98, 0.88), moon = new THREE.Color(0.07, 0.1, 0.19);
+  const golden = _c1.setRGB(1.35, 0.64, 0.3), noon = _c2.setRGB(1.12, 1.04, 0.92), moon = new THREE.Color(0.12, 0.16, 0.3);
   if (sunH > -0.04) {
     U.uSunDir.value.copy(sunDir);
     U.uSunCol.value.copy(golden).lerp(noon, clamp(sunH / 0.45, 0, 1)).multiplyScalar(clamp((sunH + 0.04) / 0.14, 0, 1));
@@ -1002,11 +1011,12 @@ function updateSky(dt) {
     U.uSunDir.value.copy(sunDir).negate();
     U.uSunCol.value.copy(moon).multiplyScalar(clamp((-sunH - 0.04) / 0.2, 0, 1));
   }
-  U.uAmbCol.value.setRGB(0.022, 0.03, 0.06).lerp(new THREE.Color(0.3, 0.37, 0.52), dn * dn).lerp(new THREE.Color(0.55, 0.42, 0.42), sunset * 0.35);
-  U.uHazeCol.value.setRGB(1, 0.7, 0.4).multiplyScalar(sunset * 0.9 + dn * 0.12);
+  U.uAmbCol.value.setRGB(0.036, 0.05, 0.092).lerp(new THREE.Color(0.3, 0.38, 0.56), dn * dn).lerp(new THREE.Color(0.5, 0.4, 0.44), sunset * 0.35);
+  U.uHazeCol.value.setRGB(1, 0.68, 0.38).multiplyScalar(sunset * 0.9 + dn * 0.12);
   if (Quests.has('nighteye') && Game.mode === 'survival') U.uAmbCol.value.add(new THREE.Color(0.05, 0.06, 0.09).multiplyScalar(1 - dn));
   if (Effects.lvl('night') || hasRelic('night')) U.uAmbCol.value.add(new THREE.Color(0.22, 0.24, 0.3).multiplyScalar(1 - dn * 0.7));
-  Game.sunUp = clamp(sunH * 3, 0, 1) * (0.4 + sunset * 0.6);
+  Game.sunUp = clamp(sunH * 3, 0, 1) * (0.35 + sunset * 0.65);
+  _rayCol.setRGB(1, 0.9 - sunset * 0.25, 0.72 - sunset * 0.35); Game.rayCol = _rayCol;
 }
 
 // ---------------------------------------------------------------- held item view model
@@ -1267,7 +1277,7 @@ function renderWorld() {
     PostFX.renderShadows(shadowCenter, U.uSunDir.value);
   }
   renderReflection();
-  PostFX.render({ hand: Game.state === 'play' && !Game.view ? { scene: handScene, cam: handCam } : null, post: Settings.shaders, bloom: Settings.bloom && perfLevel < 2, sunDir: skyMat.uniforms.uSunDir.value, sunUp: Game.sunUp || 0, night: clamp(1 - (U.uDay.value - 0.2) / 0.5, 0, 1), under: U.uUnder.value });
+  PostFX.render({ hand: Game.state === 'play' && !Game.view ? { scene: handScene, cam: handCam } : null, post: Settings.shaders, bloom: Settings.bloom && perfLevel < 2, sunDir: skyMat.uniforms.uSunDir.value, sunUp: Game.sunUp || 0, rayCol: Game.rayCol, night: clamp(1 - (U.uDay.value - 0.2) / 0.5, 0, 1), under: U.uUnder.value });
 }
 
 
