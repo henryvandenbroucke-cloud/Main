@@ -9,74 +9,64 @@ const camera = new THREE.PerspectiveCamera(72, 1, 0.05, 400);
 camera.rotation.order = 'YXZ';
 scene.add(camera);
 
-// High-resolution world atlas: every 16x16 tile is redrawn at 64x64 with soft transitions between
-// the original pixels and a layer of fine detail, so surfaces read as smooth materials instead of big
-// squares. Each tile sits in a 128px cell with 32px of wrapped padding, so mipmaps don't bleed.
+// World atlas on the GPU: every 16x16 tile is enlarged 4x with hard pixel edges (so blocks stay crisp up close,
+// like the classic game) and sits in a 128px cell with 32px of wrapped padding so mipmaps don't bleed. A matching
+// normal map gives every pixel a tiny bevel (brighter pixels stand proud, mortar and cracks sink in), and its
+// alpha carries the biome tint mask for grass and foliage.
 const HI = 64, HCELL = 128, PAD = 32, HIW = HCELL * 16;
 // relief strength per texture: rough stone and brick stand out most, glass, glow and plants stay flat
-const RELIEF = { stone: 1, cobble: 1.15, mossycobble: 1.1, stonebrick: 1, mossybrick: 1, crackedbrick: 1.1, darkbrick: 1, darkbrick_cracked: 1.1, redbrick: 1, sandbrick: 0.9, bedrock: 1.2, basalt: 1, gravel: 1.1, polished: 0.5,
-  coal_ore: 1, iron_ore: 1, gold_ore: 1, lapis_ore: 1, dirt: 0.8, grass_side: 0.8, grass_top: 0.55, path: 0.8, farmland: 0.9, mud: 0.8, sand: 0.45, sandstone: 0.7, snow: 0.3, ash: 0.7,
-  planks: 0.85, planks_dark: 0.85, log_side: 1.1, log_dark_side: 1.1, log_top: 0.7, log_dark_top: 0.7, thatch: 0.9, hay_side: 0.8, bookshelf: 0.8, chest_front: 0.7, chest_side: 0.7, barrel_side: 0.8, crate: 0.8, table_top: 0.7, table_side: 0.7,
-  wool_red: 0.5, wool_white: 0.5, wool_blue: 0.5, wool_green: 0.5, wool_yellow: 0.5, wool_purple: 0.5, leaves: 0.45, leaves_dark: 0.45, leaves_blossom: 0.4, plaster: 0.4, timber: 0.7, terracotta: 0.4, roof_red: 0.8, roof_blue: 0.8,
-  iron_block: 0.5, gold_block: 0.5, cactus_side: 0.6, swamp_grass: 0.55, swamp_grass_side: 0.8, snow_side: 0.7 };
-let atlasNormalCanvas = null;
+const RELIEF = { stone: 0.9, cobble: 1.25, mossycobble: 1.2, stonebrick: 1.1, mossybrick: 1.1, crackedbrick: 1.15, darkbrick: 1.1, darkbrick_cracked: 1.1, redbrick: 1.2, sandbrick: 0.9, bedrock: 1.3, basalt: 1, gravel: 1.25, polished: 0.6,
+  coal_ore: 1, iron_ore: 1, gold_ore: 1, lapis_ore: 1, dirt: 0.8, grass_side: 0.8, grass_top: 0.6, path: 0.8, farmland: 1, mud: 0.7, sand: 0.5, sandstone: 0.8, sandstone_top: 0.4, snow: 0.35, snow_side: 0.7, ash: 0.7, terracotta: 0.4,
+  planks: 0.9, planks_dark: 0.9, log_side: 1.2, log_dark_side: 1.2, log_top: 0.8, log_dark_top: 0.8, thatch: 1, hay_side: 0.9, hay_top: 0.8, bookshelf: 1, chest_front: 0.8, chest_side: 0.8, chest_top: 0.8, barrel_side: 0.9, barrel_top: 0.8, crate: 0.9, table_top: 0.8, table_side: 0.8,
+  wool_red: 0.55, wool_white: 0.55, wool_blue: 0.55, wool_green: 0.55, wool_yellow: 0.55, wool_purple: 0.55, leaves: 0.6, leaves_dark: 0.6, leaves_blossom: 0.5, plaster: 0.45, timber: 0.8, roof_red: 1, roof_blue: 1,
+  iron_block: 0.7, gold_block: 0.7, ancient_gold: 0.8, cactus_side: 0.7, cactus_top: 0.6, swamp_grass: 0.6, swamp_grass_side: 0.8, furnace_side: 1, furnace_front: 1, tablet: 0.9, waystone: 0.8, runepillar: 0.9, crystal: 0.6, crystal_rose: 0.6 };
+let atlasNormalData = null;
 function buildHiAtlas() {
-  const src = Atlas.canvas.getContext('2d').getImageData(0, 0, 256, 256).data;
-  const cv = document.createElement('canvas'); cv.width = cv.height = HIW;
-  const g = cv.getContext('2d'), img = g.createImageData(HIW, HIW), out = img.data;
-  const ncv = document.createElement('canvas'); ncv.width = ncv.height = HIW;
-  const ng = ncv.getContext('2d'), nimg = ng.createImageData(HIW, HIW), nout = nimg.data;
-  const ss = f => f < 0.18 ? 0 : f > 0.82 ? 1 : (f - 0.18) / 0.64 * ((f - 0.18) / 0.64) * (3 - 2 * (f - 0.18) / 0.64);
-  const hsh = (x, y) => { let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967295; };
-  const vn = (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy); return (hsh(xi, yi) * (1 - u) + hsh(xi + 1, yi) * u) * (1 - v) + (hsh(xi, yi + 1) * (1 - u) + hsh(xi + 1, yi + 1) * u) * v; };
+  const src = Atlas.data, tm = Atlas.tint;
+  const out = new Uint8Array(HIW * HIW * 4), nout = new Uint8Array(HIW * HIW * 4);
   const names = []; for (const k in Atlas.tiles) names[Atlas.tiles[k]] = k;
-  const N = HI * HI, col = new Float32Array(N * 4), hgt = new Float32Array(N), blur = new Float32Array(N), tmp = new Float32Array(N);
+  const N = HI * HI, hgt = new Float32Array(N), sm = new Float32Array(N), tmp = new Float32Array(N);
   const W8 = v => ((v % HI) + HI) % HI;
   for (let t = 0; t < Atlas.count; t++) {
     const tx = (t % 16) * 16, ty = Math.floor(t / 16) * 16, cx = (t % 16) * HCELL, cy = Math.floor(t / 16) * HCELL;
     const T = (x, y) => (((ty + (y & 15)) * 256) + tx + (x & 15)) * 4;
-    const relief = RELIEF[names[t]] !== undefined ? RELIEF[names[t]] : 0.25;
-    // 1. smooth 4x upscale with fine detail (premultiplied so transparent edges stay clean)
-    for (let wy = 0; wy < HI; wy++) for (let wx = 0; wx < HI; wx++) {
-      const sx = (wx + 0.5) / 4 - 0.5, sy = (wy + 0.5) / 4 - 0.5, ix = Math.floor(sx), iy = Math.floor(sy);
-      const fx = ss(sx - ix), fy = ss(sy - iy);
-      const a = T(ix, iy), b = T(ix + 1, iy), c = T(ix, iy + 1), d = T(ix + 1, iy + 1);
-      const wa = (1 - fx) * (1 - fy), wb = fx * (1 - fy), wc = (1 - fx) * fy, wd = fx * fy;
-      const A = src[a + 3] * wa + src[b + 3] * wb + src[c + 3] * wc + src[d + 3] * wd, o = (wx + wy * HI) * 4;
-      col[o + 3] = A;
-      if (A < 1) { hgt[wx + wy * HI] = 0; continue; }
-      const det = 1 + ((hsh(wx + t * 977, wy) - 0.5) * 0.08 + (vn(wx / 5 + t * 13, wy / 5) - 0.5) * 0.07 + (vn(wx / 2.2 + t * 7, wy / 2.2 + 50) - 0.5) * 0.05) * (0.4 + relief * 0.6);
-      for (let k = 0; k < 3; k++) col[o + k] = (src[a + k] * src[a + 3] * wa + src[b + k] * src[b + 3] * wb + src[c + k] * src[c + 3] * wc + src[d + k] * src[d + 3] * wd) / A * det;
-      hgt[wx + wy * HI] = (col[o] * 0.3 + col[o + 1] * 0.59 + col[o + 2] * 0.11) / 255;
-    }
-    // 2. height from brightness; crevices (darker than their surroundings) get darker still
-    for (let pass = 0; pass < 2; pass++) { const from = pass ? tmp : hgt, to = pass ? blur : tmp; for (let y = 0; y < HI; y++) for (let x = 0; x < HI; x++) { let sum = 0; for (let k = -4; k <= 4; k++) sum += pass ? from[x + W8(y + k) * HI] : from[W8(x + k) + y * HI]; to[x + y * HI] = sum / 9; } }
-    for (let i = 0; i < N; i++) { if (col[i * 4 + 3] < 1) continue; const cav = Math.max(-0.35, Math.min(0.2, (hgt[i] - blur[i]) * 2.2)) * relief; const f = 1 + cav; col[i * 4] *= f; col[i * 4 + 1] *= f; col[i * 4 + 2] *= f; }
-    // 3. pad by wrapping, writing colour and tangent-space normals (alpha = relief strength)
+    const relief = RELIEF[names[t]] !== undefined ? RELIEF[names[t]] : 0.3;
+    // average colour of the opaque pixels: see-through pixels take it so mipmaps don't grow dark fringes
+    let ar = 0, ag = 0, ab = 0, an = 0, lmin = 1, lmax = 0;
+    const lum = new Float32Array(256);
+    for (let i = 0; i < 256; i++) { const o = T(i & 15, i >> 4); if (src[o + 3] > 127) { ar += src[o]; ag += src[o + 1]; ab += src[o + 2]; an++; } lum[i] = (src[o] * 0.3 + src[o + 1] * 0.59 + src[o + 2] * 0.11) / 255 * (src[o + 3] / 255); if (src[o + 3] > 127) { lmin = Math.min(lmin, lum[i]); lmax = Math.max(lmax, lum[i]); } }
+    if (an) { ar /= an; ag /= an; ab /= an; }
+    const span = Math.max(0.08, lmax - lmin);
+    // height: each pixel is a flat plateau at its brightness, softened by one hi-res texel so every pixel has a bevel
+    for (let wy = 0; wy < HI; wy++) for (let wx = 0; wx < HI; wx++) { const i = (wx >> 2) + (wy >> 2) * 16; hgt[wx + wy * HI] = (lum[i] - lmin) / span; }
+    for (let y = 0; y < HI; y++) for (let x = 0; x < HI; x++) tmp[x + y * HI] = (hgt[W8(x - 1) + y * HI] + hgt[x + y * HI] * 2 + hgt[W8(x + 1) + y * HI]) * 0.25;
+    for (let y = 0; y < HI; y++) for (let x = 0; x < HI; x++) sm[x + y * HI] = (tmp[x + W8(y - 1) * HI] + tmp[x + y * HI] * 2 + tmp[x + W8(y + 1) * HI]) * 0.25;
     for (let oy = -PAD; oy < HI + PAD; oy++) for (let ox = -PAD; ox < HI + PAD; ox++) {
-      const wx = W8(ox), wy = W8(oy), i = wx + wy * HI, o = ((cy + PAD + oy) * HIW + cx + PAD + ox) * 4;
-      out[o] = Math.min(255, col[i * 4]); out[o + 1] = Math.min(255, col[i * 4 + 1]); out[o + 2] = Math.min(255, col[i * 4 + 2]); out[o + 3] = col[i * 4 + 3];
-      const hx = (hgt[W8(wx + 1) + wy * HI] - hgt[W8(wx - 1) + wy * HI]) * 3.2 * relief, hy = (hgt[wx + W8(wy + 1) * HI] - hgt[wx + W8(wy - 1) * HI]) * 3.2 * relief;
+      const wx = W8(ox), wy = W8(oy), o = ((cy + PAD + oy) * HIW + cx + PAD + ox) * 4, s = T(wx >> 2, wy >> 2);
+      const opaque = src[s + 3] > 127;
+      out[o] = opaque ? src[s] : ar; out[o + 1] = opaque ? src[s + 1] : ag; out[o + 2] = opaque ? src[s + 2] : ab; out[o + 3] = src[s + 3];
+      const hx = (sm[W8(wx + 1) + wy * HI] - sm[W8(wx - 1) + wy * HI]) * 2.4 * relief, hy = (sm[wx + W8(wy + 1) * HI] - sm[wx + W8(wy - 1) * HI]) * 2.4 * relief;
       const l = Math.hypot(hx, hy, 1);
-      nout[o] = (-hx / l * 0.5 + 0.5) * 255; nout[o + 1] = (-hy / l * 0.5 + 0.5) * 255; nout[o + 2] = (1 / l * 0.5 + 0.5) * 255; nout[o + 3] = 255;
+      nout[o] = (-hx / l * 0.5 + 0.5) * 255; nout[o + 1] = (-hy / l * 0.5 + 0.5) * 255; nout[o + 2] = (1 / l * 0.5 + 0.5) * 255;
+      nout[o + 3] = tm[(ty + (wy >> 2)) * 256 + tx + (wx >> 2)];
     }
   }
-  g.putImageData(img, 0, 0); ng.putImageData(nimg, 0, 0);
-  atlasNormalCanvas = ncv;
-  return cv;
+  atlasNormalData = nout;
+  return out;
 }
-const atlasTex = new THREE.CanvasTexture(buildHiAtlas());
-atlasTex.magFilter = THREE.LinearFilter; atlasTex.minFilter = THREE.LinearMipmapLinearFilter; atlasTex.generateMipmaps = true; atlasTex.flipY = false;
-atlasTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+const atlasTex = new THREE.DataTexture(buildHiAtlas(), HIW, HIW, THREE.RGBAFormat);
+atlasTex.magFilter = THREE.NearestFilter; atlasTex.minFilter = THREE.LinearMipmapLinearFilter; atlasTex.generateMipmaps = true; atlasTex.flipY = false;
+atlasTex.anisotropy = renderer.capabilities.getMaxAnisotropy(); atlasTex.needsUpdate = true;
 // PBR material table, one texel per tile: R = glossiness, G = metalness
-const GLOSS = { polished: [0.75, 0], iron_block: [0.85, 1], gold_block: [0.9, 1], ancient_gold: [0.8, 1], glass: [0.95, 0], crystal: [0.9, 0], crystal_rose: [0.9, 0], fallen_star: [0.7, 0],
-  stonebrick: [0.35, 0], mossybrick: [0.3, 0], stone: [0.3, 0], cobble: [0.22, 0], mossycobble: [0.2, 0], darkbrick: [0.4, 0], basalt: [0.45, 0], sandstone: [0.15, 0], sandbrick: [0.2, 0],
-  iron_ore: [0.45, 0.3], gold_ore: [0.5, 0.4], coal_ore: [0.4, 0], lapis_ore: [0.5, 0], planks: [0.25, 0], planks_dark: [0.3, 0], log_side: [0.12, 0], table_top: [0.35, 0], chest_top: [0.3, 0], chest_front: [0.3, 0], barrel_side: [0.35, 0.15],
-  leaves: [0.45, 0], leaves_dark: [0.45, 0], leaves_blossom: [0.35, 0], grass_top: [0.2, 0], swamp_grass: [0.35, 0], mud: [0.55, 0], snow: [0.35, 0], terracotta: [0.25, 0], roof_red: [0.35, 0], roof_blue: [0.4, 0],
-  redbrick: [0.25, 0], plaster: [0.2, 0], cauldron: [0.6, 0.6], rail: [0.7, 0.8], lamp: [0.6, 0.2], bookshelf: [0.25, 0], cactus_side: [0.4, 0], lilypad: [0.6, 0] };
+const GLOSS = { polished: [0.6, 0], iron_block: [0.85, 1], gold_block: [0.9, 1], ancient_gold: [0.8, 1], glass: [0.95, 0], crystal: [0.9, 0], crystal_rose: [0.9, 0], fallen_star: [0.7, 0],
+  stonebrick: [0.3, 0], mossybrick: [0.25, 0], stone: [0.28, 0], cobble: [0.2, 0], mossycobble: [0.18, 0], darkbrick: [0.4, 0], basalt: [0.45, 0], sandstone: [0.12, 0], sandbrick: [0.15, 0],
+  iron_ore: [0.45, 0.3], gold_ore: [0.55, 0.5], coal_ore: [0.4, 0], lapis_ore: [0.55, 0], planks: [0.22, 0], planks_dark: [0.28, 0], log_side: [0.1, 0], table_top: [0.3, 0], chest_top: [0.3, 0], chest_front: [0.3, 0], barrel_side: [0.32, 0.15],
+  leaves: [0.42, 0], leaves_dark: [0.42, 0], leaves_blossom: [0.35, 0], grass_top: [0.18, 0], swamp_grass: [0.35, 0], mud: [0.55, 0], snow: [0.35, 0], terracotta: [0.22, 0], roof_red: [0.35, 0], roof_blue: [0.4, 0],
+  redbrick: [0.22, 0], plaster: [0.15, 0], cauldron: [0.6, 0.6], rail: [0.7, 0.8], lamp: [0.6, 0.2], bookshelf: [0.22, 0], cactus_side: [0.4, 0], lilypad: [0.6, 0], furnace_front: [0.25, 0], waystone: [0.5, 0] };
 const glossTex = (() => { const d = new Uint8Array(16 * 16 * 4); for (const k in Atlas.tiles) { const i = Atlas.tiles[k], g = GLOSS[k] || [0.08, 0]; d[i * 4] = g[0] * 255; d[i * 4 + 1] = g[1] * 255; d[i * 4 + 3] = 255; } const t = new THREE.DataTexture(d, 16, 16, THREE.RGBAFormat); t.needsUpdate = true; return t; })();
-const normalTex = new THREE.CanvasTexture(atlasNormalCanvas);
-normalTex.magFilter = THREE.LinearFilter; normalTex.minFilter = THREE.LinearMipmapLinearFilter; normalTex.flipY = false; normalTex.anisotropy = atlasTex.anisotropy;
+const normalTex = new THREE.DataTexture(atlasNormalData, HIW, HIW, THREE.RGBAFormat);
+normalTex.magFilter = THREE.LinearFilter; normalTex.minFilter = THREE.LinearMipmapLinearFilter; normalTex.generateMipmaps = true; normalTex.flipY = false; normalTex.anisotropy = atlasTex.anisotropy; normalTex.needsUpdate = true;
+atlasNormalData = null;
 
 const U = {
   uAtlas: { value: atlasTex }, uNormal: { value: normalTex }, uGloss: { value: glossTex }, uMist: { value: 0 }, uSeaY: { value: 22 }, uDay: { value: 1 }, uTime: { value: 0 },
@@ -90,11 +80,11 @@ const U = {
   uShadowMap: { value: null }, uShadowMatrix: { value: new THREE.Matrix4() }, uShadowOn: { value: 0 }, uShadowSize: { value: 2048 },
 };
 const VERT = `
-attribute vec3 aTile; attribute vec2 aLocal; attribute vec4 aLight;
-varying vec3 vTile; varying vec2 vLocal; varying vec4 vLight; varying float vFog; varying vec3 vWorld;
+attribute vec3 aTile; attribute vec2 aLocal; attribute vec4 aLight; attribute vec3 aTint;
+varying vec3 vTile; varying vec2 vLocal; varying vec4 vLight; varying float vFog; varying vec3 vWorld; varying vec3 vTint;
 uniform float uTime;
 void main(){
-  vTile=aTile; vLocal=aLocal; vLight=aLight;
+  vTile=aTile; vLocal=aLocal; vLight=aLight; vTint=aTint;
   vec3 p=position;
   float anim=mod(aTile.z,10.0);
   if(anim>1.5&&anim<2.5){ float sh=clamp(aLight.z*8.0,0.0,1.0); p.y+=(sin(p.x*0.9+uTime*1.7)*0.03+cos(p.z*0.8+uTime*1.3)*0.03+sin((p.x+p.z)*0.37+uTime*0.9)*0.025)*sh; }
@@ -112,7 +102,7 @@ uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uAmbCol; uniform vec3 u
 uniform vec4 uPLight;
 uniform sampler2D uReflTex; uniform mat4 uReflMat; uniform float uReflOn; uniform float uReflH; uniform float uClipY; uniform vec3 uSkyTop; uniform vec3 uSkyHor;
 uniform sampler2D uShadowMap; uniform mat4 uShadowMatrix; uniform float uShadowOn; uniform float uShadowSize;
-varying vec3 vTile; varying vec2 vLocal; varying vec4 vLight; varying float vFog; varying vec3 vWorld;
+varying vec3 vTile; varying vec2 vLocal; varying vec4 vLight; varying float vFog; varying vec3 vWorld; varying vec3 vTint;
 vec3 toLin(vec3 c){ return pow(c, vec3(2.2)); }
 vec3 toSrgb(vec3 c){ return pow(max(c, 0.0), vec3(1.0/2.2)); }
 float shadowAt(vec3 wp, vec3 n){
@@ -153,6 +143,7 @@ void main(){
   vec4 t=texture2DGradEXT(uAtlas,uv,dFdx(guv),dFdy(guv));
   if(t.a<uCut) discard;
   vec3 alb=toLin(t.rgb);
+  float tmask=texture2DGradEXT(uNormal,uv,dFdx(guv),dFdy(guv)).a; alb*=mix(vec3(1.0),vTint,tmask); // biome grass & foliage colour
   vec3 n0=normalize(cross(dFdx(vWorld),dFdy(vWorld)));
   // tiny per-block colour variation breaks up repetition on big flat areas
   if(vTile.z<10.0 && !(anim>1.5&&anim<2.5)){ vec3 bp=floor(vWorld-n0*0.01); float hv=fract(sin(dot(bp,vec3(12.9898,78.233,37.719)))*43758.5453); alb*=0.95+hv*0.1; }
@@ -275,13 +266,15 @@ const LOCALUV = [[0, 0], [1, 0], [1, 1], [0, 1]];
 // mesh buffers: typed arrays reused for every chunk (no garbage, so no collection pauses while streaming)
 function TBuf() { this.cap = 0; this.n = 0; this.ni = 0; this.grow(4096); }
 TBuf.prototype.grow = function (cap) {
-  const p = new Float32Array(cap * 3), t = new Float32Array(cap * 3), l = new Float32Array(cap * 2), li = new Float32Array(cap * 4), ix = new Uint32Array(cap * 1.5);
-  if (this.cap) { p.set(this.p); t.set(this.t); l.set(this.l); li.set(this.li); ix.set(this.i); }
-  this.p = p; this.t = t; this.l = l; this.li = li; this.i = ix; this.cap = cap;
+  const p = new Float32Array(cap * 3), t = new Float32Array(cap * 3), l = new Float32Array(cap * 2), li = new Float32Array(cap * 4), tn = new Float32Array(cap * 3), ix = new Uint32Array(cap * 1.5);
+  if (this.cap) { p.set(this.p); t.set(this.t); l.set(this.l); li.set(this.li); tn.set(this.tn); ix.set(this.i); }
+  this.p = p; this.t = t; this.l = l; this.li = li; this.tn = tn; this.i = ix; this.cap = cap;
 };
 const MESH_BUFS = [new TBuf(), new TBuf(), new TBuf(), new TBuf()];
 function takeBuf(k) { const b = MESH_BUFS[k]; b.n = 0; b.ni = 0; return b; }
-function quad(g, verts, tile, anim, uvs, light) {
+const NO_TINT = [1, 1, 1];
+function quad(g, verts, tile, anim, uvs, light, tint) {
+  tint = tint || NO_TINT;
   if (g.n + 4 > g.cap) g.grow(g.cap * 2);
   const tp = TILEPOS[tile] || [0, 0], s = g.n;
   for (let k = 0; k < 4; k++) {
@@ -290,6 +283,7 @@ function quad(g, verts, tile, anim, uvs, light) {
     g.t[v * 3] = tp[0]; g.t[v * 3 + 1] = tp[1]; g.t[v * 3 + 2] = anim;
     g.l[v * 2] = uk[0]; g.l[v * 2 + 1] = uk[1];
     g.li[v * 4] = lk[0]; g.li[v * 4 + 1] = lk[1]; g.li[v * 4 + 2] = lk[2]; g.li[v * 4 + 3] = lk[3];
+    g.tn[v * 3] = tint[0]; g.tn[v * 3 + 1] = tint[1]; g.tn[v * 3 + 2] = tint[2];
   }
   const I = g.i; let o = g.ni;
   // flip the diagonal for nicer AO interpolation
@@ -342,9 +336,27 @@ function texFor(d, f, fi, meta) {
   if (d.tex.front !== d.tex.side && FACING_FACE[meta] === fi) return d.tex.front;
   return d.tex.side;
 }
+// biome colour for grass (cls 0) and foliage (cls 1), blended over nearby columns like the classic game, as a
+// multiplier on the Meadowbrook colours painted into the atlas
+const TINT_RATIO = [BIOME_GRASS, BIOME_FOLIAGE].map(list => list.map(h => { const b = list[0]; return [((h >> 16) & 255) / ((b >> 16) & 255), ((h >> 8) & 255) / ((b >> 8) & 255), (h & 255) / (b & 255)]; }));
+const _tintCache = new Float32Array(CS * CS * 6), _tintOut = [[1, 1, 1], [1, 1, 1]];
+function prepChunkTint(x0, z0) {
+  for (let z = 0; z < CS; z++) for (let x = 0; x < CS; x++) {
+    const acc = [0, 0, 0, 0, 0, 0]; let n = 0;
+    for (let dz = -3; dz <= 3; dz += 2) for (let dx = -3; dx <= 3; dx += 2) {
+      const wx = x0 + x + dx, wz = z0 + z + dz; if (!resident(wx, wz)) continue;
+      const b = bmap[COL(wx, wz)] || 0; for (let k = 0; k < 2; k++) { const r = TINT_RATIO[k][b] || TINT_RATIO[k][0]; acc[k * 3] += r[0]; acc[k * 3 + 1] += r[1]; acc[k * 3 + 2] += r[2]; } n++;
+    }
+    const o = (x + z * CS) * 6; for (let k = 0; k < 6; k++) _tintCache[o + k] = n ? acc[k] / n : 1;
+  }
+}
+const TINT_CLASS = new Int8Array(256).fill(-1);
+TINT_CLASS[B.GRASS] = 0; TINT_CLASS[B.TALLGRASS] = 0; TINT_CLASS[B.LEAVES] = 1; TINT_CLASS[B.LEAVES_DARK] = 1; TINT_CLASS[B.VINES] = 1;
+function chunkTint(x, z, x0, z0, cls) { const o = ((x - x0) + (z - z0) * CS) * 6 + cls * 3, t = _tintOut[cls]; t[0] = _tintCache[o]; t[1] = _tintCache[o + 1]; t[2] = _tintCache[o + 2]; return t; }
 function buildChunkGeo(cx, cz) {
   const S = takeBuf(0), X = takeBuf(1), Wt = takeBuf(2), G = takeBuf(3);
   const x0 = cx * CS, z0 = cz * CS;
+  prepChunkTint(x0, z0);
   let top = H - 1; // highest layer with anything in it
   scan: for (; top >= 0; top--) { const base = top * WD_; for (let z = z0; z < z0 + CS; z++) { const row = base + (z & 255) * W; for (let x = x0; x < x0 + CS; x++) if (wb[row + (x & 255)]) break scan; } }
   for (let y = 0; y <= top; y++) for (let z = z0; z < z0 + CS; z++) for (let x = x0; x < x0 + CS; x++) {
@@ -371,7 +383,7 @@ function buildChunkGeo(cx, cz) {
         const uvs = f.k === 'side' ? LOCALUV.map((uv, k) => [uv[0], (topOpen && uv[1] === 1) ? 0.88 : uv[1]]) : f.v.map(v => [v[0], v[2]]);
         const light = faceLight(x, y, z, f, r === 'cube' || d.cutLike);
         if (isWater && topOpen && fi === 2) for (let k = 0; k < 4; k++) { const v = f.v[k]; light[k] = light[k].slice(); light[k][2] = waterDepthAt(x + v[0], y, z + v[2]) / 8; }
-        quad(g, verts, texFor(d, f, fi, meta), (d.anim || 0) + emis, uvs, light);
+        quad(g, verts, texFor(d, f, fi, meta), (d.anim || 0) + emis, uvs, light, TINT_CLASS[id] >= 0 ? chunkTint(x, z, x0, z0, TINT_CLASS[id]) : null);
       }
     } else if (r === 'cross') {
       const L = lightSample(x, y, z), lt = [L[0] / 15, L[1] / 15, 1, 0.92];
@@ -381,7 +393,7 @@ function buildChunkGeo(cx, cz) {
         const a = ang + k * Math.PI / 2 + Math.PI / 4, dx = Math.cos(a) * s * 1.414 / 1.414, dz = Math.sin(a) * s;
         const ddx = Math.cos(a) * s;
         const v = [[cxm - ddx, y, czm - dz], [cxm + ddx, y, czm + dz], [cxm + ddx, y + 1, czm + dz], [cxm - ddx, y + 1, czm - dz]];
-        quad(X, v, d.tex.side, (d.anim || 0) + emis, LOCALUV, [lt, lt, lt, lt]);
+        quad(X, v, d.tex.side, (d.anim || 0) + emis, LOCALUV, [lt, lt, lt, lt], TINT_CLASS[id] >= 0 ? chunkTint(x, z, x0, z0, TINT_CLASS[id]) : null);
       }
     } else if (r === 'flat') {
       const L = lightSample(x, y, z), lt = [L[0] / 15, L[1] / 15, 1, 1];
@@ -395,7 +407,7 @@ function buildChunkGeo(cx, cz) {
       else if (meta === 1) v = [[x + e, y, z + 1], [x + e, y, z], [x + e, y + 1, z], [x + e, y + 1, z + 1]];                // wall at -x
       else if (meta === 2) v = [[x, y, z + e], [x + 1, y, z + e], [x + 1, y + 1, z + e], [x, y + 1, z + e]];                // wall at -z
       else v = [[x + 1 - e, y, z], [x + 1 - e, y, z + 1], [x + 1 - e, y + 1, z + 1], [x + 1 - e, y + 1, z]];                // wall at +x
-      quad(X, v, d.tex.side, 0, LOCALUV, [lt, lt, lt, lt]);
+      quad(X, v, d.tex.side, 0, LOCALUV, [lt, lt, lt, lt], TINT_CLASS[id] >= 0 ? chunkTint(x, z, x0, z0, TINT_CLASS[id]) : null);
     } else if (r === 'box') {
       const bx = d.box, L = lightSample(x, y, z);
       for (let fi = 0; fi < 6; fi++) {
@@ -422,6 +434,7 @@ function toMesh(g, mat, order) {
   geo.setAttribute('aTile', new THREE.BufferAttribute(g.t.slice(0, n * 3), 3));
   geo.setAttribute('aLocal', new THREE.BufferAttribute(g.l.slice(0, n * 2), 2));
   geo.setAttribute('aLight', new THREE.BufferAttribute(g.li.slice(0, n * 4), 4));
+  geo.setAttribute('aTint', new THREE.BufferAttribute(g.tn.slice(0, n * 3), 3));
   geo.setIndex(new THREE.BufferAttribute(n < 65536 ? Uint16Array.from(g.i.subarray(0, g.ni)) : g.i.slice(0, g.ni), 1));
   geo.computeBoundingSphere();
   const m = new THREE.Mesh(geo, mat);
