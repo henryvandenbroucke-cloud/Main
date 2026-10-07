@@ -93,8 +93,8 @@ function openEnchant(h) {
   renderEnchant();
 }
 function closeEnchant() {
-  for (let i = 0; i < 2; i++) if (EnchSlots[i]) { const left = giveStack(EnchSlots[i]); if (left) dropItem(EnchSlots[i].id, left, Player.x, Player.y + 1.4, Player.z); EnchSlots[i] = null; }
-  if (cursor) { const left = giveStack(cursor); if (left) dropItem(cursor.id, left, Player.x, Player.y + 1.4, Player.z); cursor = null; }
+  for (let i = 0; i < 2; i++) if (EnchSlots[i]) { const left = giveStack(EnchSlots[i]); if (left) dropItem(EnchSlots[i].id, left, Player.x, Player.y + 1.4, Player.z, EnchSlots[i].ench); EnchSlots[i] = null; }
+  if (cursor) { const left = giveStack(cursor); if (left) dropItem(cursor.id, left, Player.x, Player.y + 1.4, Player.z, cursor.ench); cursor = null; }
   $('cursorItem').innerHTML = ''; $('tooltip').classList.add('hidden');
   $('enchant').classList.add('hidden'); Game.ui = null; lockPointer();
 }

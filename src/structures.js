@@ -522,11 +522,13 @@ function shatteredOath(s) {
   addSite('The Shattered Oath', 'Landmark', 'sight', cx, gy, cz, 18);
   fill(P, -4, 0, -4, 4, 2, 4, B.MOSSYBRICK); fill(P, -3, 3, -3, 3, 3, 3, B.CRACKEDBRICK);
   fill(P, -4, 3, -4, -3, 3, -3, B.AIR); fill(P, 2, 3, 2, 4, 4, 4, B.AIR);
-  fill(P, -1, 4, 0, 1, 24, 0, B.CRYSTAL); fill(P, 0, 25, 0, 0, 27, 0, B.CRYSTAL); // blade
-  fill(P, -1, 4, -1, 1, 18, -1, B.ENERGY); fill(P, -1, 4, 1, 1, 18, 1, B.ENERGY);
-  fill(P, -5, 25, 0, 5, 26, 0, B.ANCIENT_GOLD); fill(P, 0, 27, 0, 0, 31, 0, B.DARKLOG); P(0, 32, 0, B.CRYSTAL_ROSE);
+  // on high ground the blade sinks deeper into the plinth, so the guard and hilt never poke out of the top of the world
+  const o = Math.max(0, gy + 33 - (H - 1));
+  fill(P, -1, 4 - o, 0, 1, 24 - o, 0, B.CRYSTAL); fill(P, 0, 25 - o, 0, 0, 27 - o, 0, B.CRYSTAL); // blade
+  if (18 - o >= 4) { fill(P, -1, 4, -1, 1, 18 - o, -1, B.ENERGY); fill(P, -1, 4, 1, 1, 18 - o, 1, B.ENERGY); }
+  fill(P, -5, 25 - o, 0, 5, 26 - o, 0, B.ANCIENT_GOLD); fill(P, 0, 27 - o, 0, 0, 31 - o, 0, B.DARKLOG); P(0, 32 - o, 0, B.CRYSTAL_ROSE);
   for (let i = 0; i < 24; i++) { const a = rng() * 6.28, d = 5 + rng() * 6, x = Math.round(Math.cos(a) * d), z = Math.round(Math.sin(a) * d); const y = surfaceY(cx + x, cz + z) - gy; P(x, y + 1, z, rng() < 0.5 ? B.CRYSTAL_CLUSTER : B.CRYSTAL); if (rng() < 0.4) P(x, y + 2, z, B.CRYSTAL); }
-  const tip = P.at(0, 30, 0); Emitters.push({ x: tip[0] + 0.5, y: tip[1], z: tip[2] + 0.5, type: 'sparkle' }, { x: cx + 0.5, y: gy + 10, z: cz + 0.5, type: 'sparkle' });
+  const tip = P.at(0, 30 - o, 0); Emitters.push({ x: tip[0] + 0.5, y: tip[1], z: tip[2] + 0.5, type: 'sparkle' }, { x: cx + 0.5, y: gy + 10, z: cz + 0.5, type: 'sparkle' });
   addLore(P, 0, 3, -5, 'The Shattered Oath', 'Forged from the first shard that fell, to end the sky-fall. It struck the Colossus once and split in two. The other half was never found.', 'blade');
 }
 function beaconLookout(s) {

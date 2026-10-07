@@ -126,10 +126,10 @@ function spawnMob(type, x, y, z, extra) {
 function removeMob(m) { scene.remove(m.g); for (const mt of m.mats || []) mt.dispose(); const i = Mobs.indexOf(m); if (i >= 0) Mobs.splice(i, 1); if (m.spawn) { const k = m.spawn.alive.indexOf(m); if (k >= 0) m.spawn.alive.splice(k, 1); } }
 
 // ---------------------------------------------------------------- drops
-function dropItem(id, n, x, y, z) {
+function dropItem(id, n, x, y, z, ench) {
   const mesh = itemMesh(id); mesh.scale.setScalar(id < 256 ? 0.28 : 0.42);
   mesh.position.set(x, y, z); scene.add(mesh);
-  Drops.push({ id, n, x, y, z, vx: (Math.random() - 0.5) * 3, vy: 4, vz: (Math.random() - 0.5) * 3, mesh, t: 0, hw: 0.12, h: 0.25 });
+  Drops.push({ id, n, x, y, z, vx: (Math.random() - 0.5) * 3, vy: 4, vz: (Math.random() - 0.5) * 3, mesh, t: 0, hw: 0.12, h: 0.25, ench: ench ? Object.assign({}, ench) : undefined });
 }
 function roomFor(id) { const max = itemDef(id).stack; let n = 0; for (let i = 0; i < 36; i++) { const s = Inv.slots[i]; if (!s) n += max; else if (s.id === id && !s.ench) n += max - s.n; } return n; }
 function updateDrops(dt, p) {
@@ -137,11 +137,11 @@ function updateDrops(dt, p) {
     const d = Drops[i]; d.t += dt;
     const dx = p.x - d.x, dy = (p.y + 0.8) - d.y, dz = p.z - d.z, dist = Math.hypot(dx, dy, dz);
     // only pull items in when there is room for them; otherwise they simply stay on the ground
-    d.fitT = (d.fitT || 0) - dt; if (d.fitT <= 0) { d.fitT = 0.4; d.fits = roomFor(d.id) > 0; }
+    d.fitT = (d.fitT || 0) - dt; if (d.fitT <= 0) { d.fitT = 0.4; d.fits = d.ench ? Inv.slots.indexOf(null) >= 0 : roomFor(d.id) > 0; }
     if (!d.fits && d.t > 0.5 && dist < 1.4) toastOnce('invfull', 'Your inventory is full.');
     if (d.t > 0.5 && dist < 2.6 && d.fits) { d.vx += dx / dist * 40 * dt; d.vy += dy / dist * 40 * dt; d.vz += dz / dist * 40 * dt; d.x += d.vx * dt; d.y += d.vy * dt; d.z += d.vz * dt; d.vx *= 0.9; d.vy *= 0.9; d.vz *= 0.9; }
     else { d.vy -= 18 * dt; d.vx *= 0.96; d.vz *= 0.96; moveBody(d, dt); }
-    if (d.t > 0.5 && dist < 0.8 && d.fits) { const left = giveItem(d.id, d.n); if (left <= 0) { scene.remove(d.mesh); Drops.splice(i, 1); continue; } d.n = left; }
+    if (d.t > 0.5 && dist < 0.8 && d.fits) { const left = d.ench ? giveStack({ id: d.id, n: d.n, ench: d.ench }) : giveItem(d.id, d.n); if (left <= 0) { scene.remove(d.mesh); Drops.splice(i, 1); continue; } d.n = left; }
     if (d.t > 300) { scene.remove(d.mesh); Drops.splice(i, 1); continue; }
     d.mesh.position.set(d.x, d.y + 0.25 + Math.sin(d.t * 3) * 0.06, d.z); d.mesh.rotation.y = d.t * 1.5;
     const L = lightAt(d.x, d.y + 0.3, d.z), lv = Math.max(L[0] / 15 * U.uDay.value, L[1] / 15) * 0.85 + 0.15;
@@ -1109,15 +1109,12 @@ function startBoss(room) {
 function onBossDefeated(m) {
   const room = m.room; room.done = true; ActiveBoss = null;
   Quests.event('boss', m.type);
-  Game.save && Game.save();
   if (m.type === 'warden') {
     bossBanner('Warden Defeated', 'The Deepseal Key is yours');
-    setB(Math.floor(room.x), room.y, Math.floor(room.z), B.CHEST, 2); Chests.set(K(Math.floor(room.x), room.y, Math.floor(room.z)), { table: 'warden', items: null });
-    blockChanged(Math.floor(room.x), room.y, Math.floor(room.z));
+    setBlockLogged(Math.floor(room.x), room.y, Math.floor(room.z), B.CHEST, 2); Chests.set(K(Math.floor(room.x), room.y, Math.floor(room.z)), { table: 'warden', items: null, keep: true });
   } else {
     bossBanner('The Colossus Has Fallen', 'The Heart of the Buried World is yours');
-    setB(Math.floor(room.x), room.y, Math.floor(room.z) + 3, B.CHEST, 0); Chests.set(K(Math.floor(room.x), room.y, Math.floor(room.z) + 3), { table: 'hoard', items: null });
-    blockChanged(Math.floor(room.x), room.y, Math.floor(room.z) + 3);
+    setBlockLogged(Math.floor(room.x), room.y, Math.floor(room.z) + 3, B.CHEST, 0); Chests.set(K(Math.floor(room.x), room.y, Math.floor(room.z) + 3), { table: 'hoard', items: null, keep: true });
     const p = Game.halls && Game.halls.portal;
     if (p) {
       for (let dy = 0; dy < 4; dy++) for (let dx = -1; dx <= 1; dx++) { const edge = dy === 0 || dy === 3 || Math.abs(dx) === 1; setBlockLogged(p[0] + dx, p[1] + dy, p[2], edge ? B.ANCIENT_GOLD : B.PORTAL); }
@@ -1126,6 +1123,7 @@ function onBossDefeated(m) {
       toast('A portal opens back to the surface', 3500);
     }
   }
+  Game.save && Game.save();
 }
 
 // ---------------------------------------------------------------- spawning

@@ -128,7 +128,7 @@ function openInventory(chestKey) {
   renderInventory();
 }
 function closeInventory() {
-  if (cursor) { const left = giveStack(cursor); if (left) dropItem(cursor.id, left, Player.x, Player.y + 1.4, Player.z); cursor = null; }
+  if (cursor) { const left = giveStack(cursor); if (left) dropItem(cursor.id, left, Player.x, Player.y + 1.4, Player.z, cursor.ench); cursor = null; }
   returnCraftGrid();
   $('cursorItem').innerHTML = '';
   $('inv').classList.add('hidden'); $('tooltip').classList.add('hidden');
@@ -199,7 +199,7 @@ function containerAction(a) {
   Sound.ui(); lastHudKey = ''; renderInventory();
 }
 function returnCraftGrid() {
-  for (let i = 0; i < 9; i++) { const s = CraftGrid[i]; if (s) { const left = giveStack(s); if (left) dropItem(s.id, left, Player.x, Player.y + 1.4, Player.z); CraftGrid[i] = null; } }
+  for (let i = 0; i < 9; i++) { const s = CraftGrid[i]; if (s) { const left = giveStack(s); if (left) dropItem(s.id, left, Player.x, Player.y + 1.4, Player.z, s.ench); CraftGrid[i] = null; } }
 }
 function fillGridFor(r) {
   returnCraftGrid();

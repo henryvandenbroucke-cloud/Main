@@ -188,7 +188,10 @@ async function createWorld(seedName, save, mode, showcase) {
   Game.spawn = spawnSite && spawnSite.spawn ? spawnSite.spawn.slice() : [128.5, surfaceY(128, 128) + 1, 128.5];
   if (Game.mode === 'parkour' && Course.cps.length) Game.spawn = Course.cps[0].slice();
   // fresh player
-  Object.assign(Player, { x: Game.spawn[0], y: Game.spawn[1], z: Game.spawn[2], vx: 0, vy: 0, vz: 0, yaw: Math.PI, pitch: 0, hp: 20, food: 20, alive: true, burn: 0 });
+  Object.assign(Player, { x: Game.spawn[0], y: Game.spawn[1], z: Game.spawn[2], vx: 0, vy: 0, vz: 0, yaw: Math.PI, pitch: 0, hp: 20, food: 20, alive: true, burn: 0,
+    poison: 0, inv: 0, flying: false, sneak: false, sprinting: false, fallV: 0, onGround: false, eyeOff: 0, stepUp: 0, lastCause: null, lastMobHit: null, poisonSrc: null, burnSrc: null });
+  CraftGrid.fill(null); cursor = null; Game.cine = null; Game.mine = null; Game.hitStop = Game.slowmo = 0; drawing = false; bowDraw = 0;
+  for (const k in Input.keys) Input.keys[k] = false;
   Inv.slots.fill(null); Inv.armor.fill(null); Inv.relics.fill(null);
   Game.time = 0.3; Game.day = 0; Game.sel = 0; Stats.kills = 0; Stats.deaths = 0;
   if (save) applySave(save);
@@ -233,27 +236,31 @@ function showOnly(id) {
 function saveGame() {
   if (Game.state !== 'play' && Game.state !== 'ready') return;
   const mods = []; for (const [k, v] of Game.mods) mods.push(k, v[0], v[1]);
-  const chests = []; for (const [k, c] of Chests) if (c.items || c.made) chests.push([k, c.table, c.items, !!c.made]);
+  const chests = []; for (const [k, c] of Chests) if (c.items || c.made || c.keep) chests.push([k, c.table, c.items, !!c.made, !!c.keep]);
   const data = {
     seed: Game.seedName, mode: Game.mode, quest: Quests.index, questProg: Quests.prog, perks: Quests.perks, questStart: Quests.startDay, effects: Effects.active, enchSeed: Player.enchSeed, mods, chests, time: Game.time, day: Game.day, stats: Stats,
     player: { x: Player.x, y: Player.y, z: Player.z, yaw: Player.yaw, pitch: Player.pitch, hp: Player.hp, food: Player.food },
     spawn: Game.spawn, inv: { slots: Inv.slots, armor: Inv.armor, relics: Inv.relics, loose: CraftGrid.filter(Boolean).concat(cursor ? [cursor] : []) }, sel: Game.sel, found: Sites.filter(s => s.found).map(s => s.name), follow: Game.follow ? Game.follow.name : null,
-    bosses: BossRooms.map(r => r.done),
+    bosses: BossRooms.map(r => r.done), peaceful: !!Game.peaceful,
   };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) { console.warn('save failed', e); }
 }
 function loadSave() { try { return JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { return null; } }
 function applySave(s) {
   for (let i = 0; i < s.mods.length; i += 3) { const k = s.mods[i], [x, y, z] = modDecode(k); Game.mods.set(k, [s.mods[i + 1], s.mods[i + 2]]); if (inWorld(x, y, z)) { const j = IDX(x, y, z); wb[j] = s.mods[i + 1]; wm[j] = s.mods[i + 2]; } }
-  for (const [k, table, items, made] of s.chests) Chests.set(k, { table, items, made });
+  for (const [k, table, items, made, keep] of s.chests) Chests.set(k, { table, items, made, keep });
   Quests.load(s); Effects.load(s.effects); Player.enchSeed = s.enchSeed || 1;
   Object.assign(Player, s.player); Game.spawn = s.spawn; Game.time = s.time; Game.day = s.day; Object.assign(Stats, s.stats || {});
   Inv.slots = s.inv.slots; Inv.armor = s.inv.armor; Inv.relics = s.inv.relics; Game.sel = s.sel || 0;
   CraftGrid.fill(null); cursor = null;
-  for (const it of s.inv.loose || []) addTo(Inv.slots, it.id, it.n, 0, 36);
+  const spill = []; for (const it of s.inv.loose || []) { const left = putStack(Inv.slots, it, 0, 36); if (left) spill.push(Object.assign({}, it, { n: left })); }
   for (const s2 of Sites) s2.found = s.found.includes(s2.name);
   Game.follow = Sites.find(x => x.name === s.follow) || null;
   (s.bosses || []).forEach((d, i) => { if (BossRooms[i]) BossRooms[i].done = d; });
+  Game.peaceful = !!s.peaceful;
+  // saved while dead (the death screen was open): come back at your spawn point, alive
+  if (!(Player.hp > 0)) Object.assign(Player, { x: Game.spawn[0], y: Game.spawn[1], z: Game.spawn[2], vx: 0, vy: 0, vz: 0, hp: maxHealth(), food: Math.max(Player.food || 0, 14) });
+  for (const it of spill) dropItem(it.id, it.n, Player.x, Player.y + 1, Player.z, it.ench);
 }
 
 // ---------------------------------------------------------------- pointer lock & menus
@@ -265,7 +272,7 @@ function lockPointer() {
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === canvasEl;
   if (locked) { $('clickToBegin').classList.add('hidden'); $('pause').classList.add('hidden'); return; }
-  Input.mouseL = Input.mouseR = false;
+  releaseInput();
   if (Game.state === 'play' && !Game.ui && Player.alive) openPause();
 });
 $('clickToBegin').addEventListener('click', () => { if (Game.state === 'ready') { Game.state = 'play'; Quests.render(true); } $('clickToBegin').classList.add('hidden'); lockPointer(); });
@@ -376,10 +383,13 @@ document.addEventListener('keydown', e => {
   if (e.code === 'Escape') { if (Game.ui === 'ench') closeEnchant(); else if (Game.ui === 'creative') closeCreative(); else if (Game.ui === 'inv') closeInventory(); else if (Game.ui === 'wf') closeWayfinder(); else if (Game.ui === 'lore') closeLore(); else if (Game.ui === 'pause') closePause(); return; }
   if (Game.ui) return;
   if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 9) { Game.sel = n; showHeldName(); lastHudKey = ''; } }
-  if (e.code === 'KeyQ') { const s = heldItem(); if (s) { const d = lookDir(); dropItem(s.id, 1, Player.x + d[0], Player.y + 1.4, Player.z + d[2]); Drops[Drops.length - 1].vx = d[0] * 6; Drops[Drops.length - 1].vz = d[2] * 6; Drops[Drops.length - 1].t = -0.5; s.n--; if (!s.n) Inv.slots[Game.sel] = null; lastHudKey = ''; } }
+  if (e.code === 'KeyQ') { const s = heldItem(); if (s) { const d = lookDir(); dropItem(s.id, 1, Player.x + d[0], Player.y + 1.4, Player.z + d[2], s.ench); Drops[Drops.length - 1].vx = d[0] * 6; Drops[Drops.length - 1].vz = d[2] * 6; Drops[Drops.length - 1].t = -0.5; s.n--; if (!s.n) Inv.slots[Game.sel] = null; lastHudKey = ''; } }
   if (e.code === 'F3') Settings.fps = !Settings.fps, applySettings();
   if ((e.code === 'F5' || e.code === 'KeyV' || e.key === 'v' || e.key === 'V') && !e.repeat) { e.preventDefault(); Game.view = ((Game.view || 0) + 1) % 3;  }
 });
+// switching windows (Alt+Tab) swallows the key-up events: forget held keys so you don't keep walking
+function releaseInput() { for (const k in Input.keys) Input.keys[k] = false; Input.mouseL = Input.mouseR = false; Player.wTap = false; Game.mine = null; if (drawing) useEnd(); }
+window.addEventListener('blur', releaseInput);
 document.addEventListener('keyup', e => { Input.keys[e.code] = false; if (e.code === 'KeyW') Player.wTap = false; });
 document.addEventListener('mousemove', e => {
   if (Game.state !== 'play' || Game.ui || document.pointerLockElement !== canvasEl || Game.cine) return;
@@ -564,7 +574,7 @@ function updateMining(dt) {
 }
 function breakBlock(h) {
   const id = h.id, d = BLK[id], k = K(h.x, h.y, h.z);
-  if (Chests.has(k)) { const c = Chests.get(k); if (c && c.items) for (const s of c.items) if (s) dropItem(s.id, s.n, h.x + 0.5, h.y + 0.5, h.z + 0.5); Chests.delete(k); }
+  if (Chests.has(k)) { const c = Chests.get(k); if (c && c.items) for (const s of c.items) if (s) dropItem(s.id, s.n, h.x + 0.5, h.y + 0.5, h.z + 0.5, s.ench); Chests.delete(k); }
   if (id === B.ENERGY) { // a colossus pylon: the whole column shatters
     for (let y = h.y - 8; y <= h.y + 8; y++) if (getB(h.x, y, h.z) === B.ENERGY || (getB(h.x, y, h.z) === B.CRYSTAL && getB(h.x, y - 1, h.z) === B.ENERGY)) { setBlockLogged(h.x, y, h.z, B.AIR); blockBurst(h.x, y, h.z, B.ENERGY, 10); }
     shake(0.4); toast('A pylon shatters!', 1500); return;

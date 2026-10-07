@@ -2594,11 +2594,13 @@ function shatteredOath(s) {
   addSite('The Shattered Oath', 'Landmark', 'sight', cx, gy, cz, 18);
   fill(P, -4, 0, -4, 4, 2, 4, B.MOSSYBRICK); fill(P, -3, 3, -3, 3, 3, 3, B.CRACKEDBRICK);
   fill(P, -4, 3, -4, -3, 3, -3, B.AIR); fill(P, 2, 3, 2, 4, 4, 4, B.AIR);
-  fill(P, -1, 4, 0, 1, 24, 0, B.CRYSTAL); fill(P, 0, 25, 0, 0, 27, 0, B.CRYSTAL); // blade
-  fill(P, -1, 4, -1, 1, 18, -1, B.ENERGY); fill(P, -1, 4, 1, 1, 18, 1, B.ENERGY);
-  fill(P, -5, 25, 0, 5, 26, 0, B.ANCIENT_GOLD); fill(P, 0, 27, 0, 0, 31, 0, B.DARKLOG); P(0, 32, 0, B.CRYSTAL_ROSE);
+  // on high ground the blade sinks deeper into the plinth, so the guard and hilt never poke out of the top of the world
+  const o = Math.max(0, gy + 33 - (H - 1));
+  fill(P, -1, 4 - o, 0, 1, 24 - o, 0, B.CRYSTAL); fill(P, 0, 25 - o, 0, 0, 27 - o, 0, B.CRYSTAL); // blade
+  if (18 - o >= 4) { fill(P, -1, 4, -1, 1, 18 - o, -1, B.ENERGY); fill(P, -1, 4, 1, 1, 18 - o, 1, B.ENERGY); }
+  fill(P, -5, 25 - o, 0, 5, 26 - o, 0, B.ANCIENT_GOLD); fill(P, 0, 27 - o, 0, 0, 31 - o, 0, B.DARKLOG); P(0, 32 - o, 0, B.CRYSTAL_ROSE);
   for (let i = 0; i < 24; i++) { const a = rng() * 6.28, d = 5 + rng() * 6, x = Math.round(Math.cos(a) * d), z = Math.round(Math.sin(a) * d); const y = surfaceY(cx + x, cz + z) - gy; P(x, y + 1, z, rng() < 0.5 ? B.CRYSTAL_CLUSTER : B.CRYSTAL); if (rng() < 0.4) P(x, y + 2, z, B.CRYSTAL); }
-  const tip = P.at(0, 30, 0); Emitters.push({ x: tip[0] + 0.5, y: tip[1], z: tip[2] + 0.5, type: 'sparkle' }, { x: cx + 0.5, y: gy + 10, z: cz + 0.5, type: 'sparkle' });
+  const tip = P.at(0, 30 - o, 0); Emitters.push({ x: tip[0] + 0.5, y: tip[1], z: tip[2] + 0.5, type: 'sparkle' }, { x: cx + 0.5, y: gy + 10, z: cz + 0.5, type: 'sparkle' });
   addLore(P, 0, 3, -5, 'The Shattered Oath', 'Forged from the first shard that fell, to end the sky-fall. It struck the Colossus once and split in two. The other half was never found.', 'blade');
 }
 function beaconLookout(s) {
@@ -4994,10 +4996,10 @@ function spawnMob(type, x, y, z, extra) {
 function removeMob(m) { scene.remove(m.g); for (const mt of m.mats || []) mt.dispose(); const i = Mobs.indexOf(m); if (i >= 0) Mobs.splice(i, 1); if (m.spawn) { const k = m.spawn.alive.indexOf(m); if (k >= 0) m.spawn.alive.splice(k, 1); } }
 
 // ---------------------------------------------------------------- drops
-function dropItem(id, n, x, y, z) {
+function dropItem(id, n, x, y, z, ench) {
   const mesh = itemMesh(id); mesh.scale.setScalar(id < 256 ? 0.28 : 0.42);
   mesh.position.set(x, y, z); scene.add(mesh);
-  Drops.push({ id, n, x, y, z, vx: (Math.random() - 0.5) * 3, vy: 4, vz: (Math.random() - 0.5) * 3, mesh, t: 0, hw: 0.12, h: 0.25 });
+  Drops.push({ id, n, x, y, z, vx: (Math.random() - 0.5) * 3, vy: 4, vz: (Math.random() - 0.5) * 3, mesh, t: 0, hw: 0.12, h: 0.25, ench: ench ? Object.assign({}, ench) : undefined });
 }
 function roomFor(id) { const max = itemDef(id).stack; let n = 0; for (let i = 0; i < 36; i++) { const s = Inv.slots[i]; if (!s) n += max; else if (s.id === id && !s.ench) n += max - s.n; } return n; }
 function updateDrops(dt, p) {
@@ -5005,11 +5007,11 @@ function updateDrops(dt, p) {
     const d = Drops[i]; d.t += dt;
     const dx = p.x - d.x, dy = (p.y + 0.8) - d.y, dz = p.z - d.z, dist = Math.hypot(dx, dy, dz);
     // only pull items in when there is room for them; otherwise they simply stay on the ground
-    d.fitT = (d.fitT || 0) - dt; if (d.fitT <= 0) { d.fitT = 0.4; d.fits = roomFor(d.id) > 0; }
+    d.fitT = (d.fitT || 0) - dt; if (d.fitT <= 0) { d.fitT = 0.4; d.fits = d.ench ? Inv.slots.indexOf(null) >= 0 : roomFor(d.id) > 0; }
     if (!d.fits && d.t > 0.5 && dist < 1.4) toastOnce('invfull', 'Your inventory is full.');
     if (d.t > 0.5 && dist < 2.6 && d.fits) { d.vx += dx / dist * 40 * dt; d.vy += dy / dist * 40 * dt; d.vz += dz / dist * 40 * dt; d.x += d.vx * dt; d.y += d.vy * dt; d.z += d.vz * dt; d.vx *= 0.9; d.vy *= 0.9; d.vz *= 0.9; }
     else { d.vy -= 18 * dt; d.vx *= 0.96; d.vz *= 0.96; moveBody(d, dt); }
-    if (d.t > 0.5 && dist < 0.8 && d.fits) { const left = giveItem(d.id, d.n); if (left <= 0) { scene.remove(d.mesh); Drops.splice(i, 1); continue; } d.n = left; }
+    if (d.t > 0.5 && dist < 0.8 && d.fits) { const left = d.ench ? giveStack({ id: d.id, n: d.n, ench: d.ench }) : giveItem(d.id, d.n); if (left <= 0) { scene.remove(d.mesh); Drops.splice(i, 1); continue; } d.n = left; }
     if (d.t > 300) { scene.remove(d.mesh); Drops.splice(i, 1); continue; }
     d.mesh.position.set(d.x, d.y + 0.25 + Math.sin(d.t * 3) * 0.06, d.z); d.mesh.rotation.y = d.t * 1.5;
     const L = lightAt(d.x, d.y + 0.3, d.z), lv = Math.max(L[0] / 15 * U.uDay.value, L[1] / 15) * 0.85 + 0.15;
@@ -5977,15 +5979,12 @@ function startBoss(room) {
 function onBossDefeated(m) {
   const room = m.room; room.done = true; ActiveBoss = null;
   Quests.event('boss', m.type);
-  Game.save && Game.save();
   if (m.type === 'warden') {
     bossBanner('Warden Defeated', 'The Deepseal Key is yours');
-    setB(Math.floor(room.x), room.y, Math.floor(room.z), B.CHEST, 2); Chests.set(K(Math.floor(room.x), room.y, Math.floor(room.z)), { table: 'warden', items: null });
-    blockChanged(Math.floor(room.x), room.y, Math.floor(room.z));
+    setBlockLogged(Math.floor(room.x), room.y, Math.floor(room.z), B.CHEST, 2); Chests.set(K(Math.floor(room.x), room.y, Math.floor(room.z)), { table: 'warden', items: null, keep: true });
   } else {
     bossBanner('The Colossus Has Fallen', 'The Heart of the Buried World is yours');
-    setB(Math.floor(room.x), room.y, Math.floor(room.z) + 3, B.CHEST, 0); Chests.set(K(Math.floor(room.x), room.y, Math.floor(room.z) + 3), { table: 'hoard', items: null });
-    blockChanged(Math.floor(room.x), room.y, Math.floor(room.z) + 3);
+    setBlockLogged(Math.floor(room.x), room.y, Math.floor(room.z) + 3, B.CHEST, 0); Chests.set(K(Math.floor(room.x), room.y, Math.floor(room.z) + 3), { table: 'hoard', items: null, keep: true });
     const p = Game.halls && Game.halls.portal;
     if (p) {
       for (let dy = 0; dy < 4; dy++) for (let dx = -1; dx <= 1; dx++) { const edge = dy === 0 || dy === 3 || Math.abs(dx) === 1; setBlockLogged(p[0] + dx, p[1] + dy, p[2], edge ? B.ANCIENT_GOLD : B.PORTAL); }
@@ -5994,6 +5993,7 @@ function onBossDefeated(m) {
       toast('A portal opens back to the surface', 3500);
     }
   }
+  Game.save && Game.save();
 }
 
 // ---------------------------------------------------------------- spawning
@@ -6437,7 +6437,7 @@ function openInventory(chestKey) {
   renderInventory();
 }
 function closeInventory() {
-  if (cursor) { const left = giveStack(cursor); if (left) dropItem(cursor.id, left, Player.x, Player.y + 1.4, Player.z); cursor = null; }
+  if (cursor) { const left = giveStack(cursor); if (left) dropItem(cursor.id, left, Player.x, Player.y + 1.4, Player.z, cursor.ench); cursor = null; }
   returnCraftGrid();
   $('cursorItem').innerHTML = '';
   $('inv').classList.add('hidden'); $('tooltip').classList.add('hidden');
@@ -6508,7 +6508,7 @@ function containerAction(a) {
   Sound.ui(); lastHudKey = ''; renderInventory();
 }
 function returnCraftGrid() {
-  for (let i = 0; i < 9; i++) { const s = CraftGrid[i]; if (s) { const left = giveStack(s); if (left) dropItem(s.id, left, Player.x, Player.y + 1.4, Player.z); CraftGrid[i] = null; } }
+  for (let i = 0; i < 9; i++) { const s = CraftGrid[i]; if (s) { const left = giveStack(s); if (left) dropItem(s.id, left, Player.x, Player.y + 1.4, Player.z, s.ench); CraftGrid[i] = null; } }
 }
 function fillGridFor(r) {
   returnCraftGrid();
@@ -6932,6 +6932,10 @@ const Quests = {
     else if (q.type === 'equip') v = Inv.armor.some(Boolean) ? 1 : 0;
     else if (q.type === 'villages') v = Math.min(q.n, Sites.filter(s => s.cat === 'village' && s.found).length);
     else if (q.type === 'night') { const target = Math.floor(this.startDay - 0.3) + 1.3; v = Game.day >= target ? 1 : 0; }
+    // goals that can only happen once: if you already did them before reaching the quest, it counts
+    else if (q.type === 'discover') v = Sites.some(s => s.found && q.match({ cat: s.cat, name: s.name })) ? 1 : 0;
+    else if (q.type === 'boss') v = BossRooms.some(r => r.done && q.match(r.type)) ? 1 : 0;
+    else if (q.type === 'seal') v = Game.halls && Game.halls.seal && Game.halls.seal.every(p => getB(p[0], p[1], p[2]) === B.AIR) ? 1 : 0;
     if (v === null) return;
     if (v !== this.prog) { this.prog = v; if (v >= q.n) this.complete(); else this.render(); }
   },
@@ -7077,8 +7081,8 @@ function openEnchant(h) {
   renderEnchant();
 }
 function closeEnchant() {
-  for (let i = 0; i < 2; i++) if (EnchSlots[i]) { const left = giveStack(EnchSlots[i]); if (left) dropItem(EnchSlots[i].id, left, Player.x, Player.y + 1.4, Player.z); EnchSlots[i] = null; }
-  if (cursor) { const left = giveStack(cursor); if (left) dropItem(cursor.id, left, Player.x, Player.y + 1.4, Player.z); cursor = null; }
+  for (let i = 0; i < 2; i++) if (EnchSlots[i]) { const left = giveStack(EnchSlots[i]); if (left) dropItem(EnchSlots[i].id, left, Player.x, Player.y + 1.4, Player.z, EnchSlots[i].ench); EnchSlots[i] = null; }
+  if (cursor) { const left = giveStack(cursor); if (left) dropItem(cursor.id, left, Player.x, Player.y + 1.4, Player.z, cursor.ench); cursor = null; }
   $('cursorItem').innerHTML = ''; $('tooltip').classList.add('hidden');
   $('enchant').classList.add('hidden'); Game.ui = null; lockPointer();
 }
@@ -7858,7 +7862,10 @@ async function createWorld(seedName, save, mode, showcase) {
   Game.spawn = spawnSite && spawnSite.spawn ? spawnSite.spawn.slice() : [128.5, surfaceY(128, 128) + 1, 128.5];
   if (Game.mode === 'parkour' && Course.cps.length) Game.spawn = Course.cps[0].slice();
   // fresh player
-  Object.assign(Player, { x: Game.spawn[0], y: Game.spawn[1], z: Game.spawn[2], vx: 0, vy: 0, vz: 0, yaw: Math.PI, pitch: 0, hp: 20, food: 20, alive: true, burn: 0 });
+  Object.assign(Player, { x: Game.spawn[0], y: Game.spawn[1], z: Game.spawn[2], vx: 0, vy: 0, vz: 0, yaw: Math.PI, pitch: 0, hp: 20, food: 20, alive: true, burn: 0,
+    poison: 0, inv: 0, flying: false, sneak: false, sprinting: false, fallV: 0, onGround: false, eyeOff: 0, stepUp: 0, lastCause: null, lastMobHit: null, poisonSrc: null, burnSrc: null });
+  CraftGrid.fill(null); cursor = null; Game.cine = null; Game.mine = null; Game.hitStop = Game.slowmo = 0; drawing = false; bowDraw = 0;
+  for (const k in Input.keys) Input.keys[k] = false;
   Inv.slots.fill(null); Inv.armor.fill(null); Inv.relics.fill(null);
   Game.time = 0.3; Game.day = 0; Game.sel = 0; Stats.kills = 0; Stats.deaths = 0;
   if (save) applySave(save);
@@ -7903,27 +7910,31 @@ function showOnly(id) {
 function saveGame() {
   if (Game.state !== 'play' && Game.state !== 'ready') return;
   const mods = []; for (const [k, v] of Game.mods) mods.push(k, v[0], v[1]);
-  const chests = []; for (const [k, c] of Chests) if (c.items || c.made) chests.push([k, c.table, c.items, !!c.made]);
+  const chests = []; for (const [k, c] of Chests) if (c.items || c.made || c.keep) chests.push([k, c.table, c.items, !!c.made, !!c.keep]);
   const data = {
     seed: Game.seedName, mode: Game.mode, quest: Quests.index, questProg: Quests.prog, perks: Quests.perks, questStart: Quests.startDay, effects: Effects.active, enchSeed: Player.enchSeed, mods, chests, time: Game.time, day: Game.day, stats: Stats,
     player: { x: Player.x, y: Player.y, z: Player.z, yaw: Player.yaw, pitch: Player.pitch, hp: Player.hp, food: Player.food },
     spawn: Game.spawn, inv: { slots: Inv.slots, armor: Inv.armor, relics: Inv.relics, loose: CraftGrid.filter(Boolean).concat(cursor ? [cursor] : []) }, sel: Game.sel, found: Sites.filter(s => s.found).map(s => s.name), follow: Game.follow ? Game.follow.name : null,
-    bosses: BossRooms.map(r => r.done),
+    bosses: BossRooms.map(r => r.done), peaceful: !!Game.peaceful,
   };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) { console.warn('save failed', e); }
 }
 function loadSave() { try { return JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { return null; } }
 function applySave(s) {
   for (let i = 0; i < s.mods.length; i += 3) { const k = s.mods[i], [x, y, z] = modDecode(k); Game.mods.set(k, [s.mods[i + 1], s.mods[i + 2]]); if (inWorld(x, y, z)) { const j = IDX(x, y, z); wb[j] = s.mods[i + 1]; wm[j] = s.mods[i + 2]; } }
-  for (const [k, table, items, made] of s.chests) Chests.set(k, { table, items, made });
+  for (const [k, table, items, made, keep] of s.chests) Chests.set(k, { table, items, made, keep });
   Quests.load(s); Effects.load(s.effects); Player.enchSeed = s.enchSeed || 1;
   Object.assign(Player, s.player); Game.spawn = s.spawn; Game.time = s.time; Game.day = s.day; Object.assign(Stats, s.stats || {});
   Inv.slots = s.inv.slots; Inv.armor = s.inv.armor; Inv.relics = s.inv.relics; Game.sel = s.sel || 0;
   CraftGrid.fill(null); cursor = null;
-  for (const it of s.inv.loose || []) addTo(Inv.slots, it.id, it.n, 0, 36);
+  const spill = []; for (const it of s.inv.loose || []) { const left = putStack(Inv.slots, it, 0, 36); if (left) spill.push(Object.assign({}, it, { n: left })); }
   for (const s2 of Sites) s2.found = s.found.includes(s2.name);
   Game.follow = Sites.find(x => x.name === s.follow) || null;
   (s.bosses || []).forEach((d, i) => { if (BossRooms[i]) BossRooms[i].done = d; });
+  Game.peaceful = !!s.peaceful;
+  // saved while dead (the death screen was open): come back at your spawn point, alive
+  if (!(Player.hp > 0)) Object.assign(Player, { x: Game.spawn[0], y: Game.spawn[1], z: Game.spawn[2], vx: 0, vy: 0, vz: 0, hp: maxHealth(), food: Math.max(Player.food || 0, 14) });
+  for (const it of spill) dropItem(it.id, it.n, Player.x, Player.y + 1, Player.z, it.ench);
 }
 
 // ---------------------------------------------------------------- pointer lock & menus
@@ -7935,7 +7946,7 @@ function lockPointer() {
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === canvasEl;
   if (locked) { $('clickToBegin').classList.add('hidden'); $('pause').classList.add('hidden'); return; }
-  Input.mouseL = Input.mouseR = false;
+  releaseInput();
   if (Game.state === 'play' && !Game.ui && Player.alive) openPause();
 });
 $('clickToBegin').addEventListener('click', () => { if (Game.state === 'ready') { Game.state = 'play'; Quests.render(true); } $('clickToBegin').classList.add('hidden'); lockPointer(); });
@@ -8046,10 +8057,13 @@ document.addEventListener('keydown', e => {
   if (e.code === 'Escape') { if (Game.ui === 'ench') closeEnchant(); else if (Game.ui === 'creative') closeCreative(); else if (Game.ui === 'inv') closeInventory(); else if (Game.ui === 'wf') closeWayfinder(); else if (Game.ui === 'lore') closeLore(); else if (Game.ui === 'pause') closePause(); return; }
   if (Game.ui) return;
   if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 9) { Game.sel = n; showHeldName(); lastHudKey = ''; } }
-  if (e.code === 'KeyQ') { const s = heldItem(); if (s) { const d = lookDir(); dropItem(s.id, 1, Player.x + d[0], Player.y + 1.4, Player.z + d[2]); Drops[Drops.length - 1].vx = d[0] * 6; Drops[Drops.length - 1].vz = d[2] * 6; Drops[Drops.length - 1].t = -0.5; s.n--; if (!s.n) Inv.slots[Game.sel] = null; lastHudKey = ''; } }
+  if (e.code === 'KeyQ') { const s = heldItem(); if (s) { const d = lookDir(); dropItem(s.id, 1, Player.x + d[0], Player.y + 1.4, Player.z + d[2], s.ench); Drops[Drops.length - 1].vx = d[0] * 6; Drops[Drops.length - 1].vz = d[2] * 6; Drops[Drops.length - 1].t = -0.5; s.n--; if (!s.n) Inv.slots[Game.sel] = null; lastHudKey = ''; } }
   if (e.code === 'F3') Settings.fps = !Settings.fps, applySettings();
   if ((e.code === 'F5' || e.code === 'KeyV' || e.key === 'v' || e.key === 'V') && !e.repeat) { e.preventDefault(); Game.view = ((Game.view || 0) + 1) % 3;  }
 });
+// switching windows (Alt+Tab) swallows the key-up events: forget held keys so you don't keep walking
+function releaseInput() { for (const k in Input.keys) Input.keys[k] = false; Input.mouseL = Input.mouseR = false; Player.wTap = false; Game.mine = null; if (drawing) useEnd(); }
+window.addEventListener('blur', releaseInput);
 document.addEventListener('keyup', e => { Input.keys[e.code] = false; if (e.code === 'KeyW') Player.wTap = false; });
 document.addEventListener('mousemove', e => {
   if (Game.state !== 'play' || Game.ui || document.pointerLockElement !== canvasEl || Game.cine) return;
@@ -8234,7 +8248,7 @@ function updateMining(dt) {
 }
 function breakBlock(h) {
   const id = h.id, d = BLK[id], k = K(h.x, h.y, h.z);
-  if (Chests.has(k)) { const c = Chests.get(k); if (c && c.items) for (const s of c.items) if (s) dropItem(s.id, s.n, h.x + 0.5, h.y + 0.5, h.z + 0.5); Chests.delete(k); }
+  if (Chests.has(k)) { const c = Chests.get(k); if (c && c.items) for (const s of c.items) if (s) dropItem(s.id, s.n, h.x + 0.5, h.y + 0.5, h.z + 0.5, s.ench); Chests.delete(k); }
   if (id === B.ENERGY) { // a colossus pylon: the whole column shatters
     for (let y = h.y - 8; y <= h.y + 8; y++) if (getB(h.x, y, h.z) === B.ENERGY || (getB(h.x, y, h.z) === B.CRYSTAL && getB(h.x, y - 1, h.z) === B.ENERGY)) { setBlockLogged(h.x, y, h.z, B.AIR); blockBurst(h.x, y, h.z, B.ENERGY, 10); }
     shake(0.4); toast('A pylon shatters!', 1500); return;

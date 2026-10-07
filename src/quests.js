@@ -107,6 +107,10 @@ const Quests = {
     else if (q.type === 'equip') v = Inv.armor.some(Boolean) ? 1 : 0;
     else if (q.type === 'villages') v = Math.min(q.n, Sites.filter(s => s.cat === 'village' && s.found).length);
     else if (q.type === 'night') { const target = Math.floor(this.startDay - 0.3) + 1.3; v = Game.day >= target ? 1 : 0; }
+    // goals that can only happen once: if you already did them before reaching the quest, it counts
+    else if (q.type === 'discover') v = Sites.some(s => s.found && q.match({ cat: s.cat, name: s.name })) ? 1 : 0;
+    else if (q.type === 'boss') v = BossRooms.some(r => r.done && q.match(r.type)) ? 1 : 0;
+    else if (q.type === 'seal') v = Game.halls && Game.halls.seal && Game.halls.seal.every(p => getB(p[0], p[1], p[2]) === B.AIR) ? 1 : 0;
     if (v === null) return;
     if (v !== this.prog) { this.prog = v; if (v >= q.n) this.complete(); else this.render(); }
   },
