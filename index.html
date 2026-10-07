@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Blockhollow</title>
+<link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="cross"></div>
+  <div id="vignette"></div>
+  <div id="underwater"></div>
+  <div id="zone" class="fade"><div class="zn"></div><div class="zl"></div></div>
+  <div id="tracker" class="hidden"></div>
+  <div id="bossbar" class="hidden"><div class="bn"></div><div class="bb"><i></i></div></div>
+  <div id="banner" class="fade"><div class="bt"></div><div class="bs"></div></div>
+  <div id="statusbars">
+    <div id="food"></div>
+    <div id="hearts"></div>
+  </div>
+  <div id="charge"><i></i></div>
+  <div id="hotbar"></div>
+  <div id="heldname" class="fade"></div>
+  <div id="toast" class="fade"></div>
+  <div id="fps"></div>
+  <div id="quest" class="hidden"></div>
+  <div id="modeBadge" class="hidden"></div>
+  <div id="effects"></div>
+  <div id="pkHud" class="hidden"></div>
+  <div id="lookLabel" class="hidden"></div>
+</div>
+
+<!-- discovery cinematic -->
+<div id="cine" class="hidden">
+  <div class="bar top"></div><div class="bar bottom"></div>
+  <div class="ctext"><div class="ck"></div><div class="cn"></div><div class="cs"></div></div>
+  <div class="skip">Click or press Space to skip</div>
+</div>
+
+<!-- inventory / containers / crafting -->
+<div id="inv" class="screen hidden">
+  <div class="panel invpanel">
+    <div class="col char">
+      <h3>Character</h3>
+      <div class="charrow"><div id="armorSlots" class="slots v"></div><div class="charbox"><canvas id="charCanvas" width="240" height="420"></canvas></div></div>
+      <div id="stats"></div>
+      <div class="lbl">Relics</div>
+      <div id="relicSlots" class="slots"></div>
+    </div>
+    <div class="col mid">
+      <div id="craftWrap"><h3>Crafting <span id="craftSizeNote"></span></h3><div class="craftrow"><div id="craftGrid" class="slots"></div><div class="craftarrow">➜</div><div id="craftOut"></div></div></div>
+      <div id="containerWrap" class="hidden"><h3 id="containerTitle">Chest</h3><div id="containerSlots" class="slots grid9"></div><div id="containerBtns"></div></div>
+      <h3>Inventory</h3>
+      <div id="mainSlots" class="slots grid9"></div>
+      <div id="hotSlots" class="slots grid9 hot"></div>
+    </div>
+    <div class="col book">
+      <h3>Recipe Book <span id="tableNote"></span></h3>
+      <div id="recipes"></div>
+    </div>
+  </div>
+</div>
+<div id="cursorItem"></div>
+<div id="tooltip" class="hidden"></div>
+
+<!-- creative inventory -->
+<div id="creative" class="screen hidden">
+  <div class="panel crpanel">
+    <div class="crtop"><h3>Creative Inventory</h3><input id="crSearch" placeholder="Search items…" autocomplete="off"></div>
+    <div class="tabs" id="crTabs"></div>
+    <div id="crGrid" class="slots"></div>
+    <div class="crbottom"><div id="crHot" class="slots grid9"></div><div class="slot trash" id="crTrash" title="Drop an item here to delete it">🗑</div></div>
+    <div class="hint">Click: take a stack · Right-click: take one · Shift-click: send to hotbar · E or Esc to close</div>
+  </div>
+</div>
+
+<!-- wayfinder compass -->
+<div id="wayfinder" class="screen hidden">
+  <div class="parch">
+    <div class="btn sm wfback" id="wfBack">← Back</div>
+    <h2>Wayfinder's Compass</h2>
+    <div class="tabs" id="wfTabs"></div>
+    <div id="wfList"></div>
+    <div class="hint">Back, M or Esc to close · Follow a place to track it at the top of the screen</div>
+  </div>
+</div>
+
+<!-- lore -->
+<!-- enchanting table -->
+<div id="enchant" class="screen hidden">
+  <div class="panel enchpanel">
+    <h3>Enchanting Table</h3>
+    <div class="enchrow"><div id="enchSlots" class="slots"></div><div id="enchOffers"></div></div>
+    <div id="enchShelves" class="enote"></div>
+    <h3>Inventory</h3>
+    <div id="enchMain" class="slots grid9"></div>
+    <div id="enchHot" class="slots grid9 hot"></div>
+    <div class="enote">Each ◆ costs one lapis lazuli. E or Esc to close.</div>
+  </div>
+</div>
+<div id="lore" class="screen hidden">
+  <div class="parch lorebox">
+    <h2 id="loreTitle"></h2>
+    <canvas id="loreArt" width="192" height="96"></canvas>
+    <p id="loreText"></p>
+    <div class="btn" id="loreClose">Close</div>
+  </div>
+</div>
+
+<!-- death -->
+<div id="death" class="screen hidden">
+  <div class="dt" id="deathTitle">You Died</div>
+  <div class="dcause" id="deathCause"></div>
+  <div class="ds" id="deathMsg"></div>
+  <div class="btn" id="respawnBtn">Respawn</div>
+  <div class="btn ghost" id="deathQuit">Save &amp; Quit to Title</div>
+</div>
+
+<!-- pause -->
+<div id="pause" class="screen hidden">
+  <div class="menu">
+    <h2>Paused</h2>
+    <div class="btn" data-act="resume">Resume</div>
+    <div class="btn" data-act="settings">Settings</div>
+    <div class="btn" data-act="controls">Controls</div>
+    <div class="btn" data-act="view" id="viewBtn">Camera: First person</div>
+    <div id="creativeTools" class="hidden"><div class="sect">Creative</div>
+      <div class="ctrow"><span>Time</span><div class="btn sm" data-time="0.27">Dawn</div><div class="btn sm" data-time="0.45">Noon</div><div class="btn sm" data-time="0.71">Dusk</div><div class="btn sm" data-time="0.9">Night</div></div>
+      <div class="ctrow"><span>Mobs</span><div class="btn sm" id="mobToggle">Hostile mobs: on</div></div>
+    </div>
+    <div class="btn" data-act="savequit">Save &amp; Quit to Title</div>
+  </div>
+</div>
+
+<!-- title -->
+<div id="title" class="screen">
+  <img id="titleArt" src="assets/title.jpg" alt=""><div id="tourFade"></div><div class="titleShade"></div><div id="tourLabel"></div>
+  <div class="titleCol"><div class="logo"><div class="l1">BLOCKHOLLOW</div><div class="l2">a voxel fantasy adventure</div></div>
+  <div class="menu tmenu" id="titleMenu">
+    <div class="btn big" data-act="play">Play</div>
+    <div class="btn" data-act="settings">Settings</div>
+    <div class="btn" data-act="controls">Controls</div>
+    <div class="btn" data-act="quit">Quit</div>
+  </div>
+  <div class="menu tmenu hidden" id="playMenu">
+    <h2>Play</h2>
+    <div class="savecard hidden" id="saveCard" data-act="continue"><div class="sc1" id="saveName"></div><div class="sc2" id="saveInfo"></div><div class="sc3">Continue ▸</div></div>
+    <div class="btn" data-act="new">Create New World</div>
+    <div class="btn ghost" data-act="backTitle">Back</div>
+  </div>
+  <div class="menu tmenu hidden" id="newMenu">
+    <h2>Create New World</h2>
+    <label>World name / seed</label>
+    <input id="seedInput" maxlength="40" value="Blockhollow">
+    <label>Game mode</label>
+    <div class="modes">
+      <div class="mode on" data-mode="survival"><div class="mi">⚔</div><div class="mn">Survival</div><div class="md">Gather, craft and explore. Quests guide you through the realm and grant power-ups.</div></div>
+      <div class="mode" data-mode="creative"><div class="mi">✦</div><div class="mn">Creative</div><div class="md">Fly freely with every block and item. No damage, no hunger, instant building.</div></div>
+      <div class="mode" data-mode="parkour"><div class="mi">⇡</div><div class="mn">Parkour</div><div class="md">Start on the Skyward Spiral and race to the top. No mobs, no damage, checkpoints and a timer. R restarts.</div></div>
+    </div>
+    <div class="warn" id="overwriteWarn">Creating a new world replaces your current save.</div>
+    <div class="btn" data-act="create">Create World</div>
+    <div class="btn ghost" data-act="back">Back</div>
+  </div>
+  <div class="tver">v17 · parkour mode</div>
+  </div>
+</div>
+
+<!-- settings / controls (shared) -->
+<div id="settings" class="screen hidden">
+  <div class="menu wide">
+    <h2>Settings</h2>
+    <div class="sect">Graphics &amp; performance</div>
+    <div class="row"><label>Quality preset</label><select id="setPreset"><option value="low">Low (fastest)</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select></div>
+    <div class="row"><label>Render scale</label><input type="range" id="setScale" min="0.5" max="1" step="0.05"></div>
+    <div class="row"><label>Auto performance (keeps FPS smooth)</label><input type="checkbox" id="setAuto"></div>
+    <div class="row"><label>Target FPS</label><select id="setTarget"><option value="0">Match my screen</option><option value="60">60</option><option value="120">120</option><option value="144">144</option></select></div>
+    <div class="row"><label>Bloom &amp; glow</label><input type="checkbox" id="setBloom"></div>
+    <div class="row"><label>Particles</label><input type="range" id="setParticles" min="0.2" max="1" step="0.1"></div>
+    <div class="row"><label>Mouse sensitivity</label><input type="range" id="setSens" min="0.3" max="3" step="0.1"></div>
+    <div class="row"><label>Field of view</label><input type="range" id="setFov" min="55" max="100" step="1"></div>
+    <div class="row"><label>View distance</label><input type="range" id="setView" min="0.6" max="1.6" step="0.1"></div>
+    <div class="row"><label>Shaders (bloom, tone mapping, sun rays)</label><input type="checkbox" id="setShaders"></div>
+    <div class="row"><label>Sun &amp; moon shadows</label><input type="checkbox" id="setShadows"></div>
+    <div class="row"><label>Hunger</label><input type="checkbox" id="setHunger"></div>
+    <div class="row"><label>Discovery cinematics</label><input type="checkbox" id="setCine"></div>
+    <div class="row"><label>Show FPS</label><input type="checkbox" id="setFps"></div>
+    <div class="sect">Sound</div>
+    <div class="row"><label>Master volume</label><input type="range" id="setVMaster" min="0" max="1" step="0.05"></div>
+    <div class="row"><label>Music</label><input type="range" id="setVMusic" min="0" max="1" step="0.05"></div>
+    <div class="row"><label>Effects &amp; ambience</label><input type="range" id="setVSfx" min="0" max="1" step="0.05"></div>
+    <div class="sect">System</div>
+    <div id="sysInfo" class="sysinfo"></div>
+    <div class="btn" data-act="closeSettings">Done</div>
+  </div>
+</div>
+<div id="controls" class="screen hidden">
+  <div class="menu wide">
+    <h2>Controls</h2>
+    <table class="keys">
+      <tr><td>W A S D</td><td>Move</td></tr><tr><td>Space</td><td>Jump / swim up / climb</td></tr>
+      <tr><td>Shift / Ctrl / double-tap W</td><td>Sprint (keeps going while you hold W)</td></tr><tr><td>C</td><td>Sneak</td></tr>
+      <tr><td>Double-tap Space</td><td>Fly (Creative) · Space up, Shift down</td></tr><tr><td>Middle click</td><td>Pick block</td></tr><tr><td>J</td><td>Show / hide quests</td></tr>
+      <tr><td>Left click</td><td>Attack (hold to mine)</td></tr><tr><td>Right click</td><td>Use / place / draw bow / cast</td></tr>
+      <tr><td>1–9, wheel</td><td>Select hotbar slot</td></tr><tr><td>E</td><td>Inventory, armor &amp; crafting</td></tr>
+      <tr><td>F5 or V</td><td>Camera: first person / third person behind / front</td></tr><tr><td>M</td><td>Wayfinder's Compass</td></tr><tr><td>Q</td><td>Drop held item</td></tr>
+      <tr><td>Esc</td><td>Pause</td></tr><tr><td>Shift-click</td><td>Quick move items</td></tr>
+    </table>
+    <div class="btn" data-act="closeControls">Done</div>
+  </div>
+</div>
+
+<div id="clickToBegin" class="screen hidden"><div class="cb">Click to begin</div><div class="cbs">Press Esc to pause at any time</div></div>
+<div id="loading" class="screen hidden"><div class="lt">Forging the world…</div><div class="lbar"><i id="lprog"></i></div><div class="ls" id="lstep"></div></div>
+
+<script src="lib/three.min.js"></script>
+<script src="src/textures.js"></script>
+<script src="src/blocks.js"></script>
+<script src="src/world.js"></script>
+<script src="src/items.js"></script>
+<script src="src/structures.js"></script>
+<script src="src/render.js"></script>
+<script src="src/models.js"></script>
+<script src="src/entities.js"></script>
+<script src="src/postfx.js"></script>
+<script src="src/ui.js"></script>
+<script src="src/quests.js"></script>
+<script src="src/magic.js"></script>
+<script src="src/charview.js"></script>
+<script src="src/audio.js"></script>
+<script src="src/intro.js"></script>
+<script src="src/main.js"></script>
+</body>
+</html>
