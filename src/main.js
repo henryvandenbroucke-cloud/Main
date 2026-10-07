@@ -633,6 +633,7 @@ function placeBlock(h, s) {
     if (!(h.face in WALL)) return;
     meta = WALL[h.face];
   }
+  if (SHAPE[s.id]) { meta = SHAPE[s.id] === 2 ? (meta + 2) & 3 : 0; if (h.face === 3 || (h.face !== 2 && h.hy !== undefined && h.hy - y > 0.5)) meta |= 4; } // stairs rise away from you; against a ceiling they go upside down
   setBlockLogged(x, y, z, s.id, meta);
   if (s.id === B.CHEST || s.id === B.BARREL || s.id === B.CRATE) Chests.set(K(x, y, z), { table: 'house', items: new Array(s.id === B.BARREL ? 36 : s.id === B.CRATE ? 18 : 27).fill(null), made: true });
   Sound.place(s.id); Quests.event('place', s.id);
@@ -1134,6 +1135,8 @@ function frame(now) {
   // camera
   if (!updateCinematic(dt)) {
     const e = eye();
+    // stepping onto a stair or slab eases the view up instead of jumping it
+    Player.eyeOff = ((Player.eyeOff || 0) - (Player.stepUp || 0)) * Math.exp(-dt * 16); Player.stepUp = 0; e[1] += Player.eyeOff;
     camera.position.set(e[0], e[1], e[2]);
     camera.rotation.set(Player.pitch, Player.yaw, 0);
     if (Game.view > 0 && Game.state === 'play') { // third person: pull the camera back (or around to the front), stopping at walls

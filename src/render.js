@@ -19,7 +19,7 @@ const RELIEF = { stone: 0.9, cobble: 1.25, mossycobble: 1.2, stonebrick: 1.1, mo
   coal_ore: 1, iron_ore: 1, gold_ore: 1, lapis_ore: 1, dirt: 0.8, grass_side: 0.8, grass_top: 0.6, path: 0.8, farmland: 1, mud: 0.7, sand: 0.5, sandstone: 0.8, sandstone_top: 0.4, snow: 0.35, snow_side: 0.7, ash: 0.7, terracotta: 0.4,
   planks: 0.9, planks_dark: 0.9, log_side: 1.2, log_dark_side: 1.2, log_top: 0.8, log_dark_top: 0.8, thatch: 1, hay_side: 0.9, hay_top: 0.8, bookshelf: 1, chest_front: 0.8, chest_side: 0.8, chest_top: 0.8, barrel_side: 0.9, barrel_top: 0.8, crate: 0.9, table_top: 0.8, table_side: 0.8,
   wool_red: 0.55, wool_white: 0.55, wool_blue: 0.55, wool_green: 0.55, wool_yellow: 0.55, wool_purple: 0.55, leaves: 0.6, leaves_dark: 0.6, leaves_blossom: 0.5, plaster: 0.45, timber: 0.8, roof_red: 1, roof_blue: 1,
-  iron_block: 0.7, gold_block: 0.7, ancient_gold: 0.8, cactus_side: 0.7, cactus_top: 0.6, swamp_grass: 0.6, swamp_grass_side: 0.8, furnace_side: 1, furnace_front: 1, tablet: 0.9, waystone: 0.8, runepillar: 0.9, crystal: 0.6, crystal_rose: 0.6 };
+  iron_block: 0.7, steel_block: 0.8, gold_block: 0.7, ancient_gold: 0.8, cactus_side: 0.7, cactus_top: 0.6, swamp_grass: 0.6, swamp_grass_side: 0.8, furnace_side: 1, furnace_front: 1, tablet: 0.9, waystone: 0.8, runepillar: 0.9, crystal: 0.6, crystal_rose: 0.6 };
 let atlasNormalData = null;
 function buildHiAtlas() {
   const src = Atlas.data, tm = Atlas.tint;
@@ -58,7 +58,7 @@ const atlasTex = new THREE.DataTexture(buildHiAtlas(), HIW, HIW, THREE.RGBAForma
 atlasTex.magFilter = THREE.NearestFilter; atlasTex.minFilter = THREE.LinearMipmapLinearFilter; atlasTex.generateMipmaps = true; atlasTex.flipY = false;
 atlasTex.anisotropy = renderer.capabilities.getMaxAnisotropy(); atlasTex.needsUpdate = true;
 // PBR material table, one texel per tile: R = glossiness, G = metalness
-const GLOSS = { polished: [0.6, 0], iron_block: [0.85, 1], gold_block: [0.9, 1], ancient_gold: [0.8, 1], glass: [0.95, 0], crystal: [0.9, 0], crystal_rose: [0.9, 0], fallen_star: [0.7, 0],
+const GLOSS = { polished: [0.6, 0], iron_block: [0.85, 1], steel_block: [0.8, 1], gold_block: [0.9, 1], ancient_gold: [0.8, 1], glass: [0.95, 0], crystal: [0.9, 0], crystal_rose: [0.9, 0], fallen_star: [0.7, 0],
   stonebrick: [0.3, 0], mossybrick: [0.25, 0], stone: [0.28, 0], cobble: [0.2, 0], mossycobble: [0.18, 0], darkbrick: [0.4, 0], basalt: [0.45, 0], sandstone: [0.12, 0], sandbrick: [0.15, 0],
   iron_ore: [0.45, 0.3], gold_ore: [0.55, 0.5], coal_ore: [0.4, 0], lapis_ore: [0.55, 0], planks: [0.22, 0], planks_dark: [0.28, 0], log_side: [0.1, 0], table_top: [0.3, 0], chest_top: [0.3, 0], chest_front: [0.3, 0], barrel_side: [0.32, 0.15],
   leaves: [0.42, 0], leaves_dark: [0.42, 0], leaves_blossom: [0.35, 0], grass_top: [0.18, 0], swamp_grass: [0.35, 0], mud: [0.55, 0], snow: [0.35, 0], terracotta: [0.22, 0], roof_red: [0.35, 0], roof_blue: [0.4, 0],
@@ -433,6 +433,20 @@ function buildChunkGeo(cx, cz) {
       else if (meta === 2) v = [[x, y, z + e], [x + 1, y, z + e], [x + 1, y + 1, z + e], [x, y + 1, z + e]];                // wall at -z
       else v = [[x + 1 - e, y, z], [x + 1 - e, y, z + 1], [x + 1 - e, y + 1, z + 1], [x + 1 - e, y + 1, z]];                // wall at +x
       quad(X, v, d.tex.side, 0, LOCALUV, [lt, lt, lt, lt], TINT_CLASS[id] >= 0 ? chunkTint(x, z, x0, z0, TINT_CLASS[id]) : null);
+    } else if (r === 'slab' || r === 'stairs') {
+      const L = lightSample(x, y, z);
+      for (const bx of SHAPE_BOXES[SHAPE[id]][meta & 7]) for (let fi = 0; fi < 6; fi++) {
+        const f = FACES[fi], n = f.n;
+        // faces flush with the block's boundary hide behind an opaque neighbour
+        const onEdge = (n[0] > 0 && bx[3] === 1) || (n[0] < 0 && bx[0] === 0) || (n[1] > 0 && bx[4] === 1) || (n[1] < 0 && bx[1] === 0) || (n[2] > 0 && bx[5] === 1) || (n[2] < 0 && bx[2] === 0);
+        const nx = x + n[0], ny = y + n[1], nz = z + n[2], nid = getB(nx, ny, nz);
+        if (onEdge && (OPAQUE[nid] || (SHAPE[nid] === 1 && n[1] === 0 && (getMeta(nx, ny, nz) & 4) === (meta & 4) && bx[4] - bx[1] === 0.5 && SHAPE[id] === 1))) continue;
+        const verts = f.v.map(v => [x + (v[0] ? bx[3] : bx[0]), y + (v[1] ? bx[4] : bx[1]), z + (v[2] ? bx[5] : bx[2])]);
+        const uvs = f.k === 'side' ? f.v.map(v => [(n[0] !== 0 ? (v[2] ? bx[5] : bx[2]) : (v[0] ? bx[3] : bx[0])), v[1] ? bx[4] : bx[1]]) : f.v.map(v => [v[0] ? bx[3] : bx[0], v[2] ? bx[5] : bx[2]]);
+        const L2 = lightSample(nx, ny, nz), inner = onEdge ? 1 : 0.86; // faces inside the block's own cell sit in a little shade
+        const lt = [Math.max(L[0], L2[0]) / 15, Math.max(L[1], L2[1]) / 15, inner, f.sh];
+        quad(S, verts, texFor(d, f, fi, 0), emis, uvs, [lt, lt, lt, lt]);
+      }
     } else if (r === 'box') {
       const bx = d.box, L = lightSample(x, y, z);
       for (let fi = 0; fi < 6; fi++) {
@@ -707,7 +721,7 @@ const ITEM_GEO = {};
 function itemGeometry(id) {
   if (ITEM_GEO[id]) return ITEM_GEO[id];
   let geo;
-  if (id < 256 && ['cube', 'cutout', 'box'].includes(BLK[id].render)) {
+  if (id < 256 && ['cube', 'cutout', 'box', 'slab', 'stairs'].includes(BLK[id].render)) {
     const d = BLK[id], pos = [], col = [], idx = [];
     let n = 0;
     FACES.forEach((f, fi) => {

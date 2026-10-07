@@ -118,6 +118,28 @@ regBlock('STARSTONE', { tex: 'fallen_star', hardness: 3, tool: 'pick', light: 7,
 regBlock('LAPIS_ORE', { tex: 'lapis_ore', hardness: 3, tool: 'pick', drop: 'item:lapis', name: 'Lapis Lazuli Ore' });
 regBlock('ENCHANT_TABLE', { render: 'box', box: [0, 0, 0, 1, 0.75, 1], tex: { top: 'ench_top', side: 'ench_side', bottom: 'ench_bottom' }, hardness: 5, tool: 'pick', light: 7, name: 'Enchanting Table' });
 
+regBlock('WOOL_BLACK', { tex: 'wool_black', hardness: 0.6, name: 'Black Canvas' });
+regBlock('STEEL_BLOCK', { tex: 'steel_block', hardness: 4, tool: 'pick', name: 'Steel Block' });
+// stairs and slabs: drawn as boxes, collide by their shape, and block light like a full block.
+// meta & 3 = the side the tall half faces (0 -z, 1 +x, 2 +z, 3 -x); meta & 4 = upside down (or a top slab)
+const SHAPE = new Uint8Array(256); // 1 = slab, 2 = stairs
+for (const [k, tex, name, tool, hard] of [['OAK', 'planks', 'Oak', 'axe', 2], ['GNARLED', 'planks_dark', 'Gnarled', 'axe', 2], ['COBBLE', 'cobble', 'Cobblestone', 'pick', 2], ['STONEBRICK', 'stonebrick', 'Stone Brick', 'pick', 2],
+  ['POLISHED', 'polished', 'Polished Stone', 'pick', 2], ['SANDSTONE', 'sandbrick', 'Sandstone', 'pick', 1.2], ['THATCH', 'thatch', 'Thatch', null, 0.5], ['ROOF_RED', 'roof_red', 'Red Tile', 'pick', 1.2], ['ROOF_BLUE', 'roof_blue', 'Blue Tile', 'pick', 1.2], ['DARKBRICK', 'darkbrick', 'Ashen Brick', 'pick', 3]]) {
+  SHAPE[regBlock(k + '_STAIRS', { render: 'stairs', tex, hardness: hard, tool, name: name + ' Stairs' })] = 2;
+  SHAPE[regBlock(k + '_SLAB', { render: 'slab', tex, hardness: hard, tool, name: name + ' Slab' })] = 1;
+}
+const SHAPE_BOXES = (() => { // [kind][meta] -> list of boxes in block space
+  const out = [[], [], []];
+  for (let m = 0; m < 8; m++) {
+    const up = m & 4, f = m & 3;
+    out[1][m] = [up ? [0, 0.5, 0, 1, 1, 1] : [0, 0, 0, 1, 0.5, 1]];
+    const base = up ? [0, 0.5, 0, 1, 1, 1] : [0, 0, 0, 1, 0.5, 1], y0 = up ? 0 : 0.5, y1 = up ? 0.5 : 1;
+    const step = [[0, y0, 0, 1, y1, 0.5], [0.5, y0, 0, 1, y1, 1], [0, y0, 0.5, 1, y1, 1], [0, y0, 0, 0.5, y1, 1]][f];
+    out[2][m] = [base, step];
+  }
+  return out;
+})();
+
 // resolve string drops ('DIRT' -> id). 'item:x' drops are resolved by items.js.
 for (const d of BLK) if (typeof d.drop === 'string' && !d.drop.startsWith('item:')) d.drop = B[d.drop];
 
@@ -125,4 +147,4 @@ const SOLID = new Uint8Array(256), OPAQUE = new Uint8Array(256), LIGHTEMIT = new
 for (const d of BLK) { SOLID[d.id] = d.solid ? 1 : 0; OPAQUE[d.id] = d.opaque ? 1 : 0; LIGHTEMIT[d.id] = d.light; CLIMB[d.id] = d.climb ? 1 : 0; HURT[d.id] = d.hurt; }
 // light passes through anything that isn't opaque; leaves dim it a little
 const LIGHTCOST = new Uint8Array(256);
-for (const d of BLK) LIGHTCOST[d.id] = d.opaque ? 15 : (d.cutLike ? 2 : (d.id === B.WATER ? 2 : 1));
+for (const d of BLK) LIGHTCOST[d.id] = d.opaque || SHAPE[d.id] ? 15 : (d.cutLike ? 2 : (d.id === B.WATER ? 2 : 1));

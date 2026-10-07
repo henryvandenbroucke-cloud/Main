@@ -345,9 +345,17 @@ function solidAt(x, y, z) {
 }
 function collides(px, py, pz, hw, h) {
   const x0 = Math.floor(px - hw), x1 = Math.floor(px + hw), y0 = Math.floor(py), y1 = Math.floor(py + h - 0.001), z0 = Math.floor(pz - hw), z1 = Math.floor(pz + hw);
-  for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) if (solidAt(x, y, z)) return true;
+  for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
+    if (!solidAt(x, y, z)) continue;
+    const id = y >= 0 && y < H && resident(x, z) ? wb[IDX(x, y, z)] : 0, sh = SHAPE[id];
+    if (!sh) return true;
+    // stairs and slabs: test the body against each box of the shape
+    for (const b of SHAPE_BOXES[sh][wm[IDX(x, y, z)] & 7]) if (px + hw > x + b[0] + 1e-4 && px - hw < x + b[3] - 1e-4 && py + h > y + b[1] + 1e-4 && py < y + b[4] - 1e-4 && pz + hw > z + b[2] + 1e-4 && pz - hw < z + b[5] - 1e-4) return true;
+  }
   return false;
 }
+// the smallest lift (up to `max`) that frees a body: used to walk up stairs and slabs and to land on them
+function freeLift(px, py, pz, hw, h, max) { for (let d = 0.0625; d <= max + 1e-6; d += 0.0625) if (!collides(px, py + d, pz, hw, h)) return d; return -1; }
 function touching(px, py, pz, hw, h, table) {
   const x0 = Math.floor(px - hw), x1 = Math.floor(px + hw), y0 = Math.floor(py), y1 = Math.floor(py + h - 0.001), z0 = Math.floor(pz - hw), z1 = Math.floor(pz + hw);
   let best = 0;
@@ -358,18 +366,23 @@ function moveBody(b, dt) {
   b.hitX = b.hitZ = false; b.onGround = false;
   const steps = Math.ceil(Math.max(Math.abs(b.vx), Math.abs(b.vy), Math.abs(b.vz)) * dt / 0.4) || 1;
   const sdt = dt / steps;
+  const grounded = !!b.wasGround;
   for (let s = 0; s < steps; s++) {
+    // walking into a slab or a stair step lifts you onto it (step height 0.6, like the classic game)
     const nx = b.x + b.vx * sdt;
-    if (!collides(nx, b.y, b.z, b.hw, b.h)) b.x = nx; else { b.vx = 0; b.hitX = true; }
+    if (!collides(nx, b.y, b.z, b.hw, b.h)) b.x = nx;
+    else { const up = grounded && b.vy <= 0.01 ? freeLift(nx, b.y, b.z, b.hw, b.h, 0.6) : -1; if (up > 0) { b.x = nx; b.y += up; b.stepUp = (b.stepUp || 0) + up; } else { b.vx = 0; b.hitX = true; } }
     const nz = b.z + b.vz * sdt;
-    if (!collides(b.x, b.y, nz, b.hw, b.h)) b.z = nz; else { b.vz = 0; b.hitZ = true; }
+    if (!collides(b.x, b.y, nz, b.hw, b.h)) b.z = nz;
+    else { const up = grounded && b.vy <= 0.01 ? freeLift(b.x, b.y, nz, b.hw, b.h, 0.6) : -1; if (up > 0) { b.z = nz; b.y += up; b.stepUp = (b.stepUp || 0) + up; } else { b.vz = 0; b.hitZ = true; } }
     const ny = b.y + b.vy * sdt;
     if (!collides(b.x, ny, b.z, b.hw, b.h)) b.y = ny;
     else {
-      if (b.vy < 0) { b.onGround = true; const sy = Math.floor(ny) + 1; if (!collides(b.x, sy, b.z, b.hw, b.h)) b.y = sy; }
+      if (b.vy < 0) { b.onGround = true; const up = freeLift(b.x, ny, b.z, b.hw, b.h, 1); if (up >= 0) b.y = ny + up; }
       b.vy = 0;
     }
   }
+  b.wasGround = b.onGround;
 }
 function lightAt(x, y, z) {
   x = Math.floor(x); y = Math.floor(y); z = Math.floor(z);

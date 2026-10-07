@@ -14,7 +14,7 @@ function protect(cx, cz, r) { for (let z = cz - r; z <= cz + r; z++) for (let x 
 
 function mk(ox, oy, oz, r) {
   const tr = (lx, lz) => r === 0 ? [lx, lz] : r === 1 ? [-lz, lx] : r === 2 ? [-lx, -lz] : [lz, -lx];
-  const f = (lx, ly, lz, id, face) => { const [wx, wz] = tr(lx, lz); setB(ox + wx, oy + ly, oz + wz, id, ((face || 0) + r) & 3); return [ox + wx, oy + ly, oz + wz]; };
+  const f = (lx, ly, lz, id, face) => { const [wx, wz] = tr(lx, lz); setB(ox + wx, oy + ly, oz + wz, id, ((face || 0) & 4) | (((face || 0) + r) & 3)); return [ox + wx, oy + ly, oz + wz]; };
   f.at = (lx, ly, lz) => { const [wx, wz] = tr(lx, lz); return [ox + wx, oy + ly, oz + wz]; };
   f.get = (lx, ly, lz) => { const p = f.at(lx, ly, lz); return getB(p[0], p[1], p[2]); };
   f.r = r;
@@ -109,6 +109,9 @@ const STYLES = {
   library: { wall: B.STONEBRICK, frame: B.LOG, floor: B.PLANKS, roof: B.ROOF_RED, trim: B.POLISHED, roofType: 'gable', found: B.COBBLE, base: B.MOSSYCOBBLE, variants: [B.MOSSYBRICK, B.CRACKEDBRICK], band: B.POLISHED, boxes: true },
 };
 
+// roof material -> [stairs, slab] used for sloped roofs, porches and ridges
+const ROOF_SHAPES = { [B.THATCH]: [B.THATCH_STAIRS, B.THATCH_SLAB], [B.PLANKS_DARK]: [B.GNARLED_STAIRS, B.GNARLED_SLAB], [B.PLANKS]: [B.OAK_STAIRS, B.OAK_SLAB], [B.ROOF_RED]: [B.ROOF_RED_STAIRS, B.ROOF_RED_SLAB],
+  [B.ROOF_BLUE]: [B.ROOF_BLUE_STAIRS, B.ROOF_BLUE_SLAB], [B.SANDBRICK]: [B.SANDSTONE_STAIRS, B.SANDSTONE_SLAB], [B.COBBLE]: [B.COBBLE_STAIRS, B.COBBLE_SLAB], [B.STONEBRICK]: [B.STONEBRICK_STAIRS, B.STONEBRICK_SLAB] };
 // house centered on (cx,gy,cz); local -z is the front (door)
 function house(cx, gy, cz, r, hw, hd, wh, st, kind, loot) {
   const P = mk(cx, gy, cz, r);
@@ -143,14 +146,20 @@ function house(cx, gy, cz, r, hw, hd, wh, st, kind, loot) {
     for (let lx = -hw; lx <= hw; lx++) for (const e of [-hd, hd]) P(lx, wh + 2, e, (lx + e) % 2 ? st.trim : st.roof);
     for (let lz = -hd; lz <= hd; lz++) for (const e of [-hw, hw]) P(e, wh + 2, lz, (lz + e) % 2 ? st.trim : st.roof);
   } else {
+    // gable roof of stairs rising to a ridge, overhanging the walls by one block all round
+    const sh = ROOF_SHAPES[st.roof], gable = st.wall === B.WOOL_RED ? B.WOOL_RED : st.trim;
     for (let k = 0; ; k++) {
       const ez = hd + 1 - k; if (ez < 0) break;
       const y = wh + 1 + k;
       for (let lx = -hw - 1; lx <= hw + 1; lx++) {
-        P(lx, y, ez, st.roof); P(lx, y, -ez, st.roof);
-        if (Math.abs(lx) === hw && ez > 0) for (let lz = -ez + 1; lz <= ez - 1; lz++) P(lx, y, lz, st.wall === B.WOOL_RED ? B.WOOL_RED : st.trim);
+        if (ez === 0) { P(lx, y, 0, sh ? sh[1] : st.roof); if (sh) P(lx, y - 1, 0, Math.abs(lx) <= hw ? st.roof : sh[1], 4); continue; }
+        if (sh) { P(lx, y, ez, sh[0], 0); P(lx, y, -ez, sh[0], 2); } else { P(lx, y, ez, st.roof); P(lx, y, -ez, st.roof); }
+        if (Math.abs(lx) === hw) for (let lz = -ez + 1; lz <= ez - 1; lz++) P(lx, y, lz, gable);
       }
     }
+    // a little window high in each gable, and a small porch roof over the door
+    if (hd >= 3) for (const e of [-hw, hw]) P(e, wh + 2, 0, B.GLASS);
+    if (sh) { for (let lx = -1; lx <= 1; lx++) P(lx, 4, -hd - 1, sh[1]); P(-2, 3, -hd - 1, sh[0], 5); P(2, 3, -hd - 1, sh[0], 7); }
   }
   P(0, wh, 0, B.LAMP);
   // interior
@@ -227,7 +236,11 @@ function windmill(cx, gy, cz, r) {
       else if (d <= rad) P(lx, ly, lz, B.AIR);
     }
   }
-  for (let k = 0; k < 4; k++) for (let lz = -3 + k; lz <= 3 - k; lz++) for (let lx = -3 + k; lx <= 3 - k; lx++) if (Math.max(Math.abs(lx), Math.abs(lz)) === 3 - k) P(lx, 13 + k, lz, B.THATCH);
+  for (let k = 0; k < 4; k++) for (let lz = -3 + k; lz <= 3 - k; lz++) for (let lx = -3 + k; lx <= 3 - k; lx++) {
+    const m = 3 - k; if (Math.max(Math.abs(lx), Math.abs(lz)) !== m) continue;
+    if (m === 0 || (Math.abs(lx) === m && Math.abs(lz) === m)) { P(lx, 13 + k, lz, m === 0 ? B.THATCH_SLAB : B.THATCH); continue; }
+    P(lx, 13 + k, lz, B.THATCH_STAIRS, Math.abs(lx) === m ? (lx > 0 ? 3 : 1) : (lz > 0 ? 0 : 2)); // a pyramid of stairs rising to the cap
+  }
   P(0, 1, -3, B.AIR); P(0, 2, -3, B.AIR); P(0, 1, -2, B.AIR); P(0, 2, -2, B.AIR);
   for (let ly = 1; ly <= 9; ly++) P(0, ly, 2, B.LADDER, 2);
   P(0, 9, -3, B.LOG); P(0, 9, -4, B.LOG);
@@ -403,34 +416,102 @@ function camp(s, name, sub, top, under) {
   P(5, 1, -2, B.CRATE); P(5, 2, -2, B.CRATE); P(5, 1, -3, B.BARREL); P(-5, 1, -1, B.LOG); P(-5, 1, 0, B.LOG); P(-5, 2, -1, B.LOG);
   P(4, 1, 2, B.FENCE); P(4, 2, 2, B.FENCE); P(4, 3, 2, B.LAMP);
 }
+// ---------------------------------------------------------------- voxel sculpting
+// A tiny sculptor for statues: shapes are listed in order and later ones paint over earlier ones (material 0
+// carves). Every block centre inside the bounds is tested against every shape.
+const Sculpt = {
+  ell: (c, r, m, when) => ({ m, when, t: (x, y, z) => ((x - c[0]) / r[0]) ** 2 + ((y - c[1]) / r[1]) ** 2 + ((z - c[2]) / r[2]) ** 2 <= 1 }),
+  cap: (a, b, r, m, when) => { const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], L2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2]; return { m, when, t: (x, y, z) => { let t = ((x - a[0]) * d[0] + (y - a[1]) * d[1] + (z - a[2]) * d[2]) / L2; t = Math.max(0, Math.min(1, t)); const px = a[0] + d[0] * t - x, py = a[1] + d[1] * t - y, pz = a[2] + d[2] * t - z; return px * px + py * py + pz * pz <= r * r; } }; },
+  box: (x0, x1, y0, y1, z0, z1, m, when) => ({ m, when, vox: true, t: (x, y, z) => x >= x0 && x <= x1 && y >= y0 && y <= y1 && z >= z0 && z <= z1 }),
+  fn: (test, m) => ({ m, t: test }),
+  run(P, prims, X0, X1, Y0, Y1, Z0, Z1, ox, oy, oz) {
+    for (let y = Y0; y <= Y1; y++) for (let z = Z0; z <= Z1; z++) for (let x = X0; x <= X1; x++) {
+      const cx = x + 0.5, cy = y + 0.5, cz = z + 0.5; let id = -1;
+      for (const pr of prims) {
+        const hit = pr.vox ? pr.t(x, y, z) : pr.t(cx, cy, cz);
+        if (!hit || (pr.when && !pr.when(cx, cy, cz))) continue;
+        id = typeof pr.m === 'function' ? pr.m(cx, cy, cz, x, y, z) : pr.m;
+      }
+      if (id >= 0) P(x + ox, y + oy, z + oz, id);
+    }
+  },
+};
 function sovereign(s) {
   const { x: cx, z: cz, gy } = s, P = mk(cx, gy, cz, 0);
-  terraform(cx, cz, 14, gy, B.GRASS, B.DIRT, 8);
-  addSite('The Knelt Sovereign', 'Landmark', 'sight', cx, gy, cz, 22);
-  for (let k = 0; k < 3; k++) fill(P, -11 + k * 2, k, -11 + k * 2, 11 - k * 2, k, 11 - k * 2, k === 2 ? B.POLISHED : B.STONEBRICK);
-  const y0 = 2;
-  // kneeling colossus facing -z: right knee down, left foot planted, sword point in the dais
-  fill(P, -4, y0 + 1, 1, -1, y0 + 3, 6, B.STONE);         // right shin lying back
-  fill(P, -4, y0 + 1, -2, -1, y0 + 6, 0, B.STONE);        // right thigh up
-  fill(P, 1, y0 + 1, -4, 4, y0 + 5, -2, B.STONE);         // left shin standing
-  fill(P, 1, y0 + 6, -4, 4, y0 + 8, 1, B.STONE);          // left thigh forward
-  fill(P, -4, y0 + 7, -2, 4, y0 + 10, 3, B.STONE);        // hips
-  fill(P, -5, y0 + 11, -2, 5, y0 + 19, 3, B.STONE);       // torso
-  fill(P, -4, y0 + 13, -3, 4, y0 + 17, -3, B.MOSSYBRICK); // breastplate
-  fill(P, -7, y0 + 17, -2, -6, y0 + 19, 2, B.STONE); fill(P, 6, y0 + 17, -2, 7, y0 + 19, 2, B.STONE); // pauldrons
-  fill(P, -7, y0 + 11, -6, -6, y0 + 16, -3, B.STONE); fill(P, 6, y0 + 11, -6, 7, y0 + 16, -3, B.STONE); // arms forward
-  fill(P, -5, y0 + 12, -8, 5, y0 + 13, -7, B.STONE);      // hands on pommel
-  fill(P, -2, y0 + 20, -2, 2, y0 + 24, 2, B.STONE);       // head (bowed)
-  fill(P, -1, y0 + 21, -3, 1, y0 + 21, -3, B.COBBLE);
-  for (const [a, b] of [[-2, -2], [2, -2], [-2, 2], [2, 2], [0, -2], [0, 2], [-2, 0], [2, 0]]) P(a, y0 + 25, b, B.GOLD_BLOCK);
-  P(0, y0 + 26, -2, B.GOLD_BLOCK); P(0, y0 + 26, 2, B.GOLD_BLOCK);
-  // greatsword planted point-down in front
-  fill(P, 0, y0 + 1, -8, 0, y0 + 11, -8, B.IRON_BLOCK); fill(P, -1, y0 + 1, -8, -1, y0 + 9, -8, B.IRON_BLOCK);
-  fill(P, -3, y0 + 12, -9, 2, y0 + 12, -9, B.GOLD_BLOCK); fill(P, 0, y0 + 13, -9, 0, y0 + 15, -9, B.DARKLOG); P(0, y0 + 16, -9, B.GOLD_BLOCK);
-  // banners on posts around the dais
-  for (const [a, b] of [[-10, -10], [10, -10], [-10, 10], [10, 10], [-10, 0], [10, 0]]) { fill(P, a, 1, b, a, 6, b, B.STONEPOST); P(a, 7, b, B.LAMP); P(a + (a > 0 ? -1 : 1), 4, b, B.BANNER, a > 0 ? 3 : 1); P(a + (a > 0 ? -1 : 1), 5, b, B.BANNER, a > 0 ? 3 : 1); }
-  addLore(P, 0, 3, -12, 'The Knelt Sovereign', 'He did not flee when the sky broke. The last king walked out to meet the Colossus alone, knelt, and laid his sword in the earth. The Colossus lay down beside him and slept. Neither has risen since.', 'king');
-  addChest(P, 0, 3, 6, 'royal', 2);
+  terraform(cx, cz, 20, gy, B.GRASS, B.DIRT, 8);
+  addSite('The Knelt Sovereign', 'Landmark', 'sight', cx, gy, cz, 24);
+  // ---- the plinth: three stepped tiers with stairs up the front, a paved forecourt and gold trim
+  const tier = (ly, hx, z0, z1, id, edge) => { for (let lz = z0; lz <= z1; lz++) for (let lx = -hx; lx <= hx - 1; lx++) { const e = lx === -hx || lx === hx - 1 || lz === z0 || lz === z1; if ((lx === -hx || lx === hx - 1) && (lz === z0 || lz === z1)) continue; P(lx, ly, lz, e && edge ? edge : id); } };
+  tier(0, 14, -16, 16, B.STONEBRICK, B.POLISHED);
+  for (let lz = -15; lz <= 15; lz++) for (let lx = -13; lx <= 12; lx++) if ((lx + lz) % 7 === 0 && Math.abs(lx) > 10) P(lx, 0, lz, B.MOSSYBRICK);
+  tier(1, 11, -13, 14, B.STONEBRICK, B.POLISHED);
+  tier(2, 9, -11, 12, B.POLISHED, B.STONEBRICK);
+  for (const [gx, gz] of [[-9, -11], [8, -11], [-9, 12], [8, 12], [-9, 0], [8, 0]]) P(gx, 2, gz, B.GOLD_BLOCK);
+  for (let lx = -3; lx <= 2; lx++) { P(lx, 1, -14, B.STONEBRICK_STAIRS, 2); P(lx, 2, -12, B.POLISHED_STAIRS, 2); P(lx, 2, -11, B.POLISHED); }
+  // braziers at the corners of the top tier
+  for (const [bx, bz] of [[-9, -10], [8, -10], [-9, 11], [8, 11]]) { P(bx, 3, bz, B.POLISHED); P(bx, 4, bz, B.GOLD_BLOCK); P(bx, 5, bz, B.FIRE); Emitters.push(Object.assign({ type: 'smoke' }, (([x, y, z]) => ({ x: x + 0.5, y: y + 1, z: z + 0.5 }))(P.at(bx, 5, bz)))); }
+  // ---- the king: kneeling on his left knee, head bowed, both hands on the pommel of a greatsword planted
+  // point-down before him; plate armour, a red cape with a gold hem pooling behind, an ermine mantle, a long
+  // white beard and a jewelled crown. He faces -z (toward the stairs); his right hand side is +x.
+  const S = Sculpt, hs = (x, y, z) => hash3(Math.floor(x), Math.floor(y), Math.floor(z));
+  const ARM = B.STEEL_BLOCK, CLOTH = B.WOOL_RED, HEM = B.WOOL_YELLOW, FUR = (x, y, z) => hs(x * 3, y * 5, z * 7) < 0.13 ? B.WOOL_BLACK : B.WOOL_WHITE;
+  const SKIN = (x, y, z) => hs(x, y, z) < 0.15 ? B.STONE : B.POLISHED;
+  // the cape: hangs from the shoulders and flares back to the ground, with folds and a gold hem
+  const capeW = y => 6.2 + (1 - y / 20) * 2.6, capeZ = (x, y) => { const t = 1 - y / 20; return 4.4 + t * t * 7.2 + Math.sin(x * 1.15) * 0.55 * t; };
+  const inCape = (x, y, z) => y >= 0.5 && y <= 20.6 && Math.abs(x) <= capeW(y) && z <= capeZ(x, y) && z >= capeZ(x, y) - 1.35;
+  const inTrain = (x, y, z) => y < 1.6 && z > 5 && (x / 9.2) ** 2 + ((z - 8.6) / 4.6) ** 2 <= 1 + Math.sin(x * 1.3) * 0.08;
+  const capeMat = (x, y, z) => { const edge = Math.abs(x) > capeW(y) - 1.05 || y < 1.6 && (x / 9.2) ** 2 + ((z - 8.6) / 4.6) ** 2 > 0.8; return edge ? HEM : CLOTH; };
+  const prims = [
+    S.fn((x, y, z) => inCape(x, y, z) || inTrain(x, y, z), capeMat),
+    // legs: right knee raised with the foot planted forward, left knee on the ground with the shin lying back
+    S.box(3, 5, 0, 1, -8, -4, ARM), S.box(3, 5, 2, 2, -7, -4, ARM),
+    S.cap([4.2, 1.5, -5.4], [4.2, 8, -5.4], 1.9, ARM), S.ell([4.2, 8.6, -5.8], [2.1, 1.6, 2], ARM),
+    S.cap([4.2, 8.5, -5.2], [3.2, 9.6, 1.5], 2.3, ARM),
+    S.cap([-4.2, 1.6, -2.6], [-4.2, 1.4, 5.4], 1.6, ARM), S.box(-6, -3, 0, 2, 5, 7, ARM),
+    S.ell([-4.2, 1.9, -3.1], [2.1, 1.9, 2], ARM), S.cap([-4.2, 2.3, -2.8], [-3.2, 9.6, 1.5], 2.3, ARM),
+    S.ell([4.2, 8.7, -6.9], [1.2, 0.9, 0.7], B.GOLD_BLOCK), S.ell([-4.2, 2, -4.4], [1.2, 0.9, 0.7], B.GOLD_BLOCK),
+    // hips, red tunic and the tabard that hangs between the knees
+    S.ell([0, 10, 1.6], [6, 3, 3.9], CLOTH), S.box(-2, 1, 4, 10, -3, -2, (x, y, z, vx) => vx === -2 || vx === 1 ? HEM : CLOTH),
+    // breastplate, gold belt and a cross on the chest
+    S.ell([0, 15.8, 1.4], [5.6, 5.8, 3.7], ARM), S.ell([0, 11.5, 1.4], [5.75, 0.95, 3.95], B.GOLD_BLOCK),
+    S.box(-1, 0, 13, 18, -3, -3, B.GOLD_BLOCK), S.box(-3, 2, 16, 16, -3, -3, B.GOLD_BLOCK),
+    // ermine mantle over the shoulders, then the pauldrons with gold rims
+    S.ell([0, 20.3, 1.3], [6.5, 1.7, 4.3], FUR),
+    S.ell([6.2, 19.2, 1.2], [2.8, 2.2, 3], ARM), S.ell([-6.2, 19.2, 1.2], [2.8, 2.2, 3], ARM),
+    S.ell([6.2, 18.2, 1.2], [3.1, 0.7, 3.3], B.GOLD_BLOCK), S.ell([-6.2, 18.2, 1.2], [3.1, 0.7, 3.3], B.GOLD_BLOCK),
+    // arms reaching down to the sword, hands clasped over the grip
+    S.cap([6.3, 18, 0.6], [5.6, 14.2, -3.2], 1.7, ARM), S.cap([-6.3, 18, 0.6], [-5.6, 14.2, -3.2], 1.7, ARM),
+    S.ell([5.7, 14.2, -3.2], [1.9, 1.9, 1.9], ARM), S.ell([-5.7, 14.2, -3.2], [1.9, 1.9, 1.9], ARM),
+    S.cap([5.6, 14.2, -3.2], [1.8, 15.4, -6.6], 1.5, ARM), S.cap([-5.6, 14.2, -3.2], [-1.8, 15.4, -6.6], 1.5, ARM),
+    S.ell([0, 15.6, -7], [3.2, 1.9, 1.9], ARM),
+    // the greatsword: a long blade, a gold crossguard with upturned ends, the grip, and a jewelled pommel
+    S.box(-1, 0, 0, 12, -8, -8, (x, y, z, vx) => vx === -1 ? B.IRON_BLOCK : B.POLISHED), S.box(-2, 1, 0, 1, -8, -8, B.IRON_BLOCK),
+    S.box(-5, 4, 13, 13, -8, -8, B.GOLD_BLOCK), S.box(-5, -5, 14, 14, -8, -8, B.GOLD_BLOCK), S.box(4, 4, 14, 14, -8, -8, B.GOLD_BLOCK),
+    S.box(-1, 0, 17, 18, -8, -7, B.GOLD_BLOCK), S.box(-1, 0, 18, 18, -9, -9, B.CRYSTAL_ROSE),
+    // neck, head (bowed a little), white hair and a long beard
+    S.cap([0, 20.4, 0.9], [0, 22.2, 0.2], 1.8, SKIN),
+    S.ell([0, 24.6, -0.6], [3.05, 3.9, 3.15], SKIN),
+    S.ell([0, 25.2, 0.25], [3.3, 3.85, 3.35], B.WOOL_WHITE, (x, y, z) => z > -1.4 || y > 27.4),
+    S.box(-2, -2, 24, 24, -4, -4, B.BASALT), S.box(1, 1, 24, 24, -4, -4, B.BASALT), // eyes in the shade of the brow
+    S.box(-3, 2, 25, 25, -5, -5, SKIN), S.box(-1, 0, 23, 24, -5, -5, SKIN),     // brow and nose
+    S.box(-3, 2, 22, 22, -4, -4, B.WOOL_WHITE), S.box(-2, 1, 22, 22, -5, -5, B.WOOL_WHITE), // moustache
+    S.ell([0, 20.2, -3], [2.4, 2.1, 1.75], B.WOOL_WHITE), S.cap([0, 20.6, -3.1], [0, 17.2, -3.7], 1.75, B.WOOL_WHITE),
+    S.cap([0, 18, -3.7], [0, 16.2, -4.1], 1.1, B.WOOL_WHITE),
+    // the crown: a gold band set with gems, eight points, a velvet cap and a gold orb on top
+    S.fn((x, y, z) => { const dx = x / 3.45, dz = (z + 0.45) / 3.45, r = Math.sqrt(dx * dx + dz * dz); return y >= 27.4 && y <= 29.6 && r <= 1 && r >= 0.7; }, (x, y, z) => {
+      const a = Math.atan2(z + 0.45, x), front = Math.abs(a + Math.PI / 2) < 0.4;
+      if (y > 28 && y < 29 && front) return B.CRYSTAL_ROSE; if (y > 28 && y < 29 && (Math.abs(a) < 0.35 || Math.abs(Math.abs(a) - Math.PI) < 0.35)) return B.CRYSTAL; return B.GOLD_BLOCK; }),
+    S.ell([0, 29.3, -0.45], [2.6, 1.8, 2.6], CLOTH),
+    S.fn((x, y, z) => { if (y < 29.6 || y > 32) return false; const a = Math.atan2(z + 0.45, x), k = Math.round(a / (Math.PI / 4)), ka = k * Math.PI / 4; const px = Math.cos(ka) * 3.05, pz = Math.sin(ka) * 3.05 - 0.45; return Math.abs(x - px) < 0.75 && Math.abs(z - pz) < 0.75 && y < 29.6 + (k % 2 ? 1.4 : 2.4); }, (x, y, z) => y > 31 ? B.CRYSTAL : B.GOLD_BLOCK),
+    S.box(-1, 0, 31, 32, -1, 0, B.GOLD_BLOCK),
+  ];
+  Sculpt.run(P, prims, -11, 10, 0, 33, -9, 14, 0, 3, -1);
+  // ---- around the plinth: banners on posts, hedges along the sides and flowers in the grass
+  for (const [a, b] of [[-13, -15], [12, -15], [-13, 15], [12, 15]]) { fill(P, a, 1, b, a, 7, b, B.STONEPOST); P(a, 8, b, B.LAMP); P(a + (a > 0 ? -1 : 1), 5, b, B.BANNER, a > 0 ? 3 : 1); P(a + (a > 0 ? -1 : 1), 6, b, B.BANNER, a > 0 ? 3 : 1); }
+  for (let lz = -12; lz <= 15; lz++) for (const lx of [-16, 15]) if (lz % 6 !== 0) { P(lx, 1, lz, B.LEAVES_DARK); if (lz % 3 === 1) P(lx, 2, lz, B.LEAVES_DARK); }
+  for (let i = 0; i < 70; i++) { const a = rng() * 6.283, d = 17 + rng() * 4, x = Math.round(Math.cos(a) * d), z = Math.round(Math.sin(a) * d); if (getB(...P.at(x, 0, z)) === B.GRASS && !getB(...P.at(x, 1, z))) P(x, 1, z, [B.FLOWER_RED, B.FLOWER_YELLOW, B.FLOWER_BLUE, B.TALLGRASS][Math.floor(rng() * 4)]); }
+  addLore(P, 0, 3, -10, 'The Knelt Sovereign', 'He did not flee when the sky broke. The last king walked out to meet the Colossus alone, knelt, and laid his sword in the earth. The Colossus lay down beside him and slept. Neither has risen since.', 'king');
+  addChest(P, 0, 2, 13, 'royal', 2);
 }
 function shatteredOath(s) {
   const { x: cx, z: cz, gy } = s, P = mk(cx, gy, cz, 0);

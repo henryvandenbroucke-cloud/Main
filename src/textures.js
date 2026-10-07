@@ -291,7 +291,7 @@ const BIOME_FOLIAGE = [0x67a330, 0x4f9a2a, 0x5f7036, 0xa8a034, 0x5c9c74, 0x8c7a4
     for (let i = 0; i < 16; i++) { c.px(i, 0, fr, 235); c.px(0, i, fr, 235); c.px(i, 15, [160, 196, 210], 235); c.px(15, i, [160, 196, 210], 235); }
     for (const [x, y] of [[2, 4], [3, 3], [4, 2], [2, 5], [3, 4], [5, 2], [11, 10], [12, 9], [10, 11]]) c.px(x, y, [250, 254, 255], 200);
   });
-  const WOOL = { wool_red: 0xa12722, wool_white: 0xe9ecec, wool_blue: 0x35399d, wool_green: 0x546d1b, wool_yellow: 0xf3c12a, wool_purple: 0x7a2aad };
+  const WOOL = { wool_red: 0xa12722, wool_white: 0xe9ecec, wool_blue: 0x35399d, wool_green: 0x546d1b, wool_yellow: 0xf3c12a, wool_purple: 0x7a2aad, wool_black: 0x1d1d21 };
   for (const k in WOOL) tile(k, c => wool(c, WOOL[k]));
   tile('hay_side', c => c.each((x, y) => {
     let t = c.n(x, y >> 1, 1) * 0.7 + c.v(x, y, 1, 8, 2) * 0.3; if (x % 3 === 0) t -= 0.25;
@@ -367,6 +367,11 @@ const BIOME_FOLIAGE = [0x67a330, 0x4f9a2a, 0x5f7036, 0xa8a034, 0x5c9c74, 0x8c7a4
     let t = 0.55 + (c.n(x, y, 1) - 0.5) * 0.08; const bx = x & 7, by = y & 7;
     if (by === 0 || bx === 0) t = 0.9; if (by === 7 || bx === 7) t = 0.2; if (by === 1 && bx > 0 && bx < 7) t = 0.75;
     c.px(x, y, pick([0x9a9a9e, 0xb8b8bc, 0xcdcdd1, 0xdcdce0, 0xececf0], t));
+  }));
+  tile('steel_block', c => c.each((x, y) => {
+    let t = 0.5 + (c.n(x, y, 1) - 0.5) * 0.1 + (c.v(x, y, 8, 8, 2) - 0.5) * 0.1; const bx = x & 7, by = y & 7;
+    if (by === 0 || bx === 0) t = 0.88; if (by === 7 || bx === 7) t = 0.12;
+    c.px(x, y, pick([0x3e434c, 0x4b515b, 0x59606b, 0x68707c, 0x7a838f, 0x929ba8], t));
   }));
   tile('gold_block', c => c.each((x, y) => {
     let t = 0.55 + (c.n(x, y, 1) - 0.5) * 0.12; const e = Math.min(x, y, 15 - x, 15 - y);
