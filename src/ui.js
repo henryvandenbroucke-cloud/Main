@@ -64,7 +64,22 @@ function showHeldNameOld() {
   hud.held.classList.add('show'); clearTimeout(heldT); heldT = setTimeout(() => hud.held.classList.remove('show'), 1500);
 }
 let zoneT = 0;
-function zoneBanner(name, lore) { const z = $('zone'); z.querySelector('.zn').textContent = name; z.querySelector('.zl').textContent = lore; z.classList.add('show'); clearTimeout(zoneT); zoneT = setTimeout(() => z.classList.remove('show'), 4200); }
+// a new biome: just its name, small and quiet, at the top of the screen
+function zoneBanner(name) { const z = $('zone'); z.querySelector('.zn').textContent = name; z.querySelector('.zl').textContent = ''; z.classList.add('show'); clearTimeout(zoneT); zoneT = setTimeout(() => z.classList.remove('show'), 2600); }
+// corner notifications (like the classic advancement toasts): one small box slides into the top right
+const Notes = { q: [], busy: false };
+function notify(title, text, icon) {
+  if (Notes.q.some(n => n.title === title && n.text === text)) return;
+  Notes.q.push({ title, text, icon }); if (!Notes.busy) nextNote();
+}
+function nextNote() {
+  const n = Notes.q.shift(), el = $('notify');
+  if (!n) { Notes.busy = false; return; }
+  Notes.busy = true;
+  el.innerHTML = (n.icon ? '<img src="' + n.icon + '">' : '') + '<div><div class="nt">' + n.title + '</div><div class="nx">' + (n.text || '') + '</div></div>';
+  el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  setTimeout(() => { el.classList.remove('show'); setTimeout(nextNote, 350); }, 3200);
+}
 let banT = 0;
 function bossBanner(t, s) { const b = $('banner'); b.classList.remove('questb', 'discb'); b.querySelector('.bt').textContent = t; b.querySelector('.bs').textContent = s || ''; b.classList.add('show'); clearTimeout(banT); banT = setTimeout(() => b.classList.remove('show'), 3800); }
 function drawBossBar() {
@@ -419,7 +434,7 @@ function startCinematic(site) {
   c.querySelector('.ck').textContent = site.cat === 'village' || site.cat === 'camp' ? 'DISCOVERED' : 'LANDMARK SIGHTED';
   c.querySelector('.cn').textContent = site.name; c.querySelector('.cs').textContent = site.sub;
   const t = c.querySelector('.ctext'); t.style.animation = 'none'; void t.offsetWidth; t.style.animation = '';
-  if (!Settings.cine) { bossBanner(site.name, (site.cat === 'village' || site.cat === 'camp' ? 'Discovered · ' : 'Landmark sighted · ') + site.sub); $('banner').classList.add('discb'); return; }
+  if (!Settings.cine) { notify(site.cat === 'village' || site.cat === 'camp' ? 'Discovered' : 'Landmark sighted', site.name, iconURL(I.compass)); return; }
   c.classList.remove('hidden');
   Game.cine = { site, t: 0, dur: 5.2, a0: Math.atan2(Player.x - site.x, Player.z - site.z) };
 }

@@ -54,9 +54,9 @@ img { image-rendering: pixelated; }
 #toast { position: absolute; bottom: 104px; left: 50%; transform: translateX(-50%); font-size: 16px; max-width: min(680px, 92vw); text-align: center; color: #fff; text-shadow: var(--shadow-dark); }
 
 /* titles: big white text with a hard shadow, subtitle in grey */
-#zone { position: absolute; top: 18%; left: 0; right: 0; text-align: center; }
-#zone .zn { font-size: clamp(30px, 4vw, 48px); color: #fff; text-shadow: 3px 3px 0 #3f3f3f; }
-#zone .zl { font-size: 16px; color: var(--dim); margin-top: 6px; }
+#zone { position: absolute; top: 12%; left: 0; right: 0; text-align: center; }
+#zone .zn { font-size: 22px; color: #fff; text-shadow: 2px 2px 0 #3f3f3f; }
+#zone .zl { display: none; }
 #banner { position: absolute; top: 24%; left: 0; right: 0; text-align: center; }
 #banner .bt { font-size: clamp(32px, 5vw, 60px); color: #fff; text-shadow: 4px 4px 0 #3f3f3f; }
 #banner .bs { color: var(--yellow); font-size: 18px; margin-top: 6px; }
@@ -86,6 +86,16 @@ img { image-rendering: pixelated; }
 #quest .qr { font-size: 13px; margin-top: 3px; color: var(--gold); }
 #quest .qn { font-size: 12px; margin-top: 3px; color: var(--gray); }
 #quest.away { opacity: 0; transform: translateX(-20px); pointer-events: none; }
+#quest.brief .qd, #quest.brief .qr, #quest.brief .qh { display: none; }
+#quest.brief { width: auto; max-width: 270px; padding: 5px 8px; }
+#quest.brief .qt { font-size: 15px; margin: 0; }
+#quest.brief .qb { margin-top: 4px; }
+#notify { position: absolute; right: 8px; top: 8px; display: flex; gap: 10px; align-items: center; min-width: 220px; max-width: 320px; padding: 8px 12px 8px 10px; background: #212121; box-shadow: inset 0 0 0 2px #555, 0 0 0 2px #000; transform: translateX(calc(100% + 20px)); transition: transform .3s cubic-bezier(.2, .8, .3, 1); pointer-events: none; z-index: 5; }
+#notify.show { transform: none; }
+#notify img { width: 32px; height: 32px; image-rendering: pixelated; flex: none; }
+#notify .nt { font-size: 15px; color: var(--yellow); }
+#notify .nx { font-size: 14px; color: #fff; margin-top: 2px; line-height: 1.25; }
+#notify .nr { color: var(--green); font-size: 13px; }
 #quest .qhint { font-size: 13px; margin-top: 4px; color: var(--aqua); display: flex; gap: 6px; align-items: center; }
 #quest .qhint b { font-size: 16px; display: inline-block; width: 16px; text-align: center; }
 
@@ -375,6 +385,7 @@ input#seedInput:focus { box-shadow: 0 0 0 2px #fff; }
   <div id="fps"></div>
   <div id="quest" class="hidden"></div>
   <div id="modeBadge" class="hidden"></div>
+  <div id="notify"></div>
   <div id="effects"></div>
   <div id="pkHud" class="hidden"></div>
   <div id="lookLabel" class="hidden"></div>
@@ -541,6 +552,7 @@ input#seedInput:focus { box-shadow: 0 0 0 2px #fff; }
       <label class="opt tog"><input type="checkbox" id="setCine"><span>Discovery Cinematics</span></label>
       <label class="opt tog"><input type="checkbox" id="setFps"><span>Show FPS</span></label>
       <label class="opt tog"><input type="checkbox" id="setAutoJump"><span>Auto-Jump</span></label>
+      <label class="opt tog"><input type="checkbox" id="setDmgNum"><span>Damage Numbers</span></label>
     </div>
     <div class="opage hidden" data-opage="system"><div id="sysInfo" class="sysinfo"></div></div>
     <div class="btn" data-act="closeSettings" style="margin-top:16px">Done</div>
@@ -1205,6 +1217,9 @@ const SHAPE_BOXES = (() => { // [kind][meta] -> list of boxes in block space
 // resolve string drops ('DIRT' -> id). 'item:x' drops are resolved by items.js.
 for (const d of BLK) if (typeof d.drop === 'string' && !d.drop.startsWith('item:')) d.drop = B[d.drop];
 
+// solid blocks lower than a full block (chests, the enchanting table, pots) collide at their real height
+const COLBOX = [];
+for (const d of BLK) if (d.solid && d.render === 'box' && d.box && d.box[4] < 1) COLBOX[d.id] = [d.box];
 const SOLID = new Uint8Array(256), OPAQUE = new Uint8Array(256), LIGHTEMIT = new Uint8Array(256), CLIMB = new Uint8Array(256), HURT = new Uint8Array(256);
 for (const d of BLK) { SOLID[d.id] = d.solid ? 1 : 0; OPAQUE[d.id] = d.opaque ? 1 : 0; LIGHTEMIT[d.id] = d.light; CLIMB[d.id] = d.climb ? 1 : 0; HURT[d.id] = d.hurt; }
 // light passes through anything that isn't opaque; leaves dim it a little
@@ -1562,10 +1577,10 @@ function collides(px, py, pz, hw, h) {
   const x0 = Math.floor(px - hw), x1 = Math.floor(px + hw), y0 = Math.floor(py), y1 = Math.floor(py + h - 0.001), z0 = Math.floor(pz - hw), z1 = Math.floor(pz + hw);
   for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
     if (!solidAt(x, y, z)) continue;
-    const id = y >= 0 && y < H && resident(x, z) ? wb[IDX(x, y, z)] : 0, sh = SHAPE[id];
-    if (!sh) return true;
-    // stairs and slabs: test the body against each box of the shape
-    for (const b of SHAPE_BOXES[sh][wm[IDX(x, y, z)] & 7]) if (px + hw > x + b[0] + 1e-4 && px - hw < x + b[3] - 1e-4 && py + h > y + b[1] + 1e-4 && py < y + b[4] - 1e-4 && pz + hw > z + b[2] + 1e-4 && pz - hw < z + b[5] - 1e-4) return true;
+    const id = y >= 0 && y < H && resident(x, z) ? wb[IDX(x, y, z)] : 0, sh = SHAPE[id], boxes = sh ? SHAPE_BOXES[sh][wm[IDX(x, y, z)] & 7] : COLBOX[id];
+    if (!boxes) return true;
+    // stairs, slabs and low blocks (chests, tables): test the body against each box of the shape
+    for (const b of boxes) if (px + hw > x + b[0] + 1e-4 && px - hw < x + b[3] - 1e-4 && py + h > y + b[1] + 1e-4 && py < y + b[4] - 1e-4 && pz + hw > z + b[2] + 1e-4 && pz - hw < z + b[5] - 1e-4) return true;
   }
   return false;
 }
@@ -1575,9 +1590,9 @@ function landingTop(px, oldY, ny, pz, hw) {
   let best = null;
   for (let y = Math.floor(ny); y <= Math.floor(oldY); y++) for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
     if (!solidAt(x, y, z)) continue;
-    const id = y >= 0 && y < H && resident(x, z) ? wb[IDX(x, y, z)] : 0, sh = SHAPE[id];
-    if (!sh) { if (y + 1 <= oldY + 1e-6 && (best === null || y + 1 > best)) best = y + 1; continue; }
-    for (const bx of SHAPE_BOXES[sh][wm[IDX(x, y, z)] & 7]) {
+    const id = y >= 0 && y < H && resident(x, z) ? wb[IDX(x, y, z)] : 0, sh = SHAPE[id], boxes = sh ? SHAPE_BOXES[sh][wm[IDX(x, y, z)] & 7] : COLBOX[id];
+    if (!boxes) { if (y + 1 <= oldY + 1e-6 && (best === null || y + 1 > best)) best = y + 1; continue; }
+    for (const bx of boxes) {
       if (!(px + hw > x + bx[0] && px - hw < x + bx[3] && pz + hw > z + bx[2] && pz - hw < z + bx[5])) continue;
       const t = y + bx[4]; if (t <= oldY + 1e-6 && (best === null || t > best)) best = t;
     }
@@ -3055,7 +3070,7 @@ function claimTreasure(c, h) {
   const site = Sites.find(s => s.name === c.treasure); if (!site) return;
   const list = treasureFor(site);
   list.forEach(([id, n, e], i) => { const st = { id, n }; if (e) st.ench = Object.assign({}, e); let j = c.items.indexOf(null); if (j < 0) j = i; c.items[j] = st; });
-  bossBanner('Treasure of ' + site.name, site.treasureText); $('banner').classList.add('questb');
+  notify('Treasure found!', site.name, iconURL(B.CHEST));
   Sound.discover();
   burst(h.x + 0.5, h.y + 1, h.z + 0.5, 40, { life: 1.2, size: 0.1, r: 1, g: 0.85, b: 0.3, glow: true, spread: 3, up: 4 });
 }
@@ -3129,7 +3144,7 @@ const GLOSS = { polished: [0.6, 0], iron_block: [0.85, 1], steel_block: [0.8, 1]
   redbrick: [0.22, 0], plaster: [0.15, 0], cauldron: [0.6, 0.6], rail: [0.7, 0.8], lamp: [0.6, 0.2], bookshelf: [0.22, 0], cactus_side: [0.4, 0], lilypad: [0.6, 0], furnace_front: [0.25, 0], waystone: [0.5, 0] };
 const glossTex = (() => { const d = new Uint8Array(16 * 16 * 4); for (const k in Atlas.tiles) { const i = Atlas.tiles[k], g = GLOSS[k] || [0.08, 0]; d[i * 4] = g[0] * 255; d[i * 4 + 1] = g[1] * 255; d[i * 4 + 3] = 255; } const t = new THREE.DataTexture(d, 16, 16, THREE.RGBAFormat); t.needsUpdate = true; return t; })();
 const normalTex = new THREE.DataTexture(atlasNormalData, HIW, HIW, THREE.RGBAFormat);
-normalTex.magFilter = THREE.LinearFilter; normalTex.minFilter = THREE.LinearMipmapLinearFilter; normalTex.generateMipmaps = true; normalTex.flipY = false; normalTex.anisotropy = atlasTex.anisotropy; normalTex.needsUpdate = true;
+normalTex.magFilter = THREE.NearestFilter; normalTex.minFilter = THREE.LinearMipmapLinearFilter; normalTex.generateMipmaps = true; normalTex.flipY = false; normalTex.anisotropy = atlasTex.anisotropy; normalTex.needsUpdate = true;
 atlasNormalData = null;
 
 const U = {
@@ -3824,6 +3839,7 @@ function blockBurst(x, y, z, id, n) {
 // ---------------------------------------------------------------- floating damage numbers
 const dmgSprites = [];
 function damageNumber(x, y, z, val, crit) {
+  if (!Settings.dmgNumbers) return;
   const c = document.createElement('canvas'); c.width = 128; c.height = 64;
   const g = c.getContext('2d'); g.font = 'bold 40px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.lineWidth = 6; g.strokeStyle = '#1a1010'; const txt = (Math.round(val * 10) / 10).toString();
@@ -5086,7 +5102,7 @@ function updateBolts(dt) { for (let i = bolts.length - 1; i >= 0; i--) { const b
 // ---------------------------------------------------------------- combat
 function damageMob(m, dmg, kx, kz, crit, src) {
   if (m.dead) return;
-  if (m.shield) { burst(m.x, m.y + m.h * 0.6, m.z, 10, { life: 0.4, size: 0.15, r: 0.5, g: 0.9, b: 1, glow: true, spread: 6 }); damageNumber(m.x, m.y + m.h + 0.3, m.z, 0, false); toastOnce('shield', 'The Colossus is shielded - destroy the energy pylons!'); return; }
+  if (m.shield) { burst(m.x, m.y + m.h * 0.6, m.z, 10, { life: 0.4, size: 0.15, r: 0.5, g: 0.9, b: 1, glow: true, spread: 6 }); damageNumber(m.x, m.y + m.h + 0.3, m.z, 0, false); toastOnce('shield', 'Shielded - break the glowing pylons!'); return; }
   if (m.def.stare && src === 'arrow') { m.anger = 40; stalkerBlink(m, true); return; } // it slips away from projectiles
   if (m.vuln) { dmg *= 1.5; crit = true; }
   // Minecraft-style hurt immunity: after a hit a creature is protected for half a second;
@@ -5105,7 +5121,7 @@ function damageMob(m, dmg, kx, kz, crit, src) {
   burst(m.x, m.y + m.h * m.scale * 0.6, m.z, 4, { life: 0.18, size: 0.12, r: 1, g: 0.95, b: 0.8, glow: true, spread: 5, up: 2 });
   if (m.def.pack || m.type === 'villager') for (const o of Mobs) if (o !== m && !o.dead && Math.hypot(o.x - m.x, o.z - m.z) < 16 && (o.type === m.type || (m.type === 'villager' && o.type === 'guardian'))) { if (!o.tamed) o.anger = 30; }
   if (m.tamed) m.anger = 0;
-  if (m.def.boss) { m.poise = (m.poise === undefined ? 70 : m.poise) - dmg; if (m.poise <= 0 && !['air', 'roar', 'stagger'].includes(m.st) && !m.shield) { bossState(m, 'stagger', 1.7); m.poise = 70; toast(m.def.name + ' staggers - strike now!', 1600); shake(0.4); } }
+  if (m.def.boss) { m.poise = (m.poise === undefined ? 70 : m.poise) - dmg; if (m.poise <= 0 && !['air', 'roar', 'stagger'].includes(m.st) && !m.shield) { bossState(m, 'stagger', 1.7); m.poise = 70; toast('Staggered - strike now!', 1400); shake(0.4); } }
   if (m.hp <= 0) killMob(m);
 }
 function killMob(m, silent) {
@@ -5155,7 +5171,6 @@ const VILLAGER_TRADES = [
   { give: I.gold, n: 2, get: I.iron, m: 1, line: 'Good iron. Mind the edges.' },
   { give: I.gold, n: 3, get: I.potion, m: 1, line: 'Brewed it myself. Drink it slowly.' },
 ];
-const VILLAGER_LINES = ['Lovely day for it.', 'Have you seen the windmill turn? Never gets old.', 'Watch the roads after dark.', 'The bread here is the best in the realm.', 'Mind the boomshrooms. Nasty tempers.', 'They say the Mirewarden still guards the Drowned Halls.', 'Hm. Hmm!', 'Bring me gold coins and we can trade.'];
 function interactMob(m) {
   if (m.dead) return false;
   const s = heldItem(), id = s ? s.id : 0, def = m.def;
@@ -5166,10 +5181,10 @@ function interactMob(m) {
     Sound.voice('hmm', dist, 1);
     if (id === tr.give && countItem(tr.give) >= tr.n) {
       takeItem(tr.give, tr.n); const left = giveItem(tr.get, tr.m); if (left) dropItem(tr.get, left, Player.x, Player.y + 1, Player.z);
-      toast('Traded ' + tr.n + '× ' + itemDef(tr.give).name + ' for ' + tr.m + '× ' + itemDef(tr.get).name + ' - "' + tr.line + '"', 3200);
+      toast('Traded for ' + tr.m + '× ' + itemDef(tr.get).name, 1800);
       burst(m.x, m.y + 2.1, m.z, 8, { life: 0.8, size: 0.09, r: 0.4, g: 1, b: 0.5, glow: true, spread: 1.5, up: 2 });
       Quests.event('trade'); Sound.pop();
-    } else toast('Villager: "' + (Math.random() < 0.4 ? 'I trade ' + tr.m + '× ' + itemDef(tr.get).name + ' for ' + tr.n + '× ' + itemDef(tr.give).name + '.' : VILLAGER_LINES[Math.floor(Math.random() * VILLAGER_LINES.length)]) + '"', 3000);
+    } else toast(tr.n + '× ' + itemDef(tr.give).name + '  →  ' + tr.m + '× ' + itemDef(tr.get).name, 2400);
     return true;
   }
   if (m.type === 'sheep' && id === I.shears && !m.sheared && !m.baby) {
@@ -5180,7 +5195,7 @@ function interactMob(m) {
   }
   if (def.tame && id === def.tame && !m.tamed) {
     takeItem(id, 1); lastHudKey = '';
-    if (Math.random() < 0.4) { m.tamed = true; m.anger = 0; if (m.P.collar) m.P.collar.visible = true; hearts(m, 10); Sound.heart(); toast('The wolf is now your loyal companion!', 2600); Quests.event('tame'); }
+    if (Math.random() < 0.4) { m.tamed = true; m.anger = 0; if (m.P.collar) m.P.collar.visible = true; hearts(m, 10); Sound.heart(); notify('Tamed', 'A loyal wolf companion', iconURL(I.bone)); Quests.event('tame'); }
     else burst(m.x, m.y + 1, m.z, 8, { life: 0.8, size: 0.1, r: 0.5, g: 0.5, b: 0.5, spread: 1.5, up: 1.5 });
     return true;
   }
@@ -5975,7 +5990,7 @@ function onBossDefeated(m) {
       for (let dy = 0; dy < 4; dy++) for (let dx = -1; dx <= 1; dx++) { const edge = dy === 0 || dy === 3 || Math.abs(dx) === 1; setBlockLogged(p[0] + dx, p[1] + dy, p[2], edge ? B.ANCIENT_GOLD : B.PORTAL); }
       setBlockLogged(p[0] - 2, p[1], p[2], B.ANCIENT_GOLD); setBlockLogged(p[0] + 2, p[1], p[2], B.ANCIENT_GOLD);
       Portals.push({ x: p[0], y: p[1] + 1, z: p[2], to: Game.halls.exit });
-      toast('A portal opens. Step through to return to the surface.', 5000);
+      toast('A portal opens back to the surface', 3500);
     }
   }
 }
@@ -6208,16 +6223,19 @@ const PostFX = (() => {
   const compMat = new THREE.ShaderMaterial({
     uniforms: {
       tScene: { value: null }, tB1: { value: null }, tB2: { value: null }, tRays: { value: null }, uTexel: { value: new THREE.Vector2(0.001, 0.001) }, uSun: { value: new THREE.Vector2(0.5, 0.5) }, uRays: { value: 0 }, uDepthRays: { value: depthRays ? 1 : 0 }, uRayCol: { value: new THREE.Color(1, 0.85, 0.6) },
-      uBloom: { value: hdr ? 0.7 : 0.55 }, uExposure: { value: 0.82 }, uNight: { value: 0 }, uUnder: { value: 0 }, uTime: U.uTime,
+      uBloom: { value: hdr ? 0.7 : 0.55 }, uSharp: { value: 0.3 }, uExposure: { value: 0.82 }, uNight: { value: 0 }, uUnder: { value: 0 }, uTime: U.uTime,
     },
     vertexShader: QV,
-    fragmentShader: `uniform sampler2D tScene, tB1, tB2, tRays; uniform vec2 uSun, uTexel; uniform float uRays, uDepthRays, uBloom, uExposure, uNight, uUnder, uTime; uniform vec3 uRayCol; varying vec2 vUv;
+    fragmentShader: `uniform sampler2D tScene, tB1, tB2, tRays; uniform vec2 uSun, uTexel; uniform float uRays, uDepthRays, uBloom, uSharp, uExposure, uNight, uUnder, uTime; uniform vec3 uRayCol; varying vec2 vUv;
       vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0); }
       vec3 lin(vec3 c){ return pow(max(c,0.0),vec3(2.2)); }
       void main(){
         vec2 uv=vUv;
         if(uUnder>0.5) uv+=vec2(sin(uv.y*30.0+uTime*2.0),cos(uv.x*24.0+uTime*1.7))*0.0025;
-        vec3 c=lin(texture2D(tScene,uv).rgb);
+        vec3 c0=texture2D(tScene,uv).rgb;
+        // light sharpening keeps block pixels crisp (stronger when the game renders below screen resolution)
+        vec3 nb=texture2D(tScene,uv+vec2(uTexel.x,0.0)).rgb+texture2D(tScene,uv-vec2(uTexel.x,0.0)).rgb+texture2D(tScene,uv+vec2(0.0,uTexel.y)).rgb+texture2D(tScene,uv-vec2(0.0,uTexel.y)).rgb;
+        vec3 c=lin(max(c0+(c0-nb*0.25)*uSharp,0.0));
         vec3 b=lin(texture2D(tB1,uv).rgb)*0.6+lin(texture2D(tB2,uv).rgb)*0.9;
         c+=b*uBloom*vec3(1.0,0.92,0.8);
         if(uRays>0.001){
@@ -6279,6 +6297,7 @@ const PostFX = (() => {
     if (opts.rayCol) u.uRayCol.value.copy(opts.rayCol);
     if (depthRays && u.uRays.value > 0.001) { raysMat.uniforms.tDepth.value = rtScene.depthTexture; raysMat.uniforms.uSun.value.copy(u.uSun.value); raysMat.uniforms.uAspect.value = W0 / H0; pass(raysMat, rtRays); }
     u.tScene.value = rtScene.texture; u.tB1.value = rtHalfA.texture; u.tB2.value = rtQA.texture; u.tRays.value = rtRays.texture;
+    u.uSharp.value = opts.sharp === undefined ? 0.3 : opts.sharp;
     u.uNight.value = opts.night; u.uUnder.value = opts.under;
     pass(compMat, null);
   }
@@ -6353,7 +6372,22 @@ function showHeldNameOld() {
   hud.held.classList.add('show'); clearTimeout(heldT); heldT = setTimeout(() => hud.held.classList.remove('show'), 1500);
 }
 let zoneT = 0;
-function zoneBanner(name, lore) { const z = $('zone'); z.querySelector('.zn').textContent = name; z.querySelector('.zl').textContent = lore; z.classList.add('show'); clearTimeout(zoneT); zoneT = setTimeout(() => z.classList.remove('show'), 4200); }
+// a new biome: just its name, small and quiet, at the top of the screen
+function zoneBanner(name) { const z = $('zone'); z.querySelector('.zn').textContent = name; z.querySelector('.zl').textContent = ''; z.classList.add('show'); clearTimeout(zoneT); zoneT = setTimeout(() => z.classList.remove('show'), 2600); }
+// corner notifications (like the classic advancement toasts): one small box slides into the top right
+const Notes = { q: [], busy: false };
+function notify(title, text, icon) {
+  if (Notes.q.some(n => n.title === title && n.text === text)) return;
+  Notes.q.push({ title, text, icon }); if (!Notes.busy) nextNote();
+}
+function nextNote() {
+  const n = Notes.q.shift(), el = $('notify');
+  if (!n) { Notes.busy = false; return; }
+  Notes.busy = true;
+  el.innerHTML = (n.icon ? '<img src="' + n.icon + '">' : '') + '<div><div class="nt">' + n.title + '</div><div class="nx">' + (n.text || '') + '</div></div>';
+  el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  setTimeout(() => { el.classList.remove('show'); setTimeout(nextNote, 350); }, 3200);
+}
 let banT = 0;
 function bossBanner(t, s) { const b = $('banner'); b.classList.remove('questb', 'discb'); b.querySelector('.bt').textContent = t; b.querySelector('.bs').textContent = s || ''; b.classList.add('show'); clearTimeout(banT); banT = setTimeout(() => b.classList.remove('show'), 3800); }
 function drawBossBar() {
@@ -6708,7 +6742,7 @@ function startCinematic(site) {
   c.querySelector('.ck').textContent = site.cat === 'village' || site.cat === 'camp' ? 'DISCOVERED' : 'LANDMARK SIGHTED';
   c.querySelector('.cn').textContent = site.name; c.querySelector('.cs').textContent = site.sub;
   const t = c.querySelector('.ctext'); t.style.animation = 'none'; void t.offsetWidth; t.style.animation = '';
-  if (!Settings.cine) { bossBanner(site.name, (site.cat === 'village' || site.cat === 'camp' ? 'Discovered · ' : 'Landmark sighted · ') + site.sub); $('banner').classList.add('discb'); return; }
+  if (!Settings.cine) { notify(site.cat === 'village' || site.cat === 'camp' ? 'Discovered' : 'Landmark sighted', site.name, iconURL(I.compass)); return; }
   c.classList.remove('hidden');
   Game.cine = { site, t: 0, dur: 5.2, a0: Math.atan2(Player.x - site.x, Player.z - site.z) };
 }
@@ -6903,8 +6937,7 @@ const Quests = {
     const got = [];
     for (const [id, n] of r.items || []) { const left = giveItem(id, n); if (left) dropItem(id, left, Player.x, Player.y + 1, Player.z); got.push(n + '× ' + itemDef(id).name); }
     if (r.perk) { this.perks[r.perk] = true; got.push('Power-up: ' + PERKS[r.perk].name + ' (' + PERKS[r.perk].desc + ')'); if (['hearth', 'warden', 'legend'].includes(r.perk)) Player.hp = maxHealth(); clampHealth(); }
-    bossBanner('Quest Complete', q.title); $('banner').classList.add('questb');
-    if (got.length) setTimeout(() => toast('Reward: ' + got.join(' · '), 4200), 400);
+    notify('Quest complete!', q.title + (got.length ? '<br><span class="nr">' + got.join(' · ') + '</span>' : ''), iconURL(I.compass));
     Sound.quest();
     const fx = Player.x - Math.sin(Player.yaw) * 2.2, fz = Player.z - Math.cos(Player.yaw) * 2.2;
     burst(fx, Player.y + 0.6, fz, 40, { life: 1.1, size: 0.09, r: 1, g: 0.85, b: 0.4, glow: true, spread: 3, up: 4 });
@@ -6927,7 +6960,12 @@ const Quests = {
     const prog = q.type === 'night' ? (this.prog ? 'Dawn!' : 'Until dawn') : Math.floor(this.prog) + ' / ' + q.n + (q.unit ? ' ' + q.unit : '');
     el.innerHTML = '<div class="qh">QUEST ' + (this.index + 1) + ' / ' + QUESTS.length + '</div><div class="qt">' + q.title + '</div><div class="qd">' + q.desc + '</div>' +
       '<div class="qb"><i style="width:' + (pct * 100) + '%"></i></div><div class="qp">' + prog + '</div><div class="qhint"' + (questHintHTML() ? '' : ' style="display:none"') + '>' + questHintHTML() + '</div>' + (rw ? '<div class="qr">Reward: ' + rw + '</div>' : '');
-    if (anim) { el.classList.remove('slide'); void el.offsetWidth; el.classList.add('slide'); }
+    if (anim) { el.classList.remove('slide'); void el.offsetWidth; el.classList.add('slide'); this.showDetails(); }
+  },
+  // the description and reward show for a few seconds when a quest begins, then the card shrinks to one line
+  showDetails() {
+    const el = $('quest'); el.classList.remove('brief'); clearTimeout(this.briefT);
+    this.briefT = setTimeout(() => el.classList.add('brief'), 7000);
   },
 };
 // power-up effects read by the rest of the game
@@ -6963,7 +7001,7 @@ const Effects = {
   load(a) { this.active = a || {}; this.render(); },
   tick(dt) {
     let changed = false;
-    for (const k in this.active) { const e = this.active[k]; e.t -= dt; if (e.t <= 0) { delete this.active[k]; changed = true; toast(EFFECTS[k].name + ' has worn off.', 1800); } }
+    for (const k in this.active) { const e = this.active[k]; e.t -= dt; if (e.t <= 0) { delete this.active[k]; changed = true; } }
     if (this.lvl('regen') && Player.hp < maxHealth()) { this.regenT -= dt; if (this.regenT <= 0) { this.regenT = 1.25; Player.hp = Math.min(maxHealth(), Player.hp + 1); lastHudKey = ''; } }
     if (this.lvl('fireres')) Player.burn = 0;
     // a faint swirl of the potion colour around you
@@ -6981,7 +7019,7 @@ function drinkPotion(s, d) {
   Sound.drink(); Quests.event('drink');
   const c = new THREE.Color(d.c[0]);
   for (let i = 0; i < 24; i++) { const a = i / 24 * 6.28; emit(Player.x + Math.cos(a) * 0.8, Player.y + 0.2, Player.z + Math.sin(a) * 0.8, { vy: 0.8 + Math.random(), vx: Math.cos(a) * 0.4, vz: Math.sin(a) * 0.4, life: 1, size: 0.07, r: c.r, g: c.g, b: c.b, glow: true }); }
-  toast('You drink the ' + d.name + '. ' + d.desc, 3000);
+  toast(d.name, 1800);
   if (Game.mode !== 'creative') { s.n--; if (!s.n) Inv.slots[Game.sel] = null; }
   lastHudKey = '';
 }
@@ -7067,7 +7105,7 @@ function applyEnchant(o) {
   Player.enchSeed = Math.floor(Math.random() * 1e6) + 1;
   Sound.enchant(); Quests.event('enchant');
   for (let i = 0; i < 40; i++) emit(enchAt[0] + 0.5 + (Math.random() - 0.5) * 3, enchAt[1] + 1 + Math.random() * 2, enchAt[2] + 0.5 + (Math.random() - 0.5) * 3, { vx: (Math.random() - 0.5), vy: -0.6, life: 1.2, size: 0.08, r: 0.7, g: 0.5, b: 1, glow: true });
-  toast('Enchanted: ' + enchText(s.ench), 2600);
+  notify('Enchanted', enchText(s.ench), iconURL(s.id));
   renderEnchant(); lastHudKey = '';
 }
 
@@ -7496,7 +7534,9 @@ const Intro = (() => {
 /* Game core: player, input, combat, survival, saving, main loop. */
 const SAVE_KEY = 'blockhollow_save_v3', SET_KEY = 'blockhollow_settings';
 const SAVED_SETTINGS = (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || null; } catch (e) { return null; } })();
-const Settings = Object.assign({ autoJump: false, sens: 1, fov: 72, view: 1, hunger: true, cine: true, fps: false, shaders: true, shadows: true, preset: 'high', scale: 1, auto: true, particles: 1, bloom: true, vMaster: 0.8, vMusic: 0.6, vSfx: 0.8, target: 0 }, (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || {}; } catch (e) { return {}; } })());
+const Settings = Object.assign({ autoJump: false, dmgNumbers: false, sens: 1, fov: 72, view: 1, hunger: true, cine: true, fps: false, shaders: true, shadows: true, preset: 'high', scale: 1, auto: true, particles: 1, bloom: true, vMaster: 0.8, vMusic: 0.6, vSfx: 0.8, target: 0 }, (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || {}; } catch (e) { return {}; } })());
+// v18: discovery cinematics and floating damage numbers start switched off (both can be turned on in Options)
+if (!Settings.v18) { Settings.v18 = true; Settings.cine = false; Settings.dmgNumbers = false; }
 function saveSettings() { try { localStorage.setItem(SET_KEY, JSON.stringify(Settings)); } catch (e) { } }
 
 const Game = { state: 'title', ui: null, sel: 0, follow: null, cine: null, peaceful: false, day: 0, time: 0.32, seedName: '', zone: -1, zoneT: 0, halls: null, mods: new Map(), spawn: [128, 40, 128], save: null };
@@ -7523,10 +7563,8 @@ function giveItem(id, n) {
   if (Game.ui === 'inv') renderInventory();
   return left;
 }
-let pickT = 0, pickAcc = {};
 function pickupToast(id, n) { return; // minimal HUD: no pickup pop-ups
 }
-function pickupToastOld(id, n) { pickAcc[id] = (pickAcc[id] || 0) + n; clearTimeout(pickT); pickT = setTimeout(() => { toast('+ ' + Object.entries(pickAcc).map(([i, k]) => k + ' ' + itemDef(+i).name).join(', '), 2200); pickAcc = {}; }, 120); }
 function countItem(id) { let n = 0; for (const s of Inv.slots) if (s && s.id === id) n += s.n; return n; }
 function takeItem(id, n) { for (let i = 35; i >= 0 && n > 0; i--) { const s = Inv.slots[i]; if (s && s.id === id) { const k = Math.min(n, s.n); s.n -= k; n -= k; if (!s.n) Inv.slots[i] = null; } } lastHudKey = ''; return n === 0; }
 function heldItem() { return Inv.slots[Game.sel]; }
@@ -7693,7 +7731,6 @@ async function createWorld(seedName, save, mode, showcase) {
     Quests.reset(); Effects.clear();
     if (Sites[0]) Sites[0].found = true;
   }
-  pickAcc = {};
   setLoading(0.42, 'Letting the light in'); await nextFrame(); if (stale()) return false;
   computeLight();
   const total = NCX * NCZ;
@@ -7810,11 +7847,11 @@ function refreshTitle() {
 }
 function openSettings() {
   $('setSens').value = Settings.sens; $('setFov').value = Settings.fov; $('setView').value = Settings.view;
-  $('setHunger').checked = Settings.hunger; $('setShaders').checked = Settings.shaders; $('setShadows').checked = Settings.shadows; $('setPreset').value = Settings.preset; $('setScale').value = Settings.scale; $('setAuto').checked = Settings.auto; $('setTarget').value = Settings.target || 0; $('setParticles').value = Settings.particles; $('setBloom').checked = Settings.bloom; $('setVMaster').value = Settings.vMaster; $('setVMusic').value = Settings.vMusic; $('setVSfx').value = Settings.vSfx; refreshSystemInfo(); $('setCine').checked = Settings.cine; $('setFps').checked = Settings.fps; $('setAutoJump').checked = Settings.autoJump;
+  $('setHunger').checked = Settings.hunger; $('setShaders').checked = Settings.shaders; $('setShadows').checked = Settings.shadows; $('setPreset').value = Settings.preset; $('setScale').value = Settings.scale; $('setAuto').checked = Settings.auto; $('setTarget').value = Settings.target || 0; $('setParticles').value = Settings.particles; $('setBloom').checked = Settings.bloom; $('setVMaster').value = Settings.vMaster; $('setVMusic').value = Settings.vMusic; $('setVSfx').value = Settings.vSfx; refreshSystemInfo(); $('setCine').checked = Settings.cine; $('setFps').checked = Settings.fps; $('setAutoJump').checked = Settings.autoJump; $('setDmgNum').checked = Settings.dmgNumbers;
   refreshOptLabels();
   $('settings').classList.remove('hidden');
 }
-for (const [id, k, num] of [['setSens', 'sens', 1], ['setFov', 'fov', 1], ['setView', 'view', 1], ['setHunger', 'hunger', 0], ['setCine', 'cine', 0], ['setFps', 'fps', 0], ['setShaders', 'shaders', 0], ['setShadows', 'shadows', 0], ['setScale', 'scale', 1], ['setAuto', 'auto', 0], ['setAutoJump', 'autoJump', 0], ['setParticles', 'particles', 1], ['setBloom', 'bloom', 0], ['setVMaster', 'vMaster', 1], ['setVMusic', 'vMusic', 1], ['setVSfx', 'vSfx', 1]]) {
+for (const [id, k, num] of [['setSens', 'sens', 1], ['setFov', 'fov', 1], ['setView', 'view', 1], ['setHunger', 'hunger', 0], ['setCine', 'cine', 0], ['setFps', 'fps', 0], ['setShaders', 'shaders', 0], ['setShadows', 'shadows', 0], ['setScale', 'scale', 1], ['setAuto', 'auto', 0], ['setAutoJump', 'autoJump', 0], ['setDmgNum', 'dmgNumbers', 0], ['setParticles', 'particles', 1], ['setBloom', 'bloom', 0], ['setVMaster', 'vMaster', 1], ['setVMusic', 'vMusic', 1], ['setVSfx', 'vSfx', 1]]) {
   $(id).addEventListener('input', e => { Settings[k] = num ? +e.target.value : e.target.checked; applySettings(); });
 }
 $('setTarget').addEventListener('change', e => { Settings.target = +e.target.value; saveSettings(); refreshOptLabels(); });
@@ -7864,8 +7901,8 @@ document.addEventListener('keydown', e => {
   if (!e.repeat && !Game.ui) {
     const t = e.timeStamp || performance.now();
     if (e.code === 'KeyW') { if (t - (Input.lastW || 0) < 280) Player.wTap = true; Input.lastW = t; }
-    if (e.code === 'Space' && Game.mode === 'creative') { if (t - (Input.lastSpace || 0) < 300) { Player.flying = !Player.flying; Player.vy = 0; toast(Player.flying ? 'Flying — Space to rise, Shift to descend, double-tap Space to land' : 'Flying off', 1800); Input.lastSpace = 0; } else Input.lastSpace = t; }
-    if (e.code === 'KeyJ' || e.key === 'j' || e.key === 'J') { Quests.hidden = !Quests.hidden; Quests.render(); }
+    if (e.code === 'Space' && Game.mode === 'creative') { if (t - (Input.lastSpace || 0) < 300) { Player.flying = !Player.flying; Player.vy = 0;  Input.lastSpace = 0; } else Input.lastSpace = t; }
+    if (e.code === 'KeyJ' || e.key === 'j' || e.key === 'J') { if (Quests.hidden) { Quests.hidden = false; Quests.render(); Quests.showDetails(); } else if ($('quest').classList.contains('brief')) Quests.showDetails(); else { Quests.hidden = true; Quests.render(); } }
   }
   if (e.code === 'KeyM' || e.key === 'm' || e.key === 'M') { if (Game.ui === 'wf') closeWayfinder(); else if (!Game.ui) openWayfinder(); return; }
   if (e.code === 'Escape') { if (Game.ui === 'ench') closeEnchant(); else if (Game.ui === 'creative') closeCreative(); else if (Game.ui === 'inv') closeInventory(); else if (Game.ui === 'wf') closeWayfinder(); else if (Game.ui === 'lore') closeLore(); else if (Game.ui === 'pause') closePause(); return; }
@@ -7873,7 +7910,7 @@ document.addEventListener('keydown', e => {
   if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 9) { Game.sel = n; showHeldName(); lastHudKey = ''; } }
   if (e.code === 'KeyQ') { const s = heldItem(); if (s) { const d = lookDir(); dropItem(s.id, 1, Player.x + d[0], Player.y + 1.4, Player.z + d[2]); Drops[Drops.length - 1].vx = d[0] * 6; Drops[Drops.length - 1].vz = d[2] * 6; Drops[Drops.length - 1].t = -0.5; s.n--; if (!s.n) Inv.slots[Game.sel] = null; lastHudKey = ''; } }
   if (e.code === 'F3') Settings.fps = !Settings.fps, applySettings();
-  if ((e.code === 'F5' || e.code === 'KeyV' || e.key === 'v' || e.key === 'V') && !e.repeat) { e.preventDefault(); Game.view = ((Game.view || 0) + 1) % 3; toast(['First person', 'Third person · behind', 'Third person · front'][Game.view], 1200); }
+  if ((e.code === 'F5' || e.code === 'KeyV' || e.key === 'v' || e.key === 'V') && !e.repeat) { e.preventDefault(); Game.view = ((Game.view || 0) + 1) % 3;  }
 });
 document.addEventListener('keyup', e => { Input.keys[e.code] = false; if (e.code === 'KeyW') Player.wTap = false; });
 document.addEventListener('mousemove', e => {
@@ -8004,6 +8041,17 @@ const crackMesh = new THREE.Mesh(new THREE.BoxGeometry(1.004, 1.004, 1.004), new
 crackMesh.visible = false; scene.add(crackMesh);
 const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.002, 1.002, 1.002)), new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.55 }));
 scene.add(outline);
+// the outline hugs the block's real shape, like the classic game: slabs, tables, plants and torches get their own box
+const FULL_BOX = [0, 0, 0, 1, 1, 1];
+function outlineBox(h) {
+  const d = BLK[h.id];
+  if (SHAPE[h.id] === 1) return SHAPE_BOXES[1][getMeta(h.x, h.y, h.z) & 7][0];
+  if (d.render === 'box' && d.box) return d.box;
+  if (h.id === B.TORCH) return [0.4375, 0, 0.4375, 0.5625, 0.625, 0.5625];
+  if (d.render === 'cross') return [0.15, 0, 0.15, 0.85, 0.8, 0.85];
+  if (d.render === 'flat') return [0, 0, 0, 1, 0.0625, 1];
+  return FULL_BOX;
+}
 function breakTime(id) {
   const d = BLK[id];
   let hard = d.hardness;
@@ -8169,7 +8217,7 @@ function interact(h) {
       Game.spawn = [h.x + 1.5, h.y + (getB(h.x, h.y - 1, h.z) === B.WAYSTONE ? 0 : 1), h.z + 0.5];
       if (getB(h.x, h.y - 1, h.z) === B.WAYSTONE) Game.spawn[1] = h.y;
       const sy = surfaceY(h.x + 1, h.z); Game.spawn = [h.x + 1.5, sy + 1, h.z + 0.5];
-      toast('Attuned — you will return here if you fall.', 3000); Quests.event('attune'); Sound.discover();
+      notify('Waystone attuned', 'You will respawn here', iconURL(B.WAYSTONE)); Quests.event('attune'); Sound.discover();
       burst(h.x + 0.5, h.y + 1, h.z + 0.5, 30, { life: 1, size: 0.1, r: 0.4, g: 0.95, b: 1, glow: true, spread: 3, up: 4 });
       saveGame(); return true;
     }
@@ -8378,7 +8426,7 @@ function updatePlayer(dt) {
   P.vx += (tx - P.vx) * k; P.vz += (tz - P.vz) * k;
   if (P.flying) {
     const up = (K.Space && !Game.ui ? 1 : 0) - (K.ShiftLeft && !Game.ui ? 1 : 0);
-    P.vy += (up * 8 - P.vy) * Math.min(1, dt * 8);
+    P.vy += (up * 8 - P.vy) * Math.min(1, dt * 14);
   }
   else if (climbing) { P.vy = K.Space || (f > 0 && (P.hitX || P.hitZ)) ? 3.6 : P.sneak ? 0 : Math.max(P.vy - 28 * dt, -2.2); }
   else if (inWater) {
@@ -8450,7 +8498,7 @@ function updateWorldEvents(dt) {
     discT = 0.4;
     for (const s of Sites) if (!s.found && Math.hypot(s.x - P.x, s.z - P.z) < s.r && Math.abs(P.y - s.y) < 30) { s.found = true; startCinematic(s); Sound.discover(); Quests.event('discover', s); saveGame(); if (Game.follow === s) Game.follow = null; break; }
     const bi = bmap[COL(Math.floor(P.x), Math.floor(P.z))];
-    if (bi !== Game.zone) { Game.zoneT += 0.4; if (Game.zoneT > 1.2) { Game.zone = bi; Game.zoneT = 0; if (!Game.cine && !(Game.seenBiomes || (Game.seenBiomes = new Set())).has(bi)) { Game.seenBiomes.add(bi); zoneBanner(BIOMES[bi].name, BIOMES[bi].lore); } } } else Game.zoneT = 0;
+    if (bi !== Game.zone) { Game.zoneT += 0.4; if (Game.zoneT > 1.2) { Game.zone = bi; Game.zoneT = 0; if (!Game.cine && !(Game.seenBiomes || (Game.seenBiomes = new Set())).has(bi)) { Game.seenBiomes.add(bi); zoneBanner(BIOMES[bi].name); } } } else Game.zoneT = 0;
   }
   for (const r of BossRooms) if (!r.done && !ActiveBoss && Math.hypot(r.x - P.x, r.z - P.z) < r.r - 3 && Math.abs(P.y - r.y) < 5) startBoss(r);
   if (ActiveBoss && (Math.hypot(ActiveBoss.room.x - P.x, ActiveBoss.room.z - P.z) > ActiveBoss.room.r + 25 || Math.abs(P.y - ActiveBoss.room.y) > 14)) { removeMob(ActiveBoss); ActiveBoss = null; toast('You fled. The guardian returns to its slumber.', 3000); }
@@ -8659,11 +8707,10 @@ function frame(now) {
     // Hearthglow power-up: a soft warm light around you at night
     const glow = Quests.has('glow') && Game.mode === 'survival' ? clamp(1 - (U.uDay.value - 0.25) / 0.45, 0, 1) : 0;
     U.uPLight.value.set(Player.x, Player.y + 1.2, Player.z, glow);
-    $('modeBadge').classList.toggle('hidden', Game.mode === 'survival');
+    $('modeBadge').classList.toggle('hidden', Game.mode !== 'parkour');
     // the quest card steps aside while a discovery or a big banner is on screen
     $('quest').classList.toggle('away', !!Game.cine || ($('banner').classList.contains('show') && $('banner').classList.contains('discb')));
-    if (Game.mode === 'parkour') $('modeBadge').textContent = 'PARKOUR · R TO RESTART';
-    else if (Game.mode === 'creative') $('modeBadge').textContent = Player.flying ? 'CREATIVE · FLYING' : 'CREATIVE';
+    if (Game.mode === 'parkour') $('modeBadge').textContent = 'R: back to start';
     $('statusbars').style.visibility = Game.mode !== 'survival' ? 'hidden' : 'visible';
   } else Sound.update(dt, { day: 1, playing: false, height: 30, biome: 0 });
   updateSky(dt);
@@ -8683,7 +8730,13 @@ function frame(now) {
       const d = lookDir(), dir = Game.view === 1 ? -1 : 1;
       if (Game.view === 1 && !solidAt(Math.floor(e[0]), Math.floor(e[1] + 0.6), Math.floor(e[2]))) e[1] += 0.45; // look over the shoulder
       let dist = 4.2;
-      for (let t = 0.4; t <= 4.2; t += 0.15) if (solidAt(Math.floor(e[0] + d[0] * t * dir), Math.floor(e[1] + d[1] * t * dir), Math.floor(e[2] + d[2] * t * dir))) { dist = Math.max(0.4, t - 0.35); break; }
+      // test a small box of rays (like the classic game) so the camera can't slip over the top of a block and hide you
+      const sx = Math.cos(Player.yaw) * 0.22, sz = -Math.sin(Player.yaw) * 0.22;
+      const hit = (x, y, z) => solidAt(Math.floor(x), Math.floor(y), Math.floor(z));
+      outer: for (let t = 0.4; t <= 4.2; t += 0.15) {
+        const x = e[0] + d[0] * t * dir, y = e[1] + d[1] * t * dir, z = e[2] + d[2] * t * dir;
+        for (const [ox, oy, oz] of [[0, 0, 0], [sx, 0.2, sz], [-sx, 0.2, -sz], [sx, -0.2, sz], [-sx, -0.2, -sz]]) if (hit(x + ox, y + oy, z + oz)) { dist = Math.max(0.4, t - 0.35); break outer; }
+      }
       camera.position.set(e[0] + d[0] * dist * dir, e[1] + d[1] * dist * dir, e[2] + d[2] * dist * dir);
       Game.tpClose = dist < 1.1; // too close to a wall: don't draw your own head into the lens
       if (Game.view === 2) camera.lookAt(e[0], e[1], e[2]);
@@ -8699,11 +8752,12 @@ function frame(now) {
   updateViewModel(dt);
   // block outline
   const h = !Game.ui && !Game.cine && Game.state === 'play' ? targetBlock(5) : null;
-  outline.visible = !!h; if (h) outline.position.set(h.x + 0.5, h.y + 0.5, h.z + 0.5);
+  outline.visible = !!h;
+  if (h) { const o = outlineBox(h); outline.scale.set(o[3] - o[0], o[4] - o[1], o[5] - o[2]); outline.position.set(h.x + (o[0] + o[3]) / 2, h.y + (o[1] + o[4]) / 2, h.z + (o[2] + o[5]) / 2); }
   // name the useful blocks you're looking at, so a chest, a barrel and a table are never confused
   const LOOK = { [B.CHEST]: 'Chest · loot & storage', [B.BARREL]: 'Barrel · big storage', [B.CRATE]: 'Supply Crate', [B.TABLE]: 'Crafting Table', [B.ENCHANT_TABLE]: 'Enchanting Table', [B.WAYSTONE]: 'Waystone · attune', [B.TABLET]: 'Lore Tablet · read', [B.RUNEPILLAR]: 'Rune Obelisk', [B.ALTAR]: 'Seal of the Deep' };
   const ll = $('lookLabel'), lk = h && LOOK[h.id];
-  if (lk) { if (ll.dataset.k !== lk) { ll.dataset.k = lk; ll.innerHTML = lk; } ll.classList.remove('hidden'); } else ll.classList.add('hidden');
+  ll.classList.add('hidden'); // the classic game names nothing under the crosshair
   // HUD
   if (Game.state === 'play') {
     drawHUD(Player); drawBossBar(); drawTracker(Player);
@@ -8735,7 +8789,7 @@ let dynScale = 1, perfT = 0, perfFrames = 0, perfTime = 0;
 const Refresh = { hz: 60, samples: [] };
 function sampleRefresh(dtMs) { if (Refresh.samples.length < 240 && dtMs > 2 && dtMs < 40) { Refresh.samples.push(dtMs); if (Refresh.samples.length % 60 === 0) { const s = Refresh.samples.slice().sort((a, b) => a - b), med = s[s.length >> 1]; Refresh.hz = [60, 75, 90, 100, 120, 144, 165, 240].reduce((b, h) => Math.abs(1000 / h - med) < Math.abs(1000 / b - med) ? h : b, 60); } } }
 function targetFps() { return Math.min(Refresh.hz, Settings.target || 1000); }
-function basePixelRatio() { return Math.min(window.devicePixelRatio || 1, Settings.preset === 'ultra' ? 2 : 1.5); }
+function basePixelRatio() { return Math.min(window.devicePixelRatio || 1, Settings.preset === 'low' || Settings.preset === 'medium' ? 1.5 : 2); }
 function applyRenderScale() {
   const pr = basePixelRatio() * Settings.scale * dynScale;
   if (Math.abs(renderer.getPixelRatio() - pr) > 0.01) { renderer.setPixelRatio(pr); resize(); }
@@ -8749,11 +8803,15 @@ function autoPerformance(dt) {
   if (!Settings.auto || Game.state !== 'play' || Game.ui) return;
   const goal = targetFps();
   if (fps < goal * 0.9) {
-    if (perfLevel < 1) perfLevel++; // cheaper effects first: shadows and reflections refresh less often
-    else if (dynScale > 0.55) { dynScale = Math.max(0.55, dynScale - (fps < goal * 0.66 ? 0.15 : 0.07)); applyRenderScale(); }
+    // cheaper effects first (shadows refresh less often), then a little resolution, then bloom, and resolution last
+    // so the picture stays sharp for as long as possible
+    if (perfLevel < 1) perfLevel++;
+    else if (dynScale > 0.85) { dynScale = Math.max(0.85, dynScale - 0.05); applyRenderScale(); }
     else if (perfLevel < 2) perfLevel++;
+    else if (dynScale > 0.7) { dynScale = Math.max(0.7, dynScale - (fps < goal * 0.66 ? 0.1 : 0.05)); applyRenderScale(); }
   } else if (fps > goal * 0.97) {
-    if (perfLevel > 0) perfLevel--;
+    if (dynScale < 0.85) { dynScale = Math.min(0.85, dynScale + 0.04); applyRenderScale(); }
+    else if (perfLevel > 0) perfLevel--;
     else if (dynScale < 1) { dynScale = Math.min(1, dynScale + 0.04); applyRenderScale(); }
   }
 }
@@ -8820,7 +8878,7 @@ function renderWorld() {
     PostFX.renderShadows(shadowCenter, U.uSunDir.value);
   }
   renderReflection();
-  PostFX.render({ hand: Game.state === 'play' && !Game.view ? { scene: handScene, cam: handCam } : null, post: Settings.shaders, bloom: Settings.bloom && perfLevel < 2, sunDir: skyMat.uniforms.uSunDir.value, sunUp: Game.sunUp || 0, rayCol: Game.rayCol, night: clamp(1 - (U.uDay.value - 0.2) / 0.5, 0, 1), under: U.uUnder.value });
+  PostFX.render({ hand: Game.state === 'play' && !Game.view ? { scene: handScene, cam: handCam } : null, post: Settings.shaders, bloom: Settings.bloom && perfLevel < 2, sunDir: skyMat.uniforms.uSunDir.value, sunUp: Game.sunUp || 0, rayCol: Game.rayCol, sharp: 0.25 + Math.max(0, 1 - renderer.getPixelRatio() / (window.devicePixelRatio || 1)) * 0.8, night: clamp(1 - (U.uDay.value - 0.2) / 0.5, 0, 1), under: U.uUnder.value });
 }
 
 

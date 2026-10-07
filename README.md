@@ -40,6 +40,13 @@ The core game is unchanged: the world, structures, quests, items, creatures and 
   - a centred title screen with a splash line;
   - Options in tabs, with sliders that show their value;
   - an optional **Auto-Jump**.
+- **Steadier, quieter and sharper:**
+  - the view no longer bounces up and down while you stand still;
+  - far fewer pop-ups. Discoveries, finished quests, tamed wolves and enchantments show as a small note in the top-right corner instead of big banners. The quest card shrinks to one line after a few seconds (press J to see the details again);
+  - damage numbers and discovery cinematics are off by default, and can be turned back on in Options → Gameplay;
+  - a sharper picture: High and Ultra render at your screen's full resolution with light sharpening, and resolution is lowered only as a last resort when the frame rate drops;
+  - the block outline fits the block's real shape (slabs, chests, tables, plants, torches), and you stand on chests, pots and enchanting tables at their real height;
+  - the third-person camera no longer slips behind a block and hides your character.
 
 ## Features
 - **Game modes:**
@@ -81,7 +88,7 @@ The core game is unchanged: the world, structures, quests, items, creatures and 
   - mining with tool tiers and crack stages;
   - block placing, a 36-slot inventory and loot chests;
   - a recipe-book crafting system (some recipes need a crafting table).
-- **Crafting & storage:** 2×2 crafting grid in the inventory, 3×3 next to a crafting table, with shaped and shapeless recipes and a recipe book that auto-fills the grid. Containers open their own screen: loot chests (27 slots, Take all), storage barrels (36 slots with Sort, Store matching, Take all and Store all) and supply crates (18 slots). Looking at a chest, barrel, table or waystone shows its name under the crosshair.
+- **Crafting & storage:** 2×2 crafting grid in the inventory, 3×3 next to a crafting table, with shaped and shapeless recipes and a recipe book that auto-fills the grid. Containers open their own screen: loot chests (27 slots, Take all), storage barrels (36 slots with Sort, Store matching, Take all and Store all) and supply crates (18 slots).
 - **Potions:** found in chests: Haste (I and II, near-instant mining), Swiftness, Strength, Night Vision, Leaping, Fire Resistance and Regeneration. Active effects show in the top right.
 - **Enchanting:** mine lapis lazuli (blue-flecked ore deep underground and in the Deepvein Mine), craft an Enchanting Table and spend lapis on Efficiency, Fortune, Sharpness, Fire Aspect, Knockback, Looting, Power, Flame, Infinity, Protection or Feather Falling. Bookshelves around the table make offers stronger; enchanted items shimmer.
 - **Combat timing:** Minecraft-style attack cooldown: each weapon has its own swing speed, damage and knockback scale with how charged the swing is, and creatures are briefly immune after a hit.
@@ -93,7 +100,7 @@ The core game is unchanged: the world, structures, quests, items, creatures and 
   - the Wayfinder's Compass (M), with tabs and Follow tracking;
   - lore tablets with pixel-art illustrations;
   - waystone attunement for respawning.
-- **Menus:** title screen, world creation, pause, settings (sensitivity, FOV, view distance, hunger, cinematics, FPS), controls and a death screen.
+- **Menus:** title screen, world creation, pause, settings (sensitivity, FOV, view distance, hunger, cinematics, damage numbers, FPS), controls and a death screen.
 
 ## Controls
 WASD move · Space jump/swim/climb · Shift, Ctrl or double-tap W sprint (sprint-jumping works) · C sneak · Left click attack/mine · Right click use/place/draw bow/cast ·

@@ -88,16 +88,19 @@ const PostFX = (() => {
   const compMat = new THREE.ShaderMaterial({
     uniforms: {
       tScene: { value: null }, tB1: { value: null }, tB2: { value: null }, tRays: { value: null }, uTexel: { value: new THREE.Vector2(0.001, 0.001) }, uSun: { value: new THREE.Vector2(0.5, 0.5) }, uRays: { value: 0 }, uDepthRays: { value: depthRays ? 1 : 0 }, uRayCol: { value: new THREE.Color(1, 0.85, 0.6) },
-      uBloom: { value: hdr ? 0.7 : 0.55 }, uExposure: { value: 0.82 }, uNight: { value: 0 }, uUnder: { value: 0 }, uTime: U.uTime,
+      uBloom: { value: hdr ? 0.7 : 0.55 }, uSharp: { value: 0.3 }, uExposure: { value: 0.82 }, uNight: { value: 0 }, uUnder: { value: 0 }, uTime: U.uTime,
     },
     vertexShader: QV,
-    fragmentShader: `uniform sampler2D tScene, tB1, tB2, tRays; uniform vec2 uSun, uTexel; uniform float uRays, uDepthRays, uBloom, uExposure, uNight, uUnder, uTime; uniform vec3 uRayCol; varying vec2 vUv;
+    fragmentShader: `uniform sampler2D tScene, tB1, tB2, tRays; uniform vec2 uSun, uTexel; uniform float uRays, uDepthRays, uBloom, uSharp, uExposure, uNight, uUnder, uTime; uniform vec3 uRayCol; varying vec2 vUv;
       vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0); }
       vec3 lin(vec3 c){ return pow(max(c,0.0),vec3(2.2)); }
       void main(){
         vec2 uv=vUv;
         if(uUnder>0.5) uv+=vec2(sin(uv.y*30.0+uTime*2.0),cos(uv.x*24.0+uTime*1.7))*0.0025;
-        vec3 c=lin(texture2D(tScene,uv).rgb);
+        vec3 c0=texture2D(tScene,uv).rgb;
+        // light sharpening keeps block pixels crisp (stronger when the game renders below screen resolution)
+        vec3 nb=texture2D(tScene,uv+vec2(uTexel.x,0.0)).rgb+texture2D(tScene,uv-vec2(uTexel.x,0.0)).rgb+texture2D(tScene,uv+vec2(0.0,uTexel.y)).rgb+texture2D(tScene,uv-vec2(0.0,uTexel.y)).rgb;
+        vec3 c=lin(max(c0+(c0-nb*0.25)*uSharp,0.0));
         vec3 b=lin(texture2D(tB1,uv).rgb)*0.6+lin(texture2D(tB2,uv).rgb)*0.9;
         c+=b*uBloom*vec3(1.0,0.92,0.8);
         if(uRays>0.001){
@@ -159,6 +162,7 @@ const PostFX = (() => {
     if (opts.rayCol) u.uRayCol.value.copy(opts.rayCol);
     if (depthRays && u.uRays.value > 0.001) { raysMat.uniforms.tDepth.value = rtScene.depthTexture; raysMat.uniforms.uSun.value.copy(u.uSun.value); raysMat.uniforms.uAspect.value = W0 / H0; pass(raysMat, rtRays); }
     u.tScene.value = rtScene.texture; u.tB1.value = rtHalfA.texture; u.tB2.value = rtQA.texture; u.tRays.value = rtRays.texture;
+    u.uSharp.value = opts.sharp === undefined ? 0.3 : opts.sharp;
     u.uNight.value = opts.night; u.uUnder.value = opts.under;
     pass(compMat, null);
   }

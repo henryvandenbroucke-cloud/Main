@@ -143,6 +143,9 @@ const SHAPE_BOXES = (() => { // [kind][meta] -> list of boxes in block space
 // resolve string drops ('DIRT' -> id). 'item:x' drops are resolved by items.js.
 for (const d of BLK) if (typeof d.drop === 'string' && !d.drop.startsWith('item:')) d.drop = B[d.drop];
 
+// solid blocks lower than a full block (chests, the enchanting table, pots) collide at their real height
+const COLBOX = [];
+for (const d of BLK) if (d.solid && d.render === 'box' && d.box && d.box[4] < 1) COLBOX[d.id] = [d.box];
 const SOLID = new Uint8Array(256), OPAQUE = new Uint8Array(256), LIGHTEMIT = new Uint8Array(256), CLIMB = new Uint8Array(256), HURT = new Uint8Array(256);
 for (const d of BLK) { SOLID[d.id] = d.solid ? 1 : 0; OPAQUE[d.id] = d.opaque ? 1 : 0; LIGHTEMIT[d.id] = d.light; CLIMB[d.id] = d.climb ? 1 : 0; HURT[d.id] = d.hurt; }
 // light passes through anything that isn't opaque; leaves dim it a little

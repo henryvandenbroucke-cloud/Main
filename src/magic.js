@@ -20,7 +20,7 @@ const Effects = {
   load(a) { this.active = a || {}; this.render(); },
   tick(dt) {
     let changed = false;
-    for (const k in this.active) { const e = this.active[k]; e.t -= dt; if (e.t <= 0) { delete this.active[k]; changed = true; toast(EFFECTS[k].name + ' has worn off.', 1800); } }
+    for (const k in this.active) { const e = this.active[k]; e.t -= dt; if (e.t <= 0) { delete this.active[k]; changed = true; } }
     if (this.lvl('regen') && Player.hp < maxHealth()) { this.regenT -= dt; if (this.regenT <= 0) { this.regenT = 1.25; Player.hp = Math.min(maxHealth(), Player.hp + 1); lastHudKey = ''; } }
     if (this.lvl('fireres')) Player.burn = 0;
     // a faint swirl of the potion colour around you
@@ -38,7 +38,7 @@ function drinkPotion(s, d) {
   Sound.drink(); Quests.event('drink');
   const c = new THREE.Color(d.c[0]);
   for (let i = 0; i < 24; i++) { const a = i / 24 * 6.28; emit(Player.x + Math.cos(a) * 0.8, Player.y + 0.2, Player.z + Math.sin(a) * 0.8, { vy: 0.8 + Math.random(), vx: Math.cos(a) * 0.4, vz: Math.sin(a) * 0.4, life: 1, size: 0.07, r: c.r, g: c.g, b: c.b, glow: true }); }
-  toast('You drink the ' + d.name + '. ' + d.desc, 3000);
+  toast(d.name, 1800);
   if (Game.mode !== 'creative') { s.n--; if (!s.n) Inv.slots[Game.sel] = null; }
   lastHudKey = '';
 }
@@ -124,6 +124,6 @@ function applyEnchant(o) {
   Player.enchSeed = Math.floor(Math.random() * 1e6) + 1;
   Sound.enchant(); Quests.event('enchant');
   for (let i = 0; i < 40; i++) emit(enchAt[0] + 0.5 + (Math.random() - 0.5) * 3, enchAt[1] + 1 + Math.random() * 2, enchAt[2] + 0.5 + (Math.random() - 0.5) * 3, { vx: (Math.random() - 0.5), vy: -0.6, life: 1.2, size: 0.08, r: 0.7, g: 0.5, b: 1, glow: true });
-  toast('Enchanted: ' + enchText(s.ench), 2600);
+  notify('Enchanted', enchText(s.ench), iconURL(s.id));
   renderEnchant(); lastHudKey = '';
 }

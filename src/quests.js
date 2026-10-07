@@ -115,8 +115,7 @@ const Quests = {
     const got = [];
     for (const [id, n] of r.items || []) { const left = giveItem(id, n); if (left) dropItem(id, left, Player.x, Player.y + 1, Player.z); got.push(n + '× ' + itemDef(id).name); }
     if (r.perk) { this.perks[r.perk] = true; got.push('Power-up: ' + PERKS[r.perk].name + ' (' + PERKS[r.perk].desc + ')'); if (['hearth', 'warden', 'legend'].includes(r.perk)) Player.hp = maxHealth(); clampHealth(); }
-    bossBanner('Quest Complete', q.title); $('banner').classList.add('questb');
-    if (got.length) setTimeout(() => toast('Reward: ' + got.join(' · '), 4200), 400);
+    notify('Quest complete!', q.title + (got.length ? '<br><span class="nr">' + got.join(' · ') + '</span>' : ''), iconURL(I.compass));
     Sound.quest();
     const fx = Player.x - Math.sin(Player.yaw) * 2.2, fz = Player.z - Math.cos(Player.yaw) * 2.2;
     burst(fx, Player.y + 0.6, fz, 40, { life: 1.1, size: 0.09, r: 1, g: 0.85, b: 0.4, glow: true, spread: 3, up: 4 });
@@ -139,7 +138,12 @@ const Quests = {
     const prog = q.type === 'night' ? (this.prog ? 'Dawn!' : 'Until dawn') : Math.floor(this.prog) + ' / ' + q.n + (q.unit ? ' ' + q.unit : '');
     el.innerHTML = '<div class="qh">QUEST ' + (this.index + 1) + ' / ' + QUESTS.length + '</div><div class="qt">' + q.title + '</div><div class="qd">' + q.desc + '</div>' +
       '<div class="qb"><i style="width:' + (pct * 100) + '%"></i></div><div class="qp">' + prog + '</div><div class="qhint"' + (questHintHTML() ? '' : ' style="display:none"') + '>' + questHintHTML() + '</div>' + (rw ? '<div class="qr">Reward: ' + rw + '</div>' : '');
-    if (anim) { el.classList.remove('slide'); void el.offsetWidth; el.classList.add('slide'); }
+    if (anim) { el.classList.remove('slide'); void el.offsetWidth; el.classList.add('slide'); this.showDetails(); }
+  },
+  // the description and reward show for a few seconds when a quest begins, then the card shrinks to one line
+  showDetails() {
+    const el = $('quest'); el.classList.remove('brief'); clearTimeout(this.briefT);
+    this.briefT = setTimeout(() => el.classList.add('brief'), 7000);
   },
 };
 // power-up effects read by the rest of the game

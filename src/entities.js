@@ -234,7 +234,7 @@ function updateBolts(dt) { for (let i = bolts.length - 1; i >= 0; i--) { const b
 // ---------------------------------------------------------------- combat
 function damageMob(m, dmg, kx, kz, crit, src) {
   if (m.dead) return;
-  if (m.shield) { burst(m.x, m.y + m.h * 0.6, m.z, 10, { life: 0.4, size: 0.15, r: 0.5, g: 0.9, b: 1, glow: true, spread: 6 }); damageNumber(m.x, m.y + m.h + 0.3, m.z, 0, false); toastOnce('shield', 'The Colossus is shielded - destroy the energy pylons!'); return; }
+  if (m.shield) { burst(m.x, m.y + m.h * 0.6, m.z, 10, { life: 0.4, size: 0.15, r: 0.5, g: 0.9, b: 1, glow: true, spread: 6 }); damageNumber(m.x, m.y + m.h + 0.3, m.z, 0, false); toastOnce('shield', 'Shielded - break the glowing pylons!'); return; }
   if (m.def.stare && src === 'arrow') { m.anger = 40; stalkerBlink(m, true); return; } // it slips away from projectiles
   if (m.vuln) { dmg *= 1.5; crit = true; }
   // Minecraft-style hurt immunity: after a hit a creature is protected for half a second;
@@ -253,7 +253,7 @@ function damageMob(m, dmg, kx, kz, crit, src) {
   burst(m.x, m.y + m.h * m.scale * 0.6, m.z, 4, { life: 0.18, size: 0.12, r: 1, g: 0.95, b: 0.8, glow: true, spread: 5, up: 2 });
   if (m.def.pack || m.type === 'villager') for (const o of Mobs) if (o !== m && !o.dead && Math.hypot(o.x - m.x, o.z - m.z) < 16 && (o.type === m.type || (m.type === 'villager' && o.type === 'guardian'))) { if (!o.tamed) o.anger = 30; }
   if (m.tamed) m.anger = 0;
-  if (m.def.boss) { m.poise = (m.poise === undefined ? 70 : m.poise) - dmg; if (m.poise <= 0 && !['air', 'roar', 'stagger'].includes(m.st) && !m.shield) { bossState(m, 'stagger', 1.7); m.poise = 70; toast(m.def.name + ' staggers - strike now!', 1600); shake(0.4); } }
+  if (m.def.boss) { m.poise = (m.poise === undefined ? 70 : m.poise) - dmg; if (m.poise <= 0 && !['air', 'roar', 'stagger'].includes(m.st) && !m.shield) { bossState(m, 'stagger', 1.7); m.poise = 70; toast('Staggered - strike now!', 1400); shake(0.4); } }
   if (m.hp <= 0) killMob(m);
 }
 function killMob(m, silent) {
@@ -303,7 +303,6 @@ const VILLAGER_TRADES = [
   { give: I.gold, n: 2, get: I.iron, m: 1, line: 'Good iron. Mind the edges.' },
   { give: I.gold, n: 3, get: I.potion, m: 1, line: 'Brewed it myself. Drink it slowly.' },
 ];
-const VILLAGER_LINES = ['Lovely day for it.', 'Have you seen the windmill turn? Never gets old.', 'Watch the roads after dark.', 'The bread here is the best in the realm.', 'Mind the boomshrooms. Nasty tempers.', 'They say the Mirewarden still guards the Drowned Halls.', 'Hm. Hmm!', 'Bring me gold coins and we can trade.'];
 function interactMob(m) {
   if (m.dead) return false;
   const s = heldItem(), id = s ? s.id : 0, def = m.def;
@@ -314,10 +313,10 @@ function interactMob(m) {
     Sound.voice('hmm', dist, 1);
     if (id === tr.give && countItem(tr.give) >= tr.n) {
       takeItem(tr.give, tr.n); const left = giveItem(tr.get, tr.m); if (left) dropItem(tr.get, left, Player.x, Player.y + 1, Player.z);
-      toast('Traded ' + tr.n + '× ' + itemDef(tr.give).name + ' for ' + tr.m + '× ' + itemDef(tr.get).name + ' - "' + tr.line + '"', 3200);
+      toast('Traded for ' + tr.m + '× ' + itemDef(tr.get).name, 1800);
       burst(m.x, m.y + 2.1, m.z, 8, { life: 0.8, size: 0.09, r: 0.4, g: 1, b: 0.5, glow: true, spread: 1.5, up: 2 });
       Quests.event('trade'); Sound.pop();
-    } else toast('Villager: "' + (Math.random() < 0.4 ? 'I trade ' + tr.m + '× ' + itemDef(tr.get).name + ' for ' + tr.n + '× ' + itemDef(tr.give).name + '.' : VILLAGER_LINES[Math.floor(Math.random() * VILLAGER_LINES.length)]) + '"', 3000);
+    } else toast(tr.n + '× ' + itemDef(tr.give).name + '  →  ' + tr.m + '× ' + itemDef(tr.get).name, 2400);
     return true;
   }
   if (m.type === 'sheep' && id === I.shears && !m.sheared && !m.baby) {
@@ -328,7 +327,7 @@ function interactMob(m) {
   }
   if (def.tame && id === def.tame && !m.tamed) {
     takeItem(id, 1); lastHudKey = '';
-    if (Math.random() < 0.4) { m.tamed = true; m.anger = 0; if (m.P.collar) m.P.collar.visible = true; hearts(m, 10); Sound.heart(); toast('The wolf is now your loyal companion!', 2600); Quests.event('tame'); }
+    if (Math.random() < 0.4) { m.tamed = true; m.anger = 0; if (m.P.collar) m.P.collar.visible = true; hearts(m, 10); Sound.heart(); notify('Tamed', 'A loyal wolf companion', iconURL(I.bone)); Quests.event('tame'); }
     else burst(m.x, m.y + 1, m.z, 8, { life: 0.8, size: 0.1, r: 0.5, g: 0.5, b: 0.5, spread: 1.5, up: 1.5 });
     return true;
   }
@@ -1123,7 +1122,7 @@ function onBossDefeated(m) {
       for (let dy = 0; dy < 4; dy++) for (let dx = -1; dx <= 1; dx++) { const edge = dy === 0 || dy === 3 || Math.abs(dx) === 1; setBlockLogged(p[0] + dx, p[1] + dy, p[2], edge ? B.ANCIENT_GOLD : B.PORTAL); }
       setBlockLogged(p[0] - 2, p[1], p[2], B.ANCIENT_GOLD); setBlockLogged(p[0] + 2, p[1], p[2], B.ANCIENT_GOLD);
       Portals.push({ x: p[0], y: p[1] + 1, z: p[2], to: Game.halls.exit });
-      toast('A portal opens. Step through to return to the surface.', 5000);
+      toast('A portal opens back to the surface', 3500);
     }
   }
 }

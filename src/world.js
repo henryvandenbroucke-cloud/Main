@@ -347,10 +347,10 @@ function collides(px, py, pz, hw, h) {
   const x0 = Math.floor(px - hw), x1 = Math.floor(px + hw), y0 = Math.floor(py), y1 = Math.floor(py + h - 0.001), z0 = Math.floor(pz - hw), z1 = Math.floor(pz + hw);
   for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
     if (!solidAt(x, y, z)) continue;
-    const id = y >= 0 && y < H && resident(x, z) ? wb[IDX(x, y, z)] : 0, sh = SHAPE[id];
-    if (!sh) return true;
-    // stairs and slabs: test the body against each box of the shape
-    for (const b of SHAPE_BOXES[sh][wm[IDX(x, y, z)] & 7]) if (px + hw > x + b[0] + 1e-4 && px - hw < x + b[3] - 1e-4 && py + h > y + b[1] + 1e-4 && py < y + b[4] - 1e-4 && pz + hw > z + b[2] + 1e-4 && pz - hw < z + b[5] - 1e-4) return true;
+    const id = y >= 0 && y < H && resident(x, z) ? wb[IDX(x, y, z)] : 0, sh = SHAPE[id], boxes = sh ? SHAPE_BOXES[sh][wm[IDX(x, y, z)] & 7] : COLBOX[id];
+    if (!boxes) return true;
+    // stairs, slabs and low blocks (chests, tables): test the body against each box of the shape
+    for (const b of boxes) if (px + hw > x + b[0] + 1e-4 && px - hw < x + b[3] - 1e-4 && py + h > y + b[1] + 1e-4 && py < y + b[4] - 1e-4 && pz + hw > z + b[2] + 1e-4 && pz - hw < z + b[5] - 1e-4) return true;
   }
   return false;
 }
@@ -360,9 +360,9 @@ function landingTop(px, oldY, ny, pz, hw) {
   let best = null;
   for (let y = Math.floor(ny); y <= Math.floor(oldY); y++) for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
     if (!solidAt(x, y, z)) continue;
-    const id = y >= 0 && y < H && resident(x, z) ? wb[IDX(x, y, z)] : 0, sh = SHAPE[id];
-    if (!sh) { if (y + 1 <= oldY + 1e-6 && (best === null || y + 1 > best)) best = y + 1; continue; }
-    for (const bx of SHAPE_BOXES[sh][wm[IDX(x, y, z)] & 7]) {
+    const id = y >= 0 && y < H && resident(x, z) ? wb[IDX(x, y, z)] : 0, sh = SHAPE[id], boxes = sh ? SHAPE_BOXES[sh][wm[IDX(x, y, z)] & 7] : COLBOX[id];
+    if (!boxes) { if (y + 1 <= oldY + 1e-6 && (best === null || y + 1 > best)) best = y + 1; continue; }
+    for (const bx of boxes) {
       if (!(px + hw > x + bx[0] && px - hw < x + bx[3] && pz + hw > z + bx[2] && pz - hw < z + bx[5])) continue;
       const t = y + bx[4]; if (t <= oldY + 1e-6 && (best === null || t > best)) best = t;
     }

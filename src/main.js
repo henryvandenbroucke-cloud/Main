@@ -2,7 +2,9 @@
 /* Game core: player, input, combat, survival, saving, main loop. */
 const SAVE_KEY = 'blockhollow_save_v3', SET_KEY = 'blockhollow_settings';
 const SAVED_SETTINGS = (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || null; } catch (e) { return null; } })();
-const Settings = Object.assign({ autoJump: false, sens: 1, fov: 72, view: 1, hunger: true, cine: true, fps: false, shaders: true, shadows: true, preset: 'high', scale: 1, auto: true, particles: 1, bloom: true, vMaster: 0.8, vMusic: 0.6, vSfx: 0.8, target: 0 }, (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || {}; } catch (e) { return {}; } })());
+const Settings = Object.assign({ autoJump: false, dmgNumbers: false, sens: 1, fov: 72, view: 1, hunger: true, cine: true, fps: false, shaders: true, shadows: true, preset: 'high', scale: 1, auto: true, particles: 1, bloom: true, vMaster: 0.8, vMusic: 0.6, vSfx: 0.8, target: 0 }, (() => { try { return JSON.parse(localStorage.getItem(SET_KEY)) || {}; } catch (e) { return {}; } })());
+// v18: discovery cinematics and floating damage numbers start switched off (both can be turned on in Options)
+if (!Settings.v18) { Settings.v18 = true; Settings.cine = false; Settings.dmgNumbers = false; }
 function saveSettings() { try { localStorage.setItem(SET_KEY, JSON.stringify(Settings)); } catch (e) { } }
 
 const Game = { state: 'title', ui: null, sel: 0, follow: null, cine: null, peaceful: false, day: 0, time: 0.32, seedName: '', zone: -1, zoneT: 0, halls: null, mods: new Map(), spawn: [128, 40, 128], save: null };
@@ -29,10 +31,8 @@ function giveItem(id, n) {
   if (Game.ui === 'inv') renderInventory();
   return left;
 }
-let pickT = 0, pickAcc = {};
 function pickupToast(id, n) { return; // minimal HUD: no pickup pop-ups
 }
-function pickupToastOld(id, n) { pickAcc[id] = (pickAcc[id] || 0) + n; clearTimeout(pickT); pickT = setTimeout(() => { toast('+ ' + Object.entries(pickAcc).map(([i, k]) => k + ' ' + itemDef(+i).name).join(', '), 2200); pickAcc = {}; }, 120); }
 function countItem(id) { let n = 0; for (const s of Inv.slots) if (s && s.id === id) n += s.n; return n; }
 function takeItem(id, n) { for (let i = 35; i >= 0 && n > 0; i--) { const s = Inv.slots[i]; if (s && s.id === id) { const k = Math.min(n, s.n); s.n -= k; n -= k; if (!s.n) Inv.slots[i] = null; } } lastHudKey = ''; return n === 0; }
 function heldItem() { return Inv.slots[Game.sel]; }
@@ -199,7 +199,6 @@ async function createWorld(seedName, save, mode, showcase) {
     Quests.reset(); Effects.clear();
     if (Sites[0]) Sites[0].found = true;
   }
-  pickAcc = {};
   setLoading(0.42, 'Letting the light in'); await nextFrame(); if (stale()) return false;
   computeLight();
   const total = NCX * NCZ;
@@ -316,11 +315,11 @@ function refreshTitle() {
 }
 function openSettings() {
   $('setSens').value = Settings.sens; $('setFov').value = Settings.fov; $('setView').value = Settings.view;
-  $('setHunger').checked = Settings.hunger; $('setShaders').checked = Settings.shaders; $('setShadows').checked = Settings.shadows; $('setPreset').value = Settings.preset; $('setScale').value = Settings.scale; $('setAuto').checked = Settings.auto; $('setTarget').value = Settings.target || 0; $('setParticles').value = Settings.particles; $('setBloom').checked = Settings.bloom; $('setVMaster').value = Settings.vMaster; $('setVMusic').value = Settings.vMusic; $('setVSfx').value = Settings.vSfx; refreshSystemInfo(); $('setCine').checked = Settings.cine; $('setFps').checked = Settings.fps; $('setAutoJump').checked = Settings.autoJump;
+  $('setHunger').checked = Settings.hunger; $('setShaders').checked = Settings.shaders; $('setShadows').checked = Settings.shadows; $('setPreset').value = Settings.preset; $('setScale').value = Settings.scale; $('setAuto').checked = Settings.auto; $('setTarget').value = Settings.target || 0; $('setParticles').value = Settings.particles; $('setBloom').checked = Settings.bloom; $('setVMaster').value = Settings.vMaster; $('setVMusic').value = Settings.vMusic; $('setVSfx').value = Settings.vSfx; refreshSystemInfo(); $('setCine').checked = Settings.cine; $('setFps').checked = Settings.fps; $('setAutoJump').checked = Settings.autoJump; $('setDmgNum').checked = Settings.dmgNumbers;
   refreshOptLabels();
   $('settings').classList.remove('hidden');
 }
-for (const [id, k, num] of [['setSens', 'sens', 1], ['setFov', 'fov', 1], ['setView', 'view', 1], ['setHunger', 'hunger', 0], ['setCine', 'cine', 0], ['setFps', 'fps', 0], ['setShaders', 'shaders', 0], ['setShadows', 'shadows', 0], ['setScale', 'scale', 1], ['setAuto', 'auto', 0], ['setAutoJump', 'autoJump', 0], ['setParticles', 'particles', 1], ['setBloom', 'bloom', 0], ['setVMaster', 'vMaster', 1], ['setVMusic', 'vMusic', 1], ['setVSfx', 'vSfx', 1]]) {
+for (const [id, k, num] of [['setSens', 'sens', 1], ['setFov', 'fov', 1], ['setView', 'view', 1], ['setHunger', 'hunger', 0], ['setCine', 'cine', 0], ['setFps', 'fps', 0], ['setShaders', 'shaders', 0], ['setShadows', 'shadows', 0], ['setScale', 'scale', 1], ['setAuto', 'auto', 0], ['setAutoJump', 'autoJump', 0], ['setDmgNum', 'dmgNumbers', 0], ['setParticles', 'particles', 1], ['setBloom', 'bloom', 0], ['setVMaster', 'vMaster', 1], ['setVMusic', 'vMusic', 1], ['setVSfx', 'vSfx', 1]]) {
   $(id).addEventListener('input', e => { Settings[k] = num ? +e.target.value : e.target.checked; applySettings(); });
 }
 $('setTarget').addEventListener('change', e => { Settings.target = +e.target.value; saveSettings(); refreshOptLabels(); });
@@ -370,8 +369,8 @@ document.addEventListener('keydown', e => {
   if (!e.repeat && !Game.ui) {
     const t = e.timeStamp || performance.now();
     if (e.code === 'KeyW') { if (t - (Input.lastW || 0) < 280) Player.wTap = true; Input.lastW = t; }
-    if (e.code === 'Space' && Game.mode === 'creative') { if (t - (Input.lastSpace || 0) < 300) { Player.flying = !Player.flying; Player.vy = 0; toast(Player.flying ? 'Flying — Space to rise, Shift to descend, double-tap Space to land' : 'Flying off', 1800); Input.lastSpace = 0; } else Input.lastSpace = t; }
-    if (e.code === 'KeyJ' || e.key === 'j' || e.key === 'J') { Quests.hidden = !Quests.hidden; Quests.render(); }
+    if (e.code === 'Space' && Game.mode === 'creative') { if (t - (Input.lastSpace || 0) < 300) { Player.flying = !Player.flying; Player.vy = 0;  Input.lastSpace = 0; } else Input.lastSpace = t; }
+    if (e.code === 'KeyJ' || e.key === 'j' || e.key === 'J') { if (Quests.hidden) { Quests.hidden = false; Quests.render(); Quests.showDetails(); } else if ($('quest').classList.contains('brief')) Quests.showDetails(); else { Quests.hidden = true; Quests.render(); } }
   }
   if (e.code === 'KeyM' || e.key === 'm' || e.key === 'M') { if (Game.ui === 'wf') closeWayfinder(); else if (!Game.ui) openWayfinder(); return; }
   if (e.code === 'Escape') { if (Game.ui === 'ench') closeEnchant(); else if (Game.ui === 'creative') closeCreative(); else if (Game.ui === 'inv') closeInventory(); else if (Game.ui === 'wf') closeWayfinder(); else if (Game.ui === 'lore') closeLore(); else if (Game.ui === 'pause') closePause(); return; }
@@ -379,7 +378,7 @@ document.addEventListener('keydown', e => {
   if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 9) { Game.sel = n; showHeldName(); lastHudKey = ''; } }
   if (e.code === 'KeyQ') { const s = heldItem(); if (s) { const d = lookDir(); dropItem(s.id, 1, Player.x + d[0], Player.y + 1.4, Player.z + d[2]); Drops[Drops.length - 1].vx = d[0] * 6; Drops[Drops.length - 1].vz = d[2] * 6; Drops[Drops.length - 1].t = -0.5; s.n--; if (!s.n) Inv.slots[Game.sel] = null; lastHudKey = ''; } }
   if (e.code === 'F3') Settings.fps = !Settings.fps, applySettings();
-  if ((e.code === 'F5' || e.code === 'KeyV' || e.key === 'v' || e.key === 'V') && !e.repeat) { e.preventDefault(); Game.view = ((Game.view || 0) + 1) % 3; toast(['First person', 'Third person · behind', 'Third person · front'][Game.view], 1200); }
+  if ((e.code === 'F5' || e.code === 'KeyV' || e.key === 'v' || e.key === 'V') && !e.repeat) { e.preventDefault(); Game.view = ((Game.view || 0) + 1) % 3;  }
 });
 document.addEventListener('keyup', e => { Input.keys[e.code] = false; if (e.code === 'KeyW') Player.wTap = false; });
 document.addEventListener('mousemove', e => {
@@ -510,6 +509,17 @@ const crackMesh = new THREE.Mesh(new THREE.BoxGeometry(1.004, 1.004, 1.004), new
 crackMesh.visible = false; scene.add(crackMesh);
 const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.002, 1.002, 1.002)), new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.55 }));
 scene.add(outline);
+// the outline hugs the block's real shape, like the classic game: slabs, tables, plants and torches get their own box
+const FULL_BOX = [0, 0, 0, 1, 1, 1];
+function outlineBox(h) {
+  const d = BLK[h.id];
+  if (SHAPE[h.id] === 1) return SHAPE_BOXES[1][getMeta(h.x, h.y, h.z) & 7][0];
+  if (d.render === 'box' && d.box) return d.box;
+  if (h.id === B.TORCH) return [0.4375, 0, 0.4375, 0.5625, 0.625, 0.5625];
+  if (d.render === 'cross') return [0.15, 0, 0.15, 0.85, 0.8, 0.85];
+  if (d.render === 'flat') return [0, 0, 0, 1, 0.0625, 1];
+  return FULL_BOX;
+}
 function breakTime(id) {
   const d = BLK[id];
   let hard = d.hardness;
@@ -675,7 +685,7 @@ function interact(h) {
       Game.spawn = [h.x + 1.5, h.y + (getB(h.x, h.y - 1, h.z) === B.WAYSTONE ? 0 : 1), h.z + 0.5];
       if (getB(h.x, h.y - 1, h.z) === B.WAYSTONE) Game.spawn[1] = h.y;
       const sy = surfaceY(h.x + 1, h.z); Game.spawn = [h.x + 1.5, sy + 1, h.z + 0.5];
-      toast('Attuned — you will return here if you fall.', 3000); Quests.event('attune'); Sound.discover();
+      notify('Waystone attuned', 'You will respawn here', iconURL(B.WAYSTONE)); Quests.event('attune'); Sound.discover();
       burst(h.x + 0.5, h.y + 1, h.z + 0.5, 30, { life: 1, size: 0.1, r: 0.4, g: 0.95, b: 1, glow: true, spread: 3, up: 4 });
       saveGame(); return true;
     }
@@ -884,7 +894,7 @@ function updatePlayer(dt) {
   P.vx += (tx - P.vx) * k; P.vz += (tz - P.vz) * k;
   if (P.flying) {
     const up = (K.Space && !Game.ui ? 1 : 0) - (K.ShiftLeft && !Game.ui ? 1 : 0);
-    P.vy += (up * 8 - P.vy) * Math.min(1, dt * 8);
+    P.vy += (up * 8 - P.vy) * Math.min(1, dt * 14);
   }
   else if (climbing) { P.vy = K.Space || (f > 0 && (P.hitX || P.hitZ)) ? 3.6 : P.sneak ? 0 : Math.max(P.vy - 28 * dt, -2.2); }
   else if (inWater) {
@@ -956,7 +966,7 @@ function updateWorldEvents(dt) {
     discT = 0.4;
     for (const s of Sites) if (!s.found && Math.hypot(s.x - P.x, s.z - P.z) < s.r && Math.abs(P.y - s.y) < 30) { s.found = true; startCinematic(s); Sound.discover(); Quests.event('discover', s); saveGame(); if (Game.follow === s) Game.follow = null; break; }
     const bi = bmap[COL(Math.floor(P.x), Math.floor(P.z))];
-    if (bi !== Game.zone) { Game.zoneT += 0.4; if (Game.zoneT > 1.2) { Game.zone = bi; Game.zoneT = 0; if (!Game.cine && !(Game.seenBiomes || (Game.seenBiomes = new Set())).has(bi)) { Game.seenBiomes.add(bi); zoneBanner(BIOMES[bi].name, BIOMES[bi].lore); } } } else Game.zoneT = 0;
+    if (bi !== Game.zone) { Game.zoneT += 0.4; if (Game.zoneT > 1.2) { Game.zone = bi; Game.zoneT = 0; if (!Game.cine && !(Game.seenBiomes || (Game.seenBiomes = new Set())).has(bi)) { Game.seenBiomes.add(bi); zoneBanner(BIOMES[bi].name); } } } else Game.zoneT = 0;
   }
   for (const r of BossRooms) if (!r.done && !ActiveBoss && Math.hypot(r.x - P.x, r.z - P.z) < r.r - 3 && Math.abs(P.y - r.y) < 5) startBoss(r);
   if (ActiveBoss && (Math.hypot(ActiveBoss.room.x - P.x, ActiveBoss.room.z - P.z) > ActiveBoss.room.r + 25 || Math.abs(P.y - ActiveBoss.room.y) > 14)) { removeMob(ActiveBoss); ActiveBoss = null; toast('You fled. The guardian returns to its slumber.', 3000); }
@@ -1165,11 +1175,10 @@ function frame(now) {
     // Hearthglow power-up: a soft warm light around you at night
     const glow = Quests.has('glow') && Game.mode === 'survival' ? clamp(1 - (U.uDay.value - 0.25) / 0.45, 0, 1) : 0;
     U.uPLight.value.set(Player.x, Player.y + 1.2, Player.z, glow);
-    $('modeBadge').classList.toggle('hidden', Game.mode === 'survival');
+    $('modeBadge').classList.toggle('hidden', Game.mode !== 'parkour');
     // the quest card steps aside while a discovery or a big banner is on screen
     $('quest').classList.toggle('away', !!Game.cine || ($('banner').classList.contains('show') && $('banner').classList.contains('discb')));
-    if (Game.mode === 'parkour') $('modeBadge').textContent = 'PARKOUR · R TO RESTART';
-    else if (Game.mode === 'creative') $('modeBadge').textContent = Player.flying ? 'CREATIVE · FLYING' : 'CREATIVE';
+    if (Game.mode === 'parkour') $('modeBadge').textContent = 'R: back to start';
     $('statusbars').style.visibility = Game.mode !== 'survival' ? 'hidden' : 'visible';
   } else Sound.update(dt, { day: 1, playing: false, height: 30, biome: 0 });
   updateSky(dt);
@@ -1189,7 +1198,13 @@ function frame(now) {
       const d = lookDir(), dir = Game.view === 1 ? -1 : 1;
       if (Game.view === 1 && !solidAt(Math.floor(e[0]), Math.floor(e[1] + 0.6), Math.floor(e[2]))) e[1] += 0.45; // look over the shoulder
       let dist = 4.2;
-      for (let t = 0.4; t <= 4.2; t += 0.15) if (solidAt(Math.floor(e[0] + d[0] * t * dir), Math.floor(e[1] + d[1] * t * dir), Math.floor(e[2] + d[2] * t * dir))) { dist = Math.max(0.4, t - 0.35); break; }
+      // test a small box of rays (like the classic game) so the camera can't slip over the top of a block and hide you
+      const sx = Math.cos(Player.yaw) * 0.22, sz = -Math.sin(Player.yaw) * 0.22;
+      const hit = (x, y, z) => solidAt(Math.floor(x), Math.floor(y), Math.floor(z));
+      outer: for (let t = 0.4; t <= 4.2; t += 0.15) {
+        const x = e[0] + d[0] * t * dir, y = e[1] + d[1] * t * dir, z = e[2] + d[2] * t * dir;
+        for (const [ox, oy, oz] of [[0, 0, 0], [sx, 0.2, sz], [-sx, 0.2, -sz], [sx, -0.2, sz], [-sx, -0.2, -sz]]) if (hit(x + ox, y + oy, z + oz)) { dist = Math.max(0.4, t - 0.35); break outer; }
+      }
       camera.position.set(e[0] + d[0] * dist * dir, e[1] + d[1] * dist * dir, e[2] + d[2] * dist * dir);
       Game.tpClose = dist < 1.1; // too close to a wall: don't draw your own head into the lens
       if (Game.view === 2) camera.lookAt(e[0], e[1], e[2]);
@@ -1205,11 +1220,12 @@ function frame(now) {
   updateViewModel(dt);
   // block outline
   const h = !Game.ui && !Game.cine && Game.state === 'play' ? targetBlock(5) : null;
-  outline.visible = !!h; if (h) outline.position.set(h.x + 0.5, h.y + 0.5, h.z + 0.5);
+  outline.visible = !!h;
+  if (h) { const o = outlineBox(h); outline.scale.set(o[3] - o[0], o[4] - o[1], o[5] - o[2]); outline.position.set(h.x + (o[0] + o[3]) / 2, h.y + (o[1] + o[4]) / 2, h.z + (o[2] + o[5]) / 2); }
   // name the useful blocks you're looking at, so a chest, a barrel and a table are never confused
   const LOOK = { [B.CHEST]: 'Chest · loot & storage', [B.BARREL]: 'Barrel · big storage', [B.CRATE]: 'Supply Crate', [B.TABLE]: 'Crafting Table', [B.ENCHANT_TABLE]: 'Enchanting Table', [B.WAYSTONE]: 'Waystone · attune', [B.TABLET]: 'Lore Tablet · read', [B.RUNEPILLAR]: 'Rune Obelisk', [B.ALTAR]: 'Seal of the Deep' };
   const ll = $('lookLabel'), lk = h && LOOK[h.id];
-  if (lk) { if (ll.dataset.k !== lk) { ll.dataset.k = lk; ll.innerHTML = lk; } ll.classList.remove('hidden'); } else ll.classList.add('hidden');
+  ll.classList.add('hidden'); // the classic game names nothing under the crosshair
   // HUD
   if (Game.state === 'play') {
     drawHUD(Player); drawBossBar(); drawTracker(Player);
@@ -1241,7 +1257,7 @@ let dynScale = 1, perfT = 0, perfFrames = 0, perfTime = 0;
 const Refresh = { hz: 60, samples: [] };
 function sampleRefresh(dtMs) { if (Refresh.samples.length < 240 && dtMs > 2 && dtMs < 40) { Refresh.samples.push(dtMs); if (Refresh.samples.length % 60 === 0) { const s = Refresh.samples.slice().sort((a, b) => a - b), med = s[s.length >> 1]; Refresh.hz = [60, 75, 90, 100, 120, 144, 165, 240].reduce((b, h) => Math.abs(1000 / h - med) < Math.abs(1000 / b - med) ? h : b, 60); } } }
 function targetFps() { return Math.min(Refresh.hz, Settings.target || 1000); }
-function basePixelRatio() { return Math.min(window.devicePixelRatio || 1, Settings.preset === 'ultra' ? 2 : 1.5); }
+function basePixelRatio() { return Math.min(window.devicePixelRatio || 1, Settings.preset === 'low' || Settings.preset === 'medium' ? 1.5 : 2); }
 function applyRenderScale() {
   const pr = basePixelRatio() * Settings.scale * dynScale;
   if (Math.abs(renderer.getPixelRatio() - pr) > 0.01) { renderer.setPixelRatio(pr); resize(); }
@@ -1255,11 +1271,15 @@ function autoPerformance(dt) {
   if (!Settings.auto || Game.state !== 'play' || Game.ui) return;
   const goal = targetFps();
   if (fps < goal * 0.9) {
-    if (perfLevel < 1) perfLevel++; // cheaper effects first: shadows and reflections refresh less often
-    else if (dynScale > 0.55) { dynScale = Math.max(0.55, dynScale - (fps < goal * 0.66 ? 0.15 : 0.07)); applyRenderScale(); }
+    // cheaper effects first (shadows refresh less often), then a little resolution, then bloom, and resolution last
+    // so the picture stays sharp for as long as possible
+    if (perfLevel < 1) perfLevel++;
+    else if (dynScale > 0.85) { dynScale = Math.max(0.85, dynScale - 0.05); applyRenderScale(); }
     else if (perfLevel < 2) perfLevel++;
+    else if (dynScale > 0.7) { dynScale = Math.max(0.7, dynScale - (fps < goal * 0.66 ? 0.1 : 0.05)); applyRenderScale(); }
   } else if (fps > goal * 0.97) {
-    if (perfLevel > 0) perfLevel--;
+    if (dynScale < 0.85) { dynScale = Math.min(0.85, dynScale + 0.04); applyRenderScale(); }
+    else if (perfLevel > 0) perfLevel--;
     else if (dynScale < 1) { dynScale = Math.min(1, dynScale + 0.04); applyRenderScale(); }
   }
 }
@@ -1326,7 +1346,7 @@ function renderWorld() {
     PostFX.renderShadows(shadowCenter, U.uSunDir.value);
   }
   renderReflection();
-  PostFX.render({ hand: Game.state === 'play' && !Game.view ? { scene: handScene, cam: handCam } : null, post: Settings.shaders, bloom: Settings.bloom && perfLevel < 2, sunDir: skyMat.uniforms.uSunDir.value, sunUp: Game.sunUp || 0, rayCol: Game.rayCol, night: clamp(1 - (U.uDay.value - 0.2) / 0.5, 0, 1), under: U.uUnder.value });
+  PostFX.render({ hand: Game.state === 'play' && !Game.view ? { scene: handScene, cam: handCam } : null, post: Settings.shaders, bloom: Settings.bloom && perfLevel < 2, sunDir: skyMat.uniforms.uSunDir.value, sunUp: Game.sunUp || 0, rayCol: Game.rayCol, sharp: 0.25 + Math.max(0, 1 - renderer.getPixelRatio() / (window.devicePixelRatio || 1)) * 0.8, night: clamp(1 - (U.uDay.value - 0.2) / 0.5, 0, 1), under: U.uUnder.value });
 }
 
 

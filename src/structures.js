@@ -998,7 +998,7 @@ function claimTreasure(c, h) {
   const site = Sites.find(s => s.name === c.treasure); if (!site) return;
   const list = treasureFor(site);
   list.forEach(([id, n, e], i) => { const st = { id, n }; if (e) st.ench = Object.assign({}, e); let j = c.items.indexOf(null); if (j < 0) j = i; c.items[j] = st; });
-  bossBanner('Treasure of ' + site.name, site.treasureText); $('banner').classList.add('questb');
+  notify('Treasure found!', site.name, iconURL(B.CHEST));
   Sound.discover();
   burst(h.x + 0.5, h.y + 1, h.z + 0.5, 40, { life: 1.2, size: 0.1, r: 1, g: 0.85, b: 0.3, glow: true, spread: 3, up: 4 });
 }

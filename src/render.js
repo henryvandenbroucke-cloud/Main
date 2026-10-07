@@ -65,7 +65,7 @@ const GLOSS = { polished: [0.6, 0], iron_block: [0.85, 1], steel_block: [0.8, 1]
   redbrick: [0.22, 0], plaster: [0.15, 0], cauldron: [0.6, 0.6], rail: [0.7, 0.8], lamp: [0.6, 0.2], bookshelf: [0.22, 0], cactus_side: [0.4, 0], lilypad: [0.6, 0], furnace_front: [0.25, 0], waystone: [0.5, 0] };
 const glossTex = (() => { const d = new Uint8Array(16 * 16 * 4); for (const k in Atlas.tiles) { const i = Atlas.tiles[k], g = GLOSS[k] || [0.08, 0]; d[i * 4] = g[0] * 255; d[i * 4 + 1] = g[1] * 255; d[i * 4 + 3] = 255; } const t = new THREE.DataTexture(d, 16, 16, THREE.RGBAFormat); t.needsUpdate = true; return t; })();
 const normalTex = new THREE.DataTexture(atlasNormalData, HIW, HIW, THREE.RGBAFormat);
-normalTex.magFilter = THREE.LinearFilter; normalTex.minFilter = THREE.LinearMipmapLinearFilter; normalTex.generateMipmaps = true; normalTex.flipY = false; normalTex.anisotropy = atlasTex.anisotropy; normalTex.needsUpdate = true;
+normalTex.magFilter = THREE.NearestFilter; normalTex.minFilter = THREE.LinearMipmapLinearFilter; normalTex.generateMipmaps = true; normalTex.flipY = false; normalTex.anisotropy = atlasTex.anisotropy; normalTex.needsUpdate = true;
 atlasNormalData = null;
 
 const U = {
@@ -760,6 +760,7 @@ function blockBurst(x, y, z, id, n) {
 // ---------------------------------------------------------------- floating damage numbers
 const dmgSprites = [];
 function damageNumber(x, y, z, val, crit) {
+  if (!Settings.dmgNumbers) return;
   const c = document.createElement('canvas'); c.width = 128; c.height = 64;
   const g = c.getContext('2d'); g.font = 'bold 40px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.lineWidth = 6; g.strokeStyle = '#1a1010'; const txt = (Math.round(val * 10) / 10).toString();
