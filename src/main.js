@@ -406,7 +406,7 @@ function pickBlock() { // middle click: put the targeted block in your hand
 }
 // leaving with Ctrl+W or closing the tab by accident: save first and ask
 window.addEventListener('beforeunload', e => { if (Game.state === 'play') { saveGame(); e.preventDefault(); e.returnValue = ''; } });
-document.addEventListener('mouseup', e => { if (e.button === 0) { Input.mouseL = false; Game.mine = null; } if (e.button === 2) { Input.mouseR = false; useEnd(); } });
+document.addEventListener('mouseup', e => { if (e.button === 0) { Input.mouseL = false; Game.mine = null; Game.creativeT = 0; } if (e.button === 2) { Input.mouseR = false; useEnd(); } });
 document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('wheel', e => { if (Game.state !== 'play' || Game.ui) return; Game.sel = (Game.sel + (e.deltaY > 0 ? 1 : -1) + 9) % 9; showHeldName(); lastHudKey = ''; }, { passive: true });
 
@@ -444,7 +444,10 @@ function chargeLevel() { const w = weaponStats(); return clamp((performance.now(
 function attack() {
   const w = weaponStats(), m = targetMob(w.reach || 3.6), charge = chargeLevel();
   startSwing(true);
-  if (!m) { Sound.swing(); startMining(); return; }
+  if (!m) {
+    if (Game.mode === 'creative') { const h = targetBlock(5); if (h) { breakBlock(h); Game.creativeT = 0.25; Game.mine = null; return; } }
+    Sound.swing(); startMining(); return;
+  }
   lastSwing = performance.now();
   const d = lookDir();
   let dmg = w.dmg * (0.2 + 0.8 * charge * charge);
@@ -547,7 +550,7 @@ function updateMining(dt) {
   if (m.need === Infinity) { crackMesh.visible = false; return; }
   if (m.need === 0) { // creative: instant break, then a short delay while the button is held
     Game.creativeT = (Game.creativeT || 0) - dt;
-    if (Game.creativeT <= 0) { Game.creativeT = 0.18; startSwing(true); breakBlock(h); Game.mine = null; }
+    if (Game.creativeT <= 0) { Game.creativeT = 0.25; startSwing(true); breakBlock(h); Game.mine = null; }
     crackMesh.visible = false; return;
   }
   m.t += dt;
@@ -701,7 +704,7 @@ function interact(h) {
     case B.ENCHANT_TABLE: openEnchant(h); return true;
     case B.BARREL: case B.CRATE: {
       const c = Chests.get(k) || (Chests.set(k, { table: h.id === B.BARREL ? 'barrel' : 'crate', items: null }), Chests.get(k));
-      Sound.chest();
+      Sound.chest(h.id === B.BARREL ? 'barrel' : 'chest');
       if (!c.items) { const n = h.id === B.BARREL ? 36 : 18; c.items = new Array(n).fill(null); for (const it of rollLoot(c.table).slice(0, n)) { let j = Math.floor(Math.random() * n); while (c.items[j]) j = (j + 1) % n; c.items[j] = { id: it.id, n: it.n }; } }
       openInventory(k); return true;
     }
@@ -717,7 +720,7 @@ function hurtPlayer(dmg, type, kx, kz, cause) {
   if (type === 'burn' && Effects.lvl('fireres')) return;
   if (Player.inv > 0) return;
   const real = dmg * (1 - armorReduction()) * (1 - Math.min(0.6, armorEnch('protection') * 0.04));
-  Player.hp -= real; Player.inv = 0.5; Sound.hurt();
+  Player.hp -= real; Player.inv = 0.5; Sound.hurt(cause);
   if (cause) Player.lastCause = { c: cause, t: performance.now() };
   if (cause && cause.mob) Player.lastMobHit = { mob: cause.mob, t: performance.now() };
   if (type === 'burn') { Player.burn = 3; Player.burnSrc = cause && cause.mob ? { mob: cause.mob, how: 'burn' } : 'fire'; }
@@ -1145,6 +1148,7 @@ function frame(now) {
   else if (Game.slowmo > 0) { Game.slowmo -= dt; dt *= 0.35; }
   autoPerformance(dt);
   fpsAcc += dt; fpsN++; if (fpsAcc > 0.5) { $('fps').textContent = Math.round(fpsN / fpsAcc) + ' fps'; fpsAcc = 0; fpsN = 0; }
+  if (Game.state === 'title') Sound.update(dt, { day: 1, playing: false, height: 30, biome: 0 }); // menu music
   if (Game.state === 'title' && Tour.on) { updateTour(dt); return; }
   if (Game.state === 'title' && !Tour.on) { Intro.render(dt, canvasEl.clientWidth || 1, canvasEl.clientHeight || 1); return; }
   if (Game.state === 'title' || Game.state === 'loading') { renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
@@ -1166,12 +1170,13 @@ function frame(now) {
   if (Game.state === 'play') {
     Game.envT = (Game.envT || 0) - dt;
     if (Game.envT <= 0) { // sample the surroundings for ambience (cheap, a few times per second)
-      Game.envT = 0.5; let fire = 0, water = 0; const px = Math.floor(Player.x), py = Math.floor(Player.y), pz = Math.floor(Player.z);
-      for (let i = 0; i < 40; i++) { const x = px + Math.floor(Math.random() * 13) - 6, y = py + Math.floor(Math.random() * 7) - 3, z = pz + Math.floor(Math.random() * 13) - 6, id = getB(x, y, z); if (id === B.FIRE || id === B.LAVA) fire++; if (id === B.WATER) water++; }
-      Game.env = { fireNear: Math.min(1, fire / 3), waterNear: water > 2 };
+      Game.envT = 0.5; let fire = 0, lava = 0, water = 0; const px = Math.floor(Player.x), py = Math.floor(Player.y), pz = Math.floor(Player.z);
+      for (let i = 0; i < 40; i++) { const x = px + Math.floor(Math.random() * 13) - 6, y = py + Math.floor(Math.random() * 7) - 3, z = pz + Math.floor(Math.random() * 13) - 6, id = getB(x, y, z); if (id === B.FIRE) fire++; else if (id === B.LAVA) lava++; else if (id === B.WATER) water++; }
+      const sky = lightAt(Player.x, Player.y + 1.6, Player.z)[0];
+      Game.env = { fireNear: Math.min(1, fire / 2), lavaNear: Math.min(1, lava / 4), waterNear: Math.min(1, water / 8), cave: sky < 4 && Player.y < surfaceY(px, pz) - 3 };
     }
     const env = Game.env || {};
-    Sound.update(dt, { day: U.uDay.value, playing: Game.ui !== 'pause' && Player.alive, height: Player.y, biome: Game.zone, under: U.uUnder.value > 0.5, fireNear: env.fireNear, waterNear: env.waterNear });
+    Sound.update(dt, { day: U.uDay.value, playing: Game.ui !== 'pause' && Player.alive, height: Player.y, biome: Game.zone, under: U.uUnder.value > 0.5, fireNear: env.fireNear, lavaNear: env.lavaNear, waterNear: env.waterNear, cave: env.cave });
     // Hearthglow power-up: a soft warm light around you at night
     const glow = Quests.has('glow') && Game.mode === 'survival' ? clamp(1 - (U.uDay.value - 0.25) / 0.45, 0, 1) : 0;
     U.uPLight.value.set(Player.x, Player.y + 1.2, Player.z, glow);

@@ -47,13 +47,16 @@ The core game is unchanged: the world, structures, quests, items, creatures and 
   - a sharper picture: High and Ultra render at your screen's full resolution with light sharpening, and resolution is lowered only as a last resort when the frame rate drops;
   - the block outline fits the block's real shape (slabs, chests, tables, plants, torches), and you stand on chests, pots and enchanting tables at their real height;
   - the third-person camera no longer slips behind a block and hides your character.
+- **Sound and Creative:**
+  - every sound is now a real recording instead of a synthesized beep (see Features below);
+  - in Creative, a click breaks the block you're looking at instantly, and holding the button keeps breaking at a steady pace.
 
 ## Features
 - **Game modes:**
   - *Survival*: a chain of 30 quests (shown top-left, J to hide) that starts with very easy steps (walk, chop a tree, craft planks) and teaches the whole game, up to the two bosses. Each quest gives items or a permanent **power-up**: Miner's Grit, Hearthglow (a warm light follows you at night), extra hearts, Keen Edge, Swift Feet, Night Eyes, Iron Stomach and more.
   - *Creative*: fly (double-tap Space; Space/Shift to rise/fall), every block and item in a searchable, tabbed creative inventory, instant breaking, endless blocks, no damage or hunger, middle-click pick block, and pause-menu tools for time of day and hostile mobs.
   - *Parkour*: you start on the green block of the Skyward Spiral. There are no mobs, no damage and no hunger, and you can't break blocks; press R to go back to the start.
-- **Sound:** synthesised in the browser: material-based dig, place and footstep sounds, combat sounds, birds by day, crickets at night, crackling fires, water, and a soft generative soundtrack. Master, music and effects volumes are in Settings.
+- **Sound:** real recordings for everything: footsteps, digging, breaking and placing for each material (grass, dirt, gravel, sand, snow, stone, wood, glass, metal, wool, water); every creature's calls, hurt and death sounds; punches and critical hits, bows, chests, barrels, eating, drinking, enchanting, explosions and teleports; birdsong by day, crickets at night, crackling fire, flowing water, bubbling lava, wind, and dripping, echoing caves. Each sound has several takes with a little pitch variation, fades with distance and comes from the side it happened on; under water everything is muffled. The music is a calm generative piece played on a real grand piano, with long quiet gaps between pieces, and it also plays on the title screen. Master, music and effects volumes are in Options. Credits for every recording are in `SOUND_CREDITS.md`.
 - **World:** endless procedural voxel world (chunks stream in around you; the 256×256 starting realm holds the hand-built villages and dungeons) with six biomes: Meadowbrook Vale, Ancient Forest (giant oaks), Mystic Marsh, Sunscorch Dunes, Crystal Highlands (aurora at night) and the Ashlands (lava). It has rivers, lakes, ores and a day/night cycle with sun, moon, stars and blocky clouds.
 - **Shaders:** sun and moon shadow mapping with soft (PCF) edges; linear-space lighting (golden-hour sun, cool sky ambient, warm flickering lantern light whose falloff is squared); Fresnel water with sun glints; HDR bloom, sun rays, a filmic tone curve, warm grading and a vignette. These can be turned off in Settings.
 - **Rendering:** procedural 16×16 pixel textures, smooth lighting with ambient occlusion, sky light plus warm torch light, animated water and lava, swaying plants, per-biome fog, and particles (chimney smoke, fireflies, embers, crystal sparkles).
@@ -110,6 +113,6 @@ Creative: double-tap Space to fly, Space up, Shift down
 ## Layout
 `src/textures.js` texture atlas · `blocks.js` block registry · `world.js` terrain + lighting · `items.js` items, recipes, loot, icons ·
 `structures.js` villages/landmarks/dungeons · `models.js` creature skins, atlases, rigs and models · `render.js` mesher, shaders, sky, particles · `entities.js` creature AI, animation, bosses, spawning, projectiles ·
-`postfx.js` shadows, god rays + post-processing · `ui.js` HUD, menus, creative inventory · `quests.js` quest chain and power-ups · `audio.js` synthesised sound · `main.js` player, combat, survival, saving, main loop. `lib/three.min.js` is Three.js r147 (MIT). The interface font is Pixelify Sans (SIL Open Font License 1.1, `lib/fonts/PixelifySans-OFL.txt`), embedded in `src/style.css`.
+`postfx.js` shadows, god rays + post-processing · `ui.js` HUD, menus, creative inventory · `quests.js` quest chain and power-ups · `audio.js` sound engine, ambience and piano music · `sounds.js` the recorded sounds (generated) · `main.js` player, combat, survival, saving, main loop. `lib/three.min.js` is Three.js r147 (MIT). The interface font is Pixelify Sans (SIL Open Font License 1.1, `lib/fonts/PixelifySans-OFL.txt`), embedded in `src/style.css`.
 
-Run `python3 tools/build_single.py` to rebuild the one-file `Blockhollow.html`.
+Run `python3 tools/build_single.py` to rebuild the one-file `Blockhollow.html`. `tools/build_sounds.py` rebuilds `src/sounds.js` from the original recordings (its header says where to get them).

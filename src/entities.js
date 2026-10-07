@@ -180,6 +180,7 @@ function updateProjectiles(dt, P) {
     let dead = p.life <= 0;
     if (!dead && p.type !== 'wave' && solidAt(Math.floor(nx), Math.floor(ny), Math.floor(nz))) {
       dead = true;
+      if (p.type === 'arrow') Sound.arrowHit(p);
       if (p.type === 'arrow' && p.owner === 'player' && !p.infinite && Math.random() < 0.6) dropItem(I.arrow, 1, p.x, p.y, p.z);
       if (p.type === 'potion') splash(p, P);
       if (p.type === 'pearl') pearlLand(p, P);
@@ -244,7 +245,7 @@ function damageMob(m, dmg, kx, kz, crit, src) {
   else { m.invT = 0.5; m.lastDmg = dmg; }
   m.hp -= dmg; m.flash = 0.22; m.hurtT = 0.32; m.anger = 30;
   m.sqV = (m.sqV || 0) - (m.def.boss ? 1.2 : 3.2); m.twistV = (m.twistV || 0) + (Math.random() < 0.5 ? -1 : 1) * (m.def.boss ? 0.8 : 3);
-  Sound.hit(m.def.heavy || m.def.boss);
+  Sound.hitMob(m, crit, src);
   damageNumber(m.x, m.y + m.h * m.scale + 0.3, m.z, dmg, crit);
   const kb = m.def.boss ? 0 : (m.def.heavy ? 0.4 : 1);
   m.vx += (kx || 0) * 7 * kb; m.vz += (kz || 0) * 7 * kb; if (!m.def.boss && !m.def.fly) m.vy = Math.max(m.vy, 4.5 * kb);
@@ -268,7 +269,7 @@ function killMob(m, silent) {
     if (m.def.split && m.size > 1) for (let k = 0; k < 2 + Math.floor(Math.random() * 2); k++) { const c = spawnMob(m.type, m.x + (Math.random() - 0.5) * m.hw, m.y + 0.2, m.z + (Math.random() - 0.5) * m.hw, { size: m.size - 1, anger: 20 }); c.vy = 5; c.vx = (Math.random() - 0.5) * 4; c.vz = (Math.random() - 0.5) * 4; }
   }
   if (m.def.boss) { onBossDefeated(m); Game.slowmo = 1.8; Sound.roar(0.7); }
-  else Sound.voice(m.def.voice || 'thud', Math.hypot(m.x - Player.x, m.z - Player.z), 0.8);
+  else Sound.mob(m, 'death');
 }
 function stalkerBlink(m, away) {
   const P = Player;
@@ -310,12 +311,12 @@ function interactMob(m) {
   if (m.type === 'villager') {
     const tr = VILLAGER_TRADES[m.variant % 4];
     m.face = Math.atan2(Player.x - m.x, Player.z - m.z); m.talkT = 2.5; m.wx = m.wz = 0; m.wt = 3;
-    Sound.voice('hmm', dist, 1);
+    Sound.mob(m, 'say');
     if (id === tr.give && countItem(tr.give) >= tr.n) {
       takeItem(tr.give, tr.n); const left = giveItem(tr.get, tr.m); if (left) dropItem(tr.get, left, Player.x, Player.y + 1, Player.z);
       toast('Traded for ' + tr.m + '× ' + itemDef(tr.get).name, 1800);
       burst(m.x, m.y + 2.1, m.z, 8, { life: 0.8, size: 0.09, r: 0.4, g: 1, b: 0.5, glow: true, spread: 1.5, up: 2 });
-      Quests.event('trade'); Sound.pop();
+      Quests.event('trade'); Sound.trade(true, m);
     } else toast(tr.n + '× ' + itemDef(tr.give).name + '  →  ' + tr.m + '× ' + itemDef(tr.get).name, 2400);
     return true;
   }
@@ -331,12 +332,12 @@ function interactMob(m) {
     else burst(m.x, m.y + 1, m.z, 8, { life: 0.8, size: 0.1, r: 0.5, g: 0.5, b: 0.5, spread: 1.5, up: 1.5 });
     return true;
   }
-  if (m.tamed && s && itemDef(id).kind === 'food' && m.hp < m.maxHp) { takeItem(id, 1); m.hp = m.maxHp; hearts(m, 6); Sound.eat(); return true; }
+  if (m.tamed && s && itemDef(id).kind === 'food' && m.hp < m.maxHp) { takeItem(id, 1); m.hp = m.maxHp; hearts(m, 6); Sound.feed(m); return true; }
   if (def.breed && id === def.food && !m.love && !(m.breedCd > 0)) {
     takeItem(id, 1); lastHudKey = '';
     if (m.baby) { m.grow = (m.grow || 0) + 60; hearts(m, 3); }
     else { m.love = 20; hearts(m, 6); }
-    Sound.eat(); return true;
+    Sound.feed(m); return true;
   }
   return false;
 }
@@ -450,7 +451,7 @@ function updateMobs(dt, P) {
     // the stalker turns hostile when you stare at its face
     if (def.stare && !m.anger && dist < 30 && P.alive && Game.mode !== 'creative') {
       const e = eye(), d = lookDir(), hx = m.x - e[0], hy = m.y + 2.7 - e[1], hz = m.z - e[2], hl = Math.hypot(hx, hy, hz);
-      if ((hx * d[0] + hy * d[1] + hz * d[2]) / hl > 0.985) { m.stare = (m.stare || 0) + dt; m.shakeT = 0.1; if (m.stare > 0.8) { m.anger = 45; Sound.voice('shriek', dist, 1); shake(0.25); } } else m.stare = 0;
+      if ((hx * d[0] + hy * d[1] + hz * d[2]) / hl > 0.985) { m.stare = (m.stare || 0) + dt; m.shakeT = 0.1; if (m.stare > 0.8) { m.anger = 45; Sound.mob(m, 'say', 1.4); shake(0.25); } } else m.stare = 0;
     }
     if (def.boss) { bossAI(m, dt, P, dx, dz, dist); }
     else {
@@ -500,7 +501,7 @@ function updateMobs(dt, P) {
             const sp = m.ranged === 'arrow' ? 22 : m.ranged === 'potion' ? 11 : m.ranged === 'fire' ? 11 : 14;
             const grav = m.ranged === 'arrow' ? 18 : m.ranged === 'potion' ? 14 : 0, tt = d3 / sp;
             shoot(m.ranged, m.x + tx * 0.3, sy, m.z + tz * 0.3, dx / d3 * sp, (ty - sy) / d3 * sp + grav * tt * 0.5, dz / d3 * sp, def.dmg, 'mob', { src: m });
-            if (m.ranged === 'arrow') Sound.bow(); else if (m.ranged === 'potion') Sound.voice('cackle', dist, 0.7); else if (m.ranged === 'fire') Sound.voice('wail', dist, 0.6);
+            if (m.ranged === 'arrow') Sound.bow(m); else if (m.ranged === 'potion' || m.ranged === 'fire') Sound.mob(m, 'say', 0.8);
             m.shotT = 0.3;
           }
           if (def.ranged === 'potion' && !m.drank && m.hp < m.maxHp * 0.4) { m.drank = true; m.hp = Math.min(m.maxHp, m.hp + 12); burst(m.x, m.y + 2, m.z, 16, { life: 0.8, size: 0.1, r: 1, g: 0.4, b: 0.6, glow: true, spread: 1.5, up: 2 }); }
@@ -591,7 +592,7 @@ function updateMobs(dt, P) {
     }
     // ambient voices
     m.voiceT -= dt;
-    if (m.voiceT <= 0) { m.voiceT = 7 + Math.random() * 16; if (def.voice && dist < 20 && !(def.voice === 'buzz' && Math.random() < 0.5)) Sound.voice(def.voice, Math.hypot(dist, dy), 1); }
+    if (m.voiceT <= 0) { m.voiceT = 7 + Math.random() * 16; if (def.voice && dist < 20 && !(def.voice === 'buzz' && Math.random() < 0.5)) Sound.mob(m, 'say'); }
     animateMob(m, dt, chase, P, dist);
   }
 }
@@ -846,7 +847,7 @@ function updateDying(m, dt) {
   if (m.dying <= 0) {
     const s = m.scale * Math.max(0.6, Math.min(2, m.h));
     burst(m.x, m.y + m.h * m.scale * 0.4, m.z, Math.round(10 + 6 * s), { life: 0.9, size: 0.16 * Math.min(1.5, s), r: 0.92, g: 0.92, b: 0.9, spread: 1.8 * s, up: 1.4, drag: 2 });
-    Sound.puff();
+    Sound.puff(m);
     removeMob(m);
   }
 }

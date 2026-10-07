@@ -132,6 +132,7 @@ function closeInventory() {
   returnCraftGrid();
   $('cursorItem').innerHTML = '';
   $('inv').classList.add('hidden'); $('tooltip').classList.add('hidden');
+  if (containerKey) Sound.chestClose();
   Game.ui = null; containerKey = null;
   lockPointer();
 }
@@ -269,7 +270,7 @@ function clickSlot(arr, i, kind, e) {
     else if (containerKey) { const it = Chests.get(containerKey).items; left = putStack(it, s, 0, it.length); }
     else if (Game.ui === 'ench' && kind === 'main') { const j = s.id === I.lapis ? 1 : enchTags(s.id).length ? 0 : -1; if (j < 0) left = s.n; else if (!EnchSlots[j]) { EnchSlots[j] = s; left = 0; } else if (j === 1) left = addTo(EnchSlots, s.id, s.n, 1, 2); else left = s.n; }
     else if (kind === 'ench') left = giveStack(s);
-    else if (kind === 'main') { const d = itemDef(s.id); if (d.kind === 'armor' && !Inv.armor[d.slot]) { Inv.armor[d.slot] = s; left = 0; } else if (d.kind === 'relic' && Inv.relics.indexOf(null) >= 0) { Inv.relics[Inv.relics.indexOf(null)] = s; left = 0; } else left = i < 9 ? addTo(Inv.slots, s.id, s.n, 9, 36) : addTo(Inv.slots, s.id, s.n, 0, 9); }
+    else if (kind === 'main') { const d = itemDef(s.id); if (d.kind === 'armor' && !Inv.armor[d.slot]) { Inv.armor[d.slot] = s; left = 0; Sound.armor(); } else if (d.kind === 'relic' && Inv.relics.indexOf(null) >= 0) { Inv.relics[Inv.relics.indexOf(null)] = s; left = 0; } else left = i < 9 ? addTo(Inv.slots, s.id, s.n, 9, 36) : addTo(Inv.slots, s.id, s.n, 0, 9); }
     else left = giveItem(s.id, s.n);
     if (left) arr[i] = left === s.n ? s : { id: s.id, n: left };
     renderInventory(); lastHudKey = ''; return;
@@ -282,11 +283,12 @@ function clickSlot(arr, i, kind, e) {
   } else {
     if (!accepts(kind, i, cursor.id)) return;
     const max = itemDef(cursor.id).stack;
-    if (!s) { if (right) { arr[i] = { id: cursor.id, n: 1 }; cursor.n--; if (!cursor.n) cursor = null; } else { arr[i] = cursor; cursor = null; } }
+    if (!s) { if (right) { arr[i] = Object.assign({}, cursor, { n: 1 }); cursor.n--; if (!cursor.n) cursor = null; } else { arr[i] = cursor; cursor = null; } }
     else if (s.id === cursor.id && s.n < max) { const mv = right ? 1 : Math.min(cursor.n, max - s.n); s.n += mv; cursor.n -= mv; if (!cursor.n) cursor = null; }
     else { arr[i] = cursor; cursor = s; }
   }
   if (kind === 'armor' || kind === 'relic') clampHealth();
+  if (kind === 'armor' && arr[i]) Sound.armor();
   renderInventory(); lastHudKey = '';
 }
 function showTip(s, e) {
