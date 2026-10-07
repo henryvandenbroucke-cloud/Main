@@ -253,8 +253,8 @@ void main(){
   }
   vec3 outc=toSrgb(col);
   // distance fog matches the sky's horizon, glowing toward the sun; a touch of aerial blue in between
-  float f=smoothstep(uFogNear,uFogFar,vFog); f*=f*(3.0-2.0*f);
-  float aer=smoothstep(uFogNear*0.3,uFogFar,vFog)*0.18; outc=mix(outc,mix(outc,uFogColor,0.35),aer);
+  float f=smoothstep(uFogNear,uFogFar,vFog); f*=f;
+  float aer=smoothstep(uFogNear*0.4,uFogFar,vFog)*0.1; outc=mix(outc,mix(outc,uFogColor,0.35),aer);
   vec3 fogc=uFogColor+uHazeCol*pow(max(dot(-V,uSunDir),0.0),6.0)*0.4;
   if(uMist>0.001){ float hgt=max(vWorld.y-uSeaY+1.0,0.0); float mist=(1.0-exp(-vFog*0.02*uMist))*exp(-hgt*0.16); f=max(f,clamp(mist,0.0,0.8)); }
   if(uUnder>0.5){ f=smoothstep(2.0,24.0,vFog); fogc=uFogColor; }
@@ -312,7 +312,7 @@ void main(){
   float rim=pow(1.0-max(dot(n,V),0.0),3.0);
   vec3 col=alb*light*toLin(color)+alb*rim*(uAmbCol*0.6+uSunCol*0.15*outdoor+vec3(0.02))*0.6;
   vec3 outc=toSrgb(col);
-  float f=smoothstep(uFogNear,uFogFar,vFog); f*=f*(3.0-2.0*f);
+  float f=smoothstep(uFogNear,uFogFar,vFog); f*=f;
   vec3 fogc=uFogColor+uHazeCol*pow(max(dot(-V,uSunDir),0.0),6.0)*0.4;
   if(uUnder>0.5){ f=smoothstep(2.0,24.0,vFog); fogc=uFogColor; }
   gl_FragColor=vec4(mix(outc,fogc,f),uOpacity);

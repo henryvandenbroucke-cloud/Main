@@ -295,10 +295,15 @@ document.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click',
   if (a === 'quit') { toastTitle('Thanks for playing! You can close this tab.'); }
 }));
 let newMode = 'survival';
-document.querySelectorAll('.mode').forEach(el => el.addEventListener('click', () => { newMode = el.dataset.mode; document.querySelectorAll('.mode').forEach(o => o.classList.toggle('on', o === el)); Sound.ui(); }));
+document.querySelectorAll('.mode').forEach(el => el.addEventListener('click', () => { newMode = el.dataset.mode; document.querySelectorAll('.mode').forEach(o => o.classList.toggle('on', o === el)); $('modeDesc').textContent = el.querySelector('.md').textContent; Sound.ui(); }));
+// a different yellow splash line every time the title appears
+const SPLASHES = ['Now with a real king!', 'Cozy!', '100% blocks!', 'Mind the Boomshrooms!', 'Try the Skyward Spiral!', 'Shaders included!', 'Hand-built villages!', 'Pixel perfect!', 'Do not stare at the Stalker!', 'Bread is the best!', 'The Colossus sleeps...', 'Also try fishing!', 'Windmills turn!', 'Lanterns at dusk!'];
+function newSplash() { const el = $('splash'); if (el) el.textContent = SPLASHES[Math.floor(Math.random() * SPLASHES.length)]; }
+newSplash();
 function showTitleMenu(id) { for (const k of ['titleMenu', 'playMenu', 'newMenu']) $(k).classList.toggle('hidden', k !== id); }
 function toastTitle(m) { const b = document.querySelector('[data-act=quit]'); const old = b.textContent; b.textContent = m; setTimeout(() => { b.textContent = old; }, 2500); }
 function quitToTitle() {
+  newSplash();
   saveGame(); Game.state = 'title'; Game.ui = null; endCinematic();
   document.exitPointerLock && document.exitPointerLock();
   $('hud').classList.add('hidden'); showOnly('title'); refreshTitle();
@@ -312,13 +317,29 @@ function refreshTitle() {
 function openSettings() {
   $('setSens').value = Settings.sens; $('setFov').value = Settings.fov; $('setView').value = Settings.view;
   $('setHunger').checked = Settings.hunger; $('setShaders').checked = Settings.shaders; $('setShadows').checked = Settings.shadows; $('setPreset').value = Settings.preset; $('setScale').value = Settings.scale; $('setAuto').checked = Settings.auto; $('setTarget').value = Settings.target || 0; $('setParticles').value = Settings.particles; $('setBloom').checked = Settings.bloom; $('setVMaster').value = Settings.vMaster; $('setVMusic').value = Settings.vMusic; $('setVSfx').value = Settings.vSfx; refreshSystemInfo(); $('setCine').checked = Settings.cine; $('setFps').checked = Settings.fps;
+  refreshOptLabels();
   $('settings').classList.remove('hidden');
 }
 for (const [id, k, num] of [['setSens', 'sens', 1], ['setFov', 'fov', 1], ['setView', 'view', 1], ['setHunger', 'hunger', 0], ['setCine', 'cine', 0], ['setFps', 'fps', 0], ['setShaders', 'shaders', 0], ['setShadows', 'shadows', 0], ['setScale', 'scale', 1], ['setAuto', 'auto', 0], ['setParticles', 'particles', 1], ['setBloom', 'bloom', 0], ['setVMaster', 'vMaster', 1], ['setVMusic', 'vMusic', 1], ['setVSfx', 'vSfx', 1]]) {
   $(id).addEventListener('input', e => { Settings[k] = num ? +e.target.value : e.target.checked; applySettings(); });
 }
-$('setTarget').addEventListener('change', e => { Settings.target = +e.target.value; saveSettings(); });
-$('setPreset').addEventListener('change', e => { applyPreset(e.target.value); openSettings(); saveSettings(); });
+$('setTarget').addEventListener('change', e => { Settings.target = +e.target.value; saveSettings(); refreshOptLabels(); });
+// options read like the classic game: every slider and choice says its value on its face
+const pct = v => Math.round(v * 100) + '%';
+const OPT_FMT = { setView: v => 'Render Distance: ' + pct(v), setFov: v => 'FOV: ' + (v === 72 ? 'Normal' : v >= 100 ? 'Quake Pro' : v), setScale: v => 'Render Scale: ' + pct(v),
+  setParticles: v => 'Particles: ' + (v >= 1 ? 'All' : v <= 0.25 ? 'Minimal' : pct(v)), setSens: v => 'Sensitivity: ' + pct(v),
+  setVMaster: v => 'Master Volume: ' + (v ? pct(v) : 'OFF'), setVMusic: v => 'Music: ' + (v ? pct(v) : 'OFF'), setVSfx: v => 'Effects & Ambience: ' + (v ? pct(v) : 'OFF') };
+function refreshOptLabels() {
+  for (const id in OPT_FMT) { const el = document.querySelector('[data-for=' + id + ']'); if (el) el.textContent = OPT_FMT[id](+$(id).value); }
+  for (const id of ['setPreset', 'setTarget']) { const sel = $(id), ov = sel.parentNode.querySelector('.ov'); if (ov && sel.selectedIndex >= 0) ov.textContent = sel.options[sel.selectedIndex].text; }
+}
+document.querySelectorAll('#settings input').forEach(el => el.addEventListener('input', refreshOptLabels));
+document.querySelectorAll('[data-otab]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-otab]').forEach(o => o.classList.toggle('on', o === b));
+  document.querySelectorAll('[data-opage]').forEach(pg => pg.classList.toggle('hidden', pg.dataset.opage !== b.dataset.otab));
+  if (b.dataset.otab === 'system') refreshSystemInfo(); Sound.ui();
+}));
+$('setPreset').addEventListener('change', e => { applyPreset(e.target.value); openSettings(); saveSettings(); refreshOptLabels(); });
 function refreshSystemInfo() {
   const gl = renderer.getContext(), dbg = gl.getExtension('WEBGL_debug_renderer_info');
   const gpu = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
@@ -985,7 +1006,7 @@ function updateSky(dt) {
   if (U.uUnder.value > 0.5) U.uFogColor.value.setRGB(0.06, 0.18, 0.4).multiplyScalar(0.4 + 0.6 * dn);
   else U.uFogColor.value.copy(horizon);
   const farCap = (VIEW_CHUNKS - 0.9) * CS;
-  U.uFogFar.value = Math.min(fogCur.far, farCap); U.uFogNear.value = Math.min(fogCur.near, U.uFogFar.value * 0.6);
+  U.uFogFar.value = Math.min(fogCur.far, farCap); U.uFogNear.value = Math.min(fogCur.near, U.uFogFar.value * 0.7);
   sky.position.copy(camera.position); celestial.position.copy(camera.position);
   celestial.rotation.x = ang;
   starMat.opacity = clamp(1 - dn * 1.6, 0, 1);
@@ -1045,7 +1066,7 @@ viewModel.add(vmT); vmT.add(vmArm); vmArm.add(vmR1); vmR1.add(vmR2); vmR2.add(vm
 let viewId = -1, viewMesh = null, equip = 1, lastYaw = 0, lastPitch = 0;
 const VM = { swayX: 0, swayY: 0, bobDist: 0, bob: 0 };
 // resting poses (view space, metres; rotations in radians)
-const HOLD = { item: { pos: [0.5, -0.25, -0.72], rot: [-0.2, 0.35, 1.0], scale: 0.5 }, block: { pos: [0.54, -0.27, -0.7], rot: [0.32, 0.78, 0], scale: 0.33 }, arm: { pos: [0.7, -0.6, -0.36], rot: [1.0, 0.45, -0.2] } };
+const HOLD = { item: { pos: [0.5, -0.25, -0.72], rot: [-0.2, 0.35, 1.0], scale: 0.5 }, block: { pos: [0.56, -0.32, -0.74], rot: [0.32, 0.78, 0], scale: 0.24 }, arm: { pos: [0.7, -0.6, -0.36], rot: [1.0, 0.45, -0.2] } };
 const D2R = Math.PI / 180;
 function updateViewModel(dt) {
   const s = heldItem(), id = s ? s.id : 0;

@@ -20,6 +20,18 @@ const ICONS = {
   foodempty: pixelIcon(['.....kk..', '....keek.', '...keeek.', '..keeeek.', '.keeeek..', 'kekeek...', 'eeekk....', 'kek......', '.........'], { k: '#1a0e06', e: '#3a2a1a' }),
 };
 
+// armour slot outlines (16x16), drawn faint in empty slots like the classic inventory
+function silhouette(rows) { const c = document.createElement('canvas'); c.width = c.height = 16; const g = c.getContext('2d'); g.fillStyle = '#373737'; rows.forEach((r, y) => [...r].forEach((ch, x) => { if (ch === '#') g.fillRect(x, y, 1, 1); })); return c.toDataURL(); }
+const ARMOR_PH = [
+  ['................', '................', '................', '....########....', '...#########....', '..##########....', '..###....###....', '..##......##....', '..##......##....', '................'].map(r => r + ''),
+  ['................', '..###....###....', '.####....####...', '.############...', '.############...', '..##########....', '...########.....', '...########.....', '...########.....', '...########.....', '...########.....', '...########.....', '................'],
+  ['................', '................', '...#########....', '...#########....', '...###...###....', '...###...###....', '...###...###....', '...###...###....', '...###...###....', '...###...###....', '...###...###....', '................'],
+  ['................', '................', '................', '................', '................', '...###....###...', '...###....###...', '...###....###...', '..####....####..', '.#####....#####.', '.#####....#####.', '................'],
+].map(r => '<img src="' + silhouette(r) + '">');
+const RELIC_PH = '<img src="' + silhouette(['................', '................', '.......##.......', '......####......', '.....##..##.....', '....##....##....', '....##....##....', '.....##..##.....', '......####......', '.......##.......', '.......##.......', '......####......', '.....######.....', '................']) + '">';
+// dark dirt behind the loading screen, from the world's own dirt texture
+(function dirtBackground() { try { const [sx, sy] = [(Atlas.tiles.dirt % 16) * 16, Math.floor(Atlas.tiles.dirt / 16) * 16], c = document.createElement('canvas'); c.width = c.height = 16; const g = c.getContext('2d'); g.drawImage(Atlas.canvas, sx, sy, 16, 16, 0, 0, 16, 16); g.fillStyle = 'rgba(0,0,0,.72)'; g.fillRect(0, 0, 16, 16); document.documentElement.style.setProperty('--dirt-bg', 'url(' + c.toDataURL() + ')'); } catch (e) { } })();
+
 // ---------------------------------------------------------------- HUD
 const hud = { hearts: $('hearts'), food: $('food'), hotbar: $('hotbar'), charge: $('charge'), toast: $('toast'), held: $('heldname') };
 let lastHudKey = '';
@@ -121,13 +133,13 @@ function renderInventory() {
   const fillSlots = (el, arr, from, to, kind, phs) => { el.innerHTML = ''; for (let i = from; i < to; i++) el.appendChild(slotEl(arr, i, kind, phs && phs[i - from])); };
   fillSlots($('mainSlots'), Inv.slots, 9, 36, 'main');
   fillSlots($('hotSlots'), Inv.slots, 0, 9, 'main');
-  fillSlots($('armorSlots'), Inv.armor, 0, 4, 'armor', ['Helm', 'Chest', 'Legs', 'Boots']);
-  fillSlots($('relicSlots'), Inv.relics, 0, 2, 'relic', ['Relic', 'Relic']);
+  fillSlots($('armorSlots'), Inv.armor, 0, 4, 'armor', ARMOR_PH);
+  fillSlots($('relicSlots'), Inv.relics, 0, 2, 'relic', [RELIC_PH, RELIC_PH]);
   if (containerKey) { const c = Chests.get(containerKey); fillSlots($('containerSlots'), c.items, 0, c.items.length, 'chest'); }
   // crafting grid
-  const cg = $('craftGrid'); cg.innerHTML = ''; cg.style.width = (craftSize * 48 + 4) + 'px';
+  const cg = $('craftGrid'); cg.innerHTML = ''; cg.style.width = (craftSize * 40) + 'px';
   for (let i = 0; i < craftSize * craftSize; i++) cg.appendChild(slotEl(CraftGrid, i, 'craft'));
-  $('craftSizeNote').textContent = craftSize === 3 ? '(3×3 table)' : '(2×2 · stand near a crafting table for 3×3)';
+  $('craftSizeNote').textContent = '';
   const match = matchRecipe(CraftGrid, craftSize), out = $('craftOut');
   out.innerHTML = '';
   const os = document.createElement('div'); os.className = 'slot' + (match ? ' ready' : '');
@@ -139,7 +151,7 @@ function renderInventory() {
   const set = fullSet();
   $('stats').innerHTML = 'Health <b>' + Math.ceil(Player.hp) + '/' + maxHealth() + '</b><br>Armor <b>' + a + '</b> (−' + red + '% dmg)<br>Melee <b>' + (hasRelic('melee') ? '+25%' : '+0%') + '</b>' + (set === 'prism' ? ' <b>+15%</b>' : '') + '<br>' + (set ? '<span style="color:#c77dff">' + SET_BONUS[set] + '</span><br>' : '') + 'Gold <b>' + countItem(I.gold) + '</b><br>Days survived <b>' + Math.floor(Game.day) + '</b>';
   const near = nearTable();
-  $('tableNote').textContent = near ? '(crafting table)' : '';
+  $('tableNote').textContent = near ? '' : '· table recipes need a Crafting Table';
   const box = $('recipes'); box.innerHTML = '';
   const sorted = RECIPES.map(r => ({ r, ok: canCraft(r, near) })).sort((a, b) => (b.ok - a.ok));
   for (const { r, ok } of sorted) {
