@@ -1,0 +1,270 @@
+'use strict';
+/* The player: movement input, flying, sprinting and sneaking, the camera (first person, behind, in front),
+   health, hunger (exhaustion and saturation with the game's costs), air, experience, armour and death. */
+class Player extends Living {
+  constructor(x, y, z) {
+    super('player', x, y, z);
+    this.isPlayer = true; this.w = 0.6; this.h = 1.8; this.speed = 0.1; this.flySpeed = 0.05;
+    this.inv = new PlayerInventory();
+    this.gamemode = 'survival'; this.flying = false; this.mayFly = false;
+    this.food = 20; this.saturation = 5; this.exhaustion = 0; this.foodTick = 0;
+    this.xpLevel = 0; this.xpProgress = 0; this.xpTotal = 0; this.score = 0;
+    this.eyeH = 1.62; this.peyeH = 1.62; this.bob = 0; this.pbob = 0; this.view = 0;
+    this.spawn = null; this.sleeping = null; this.sleepTimer = 0;
+    this.lastTapW = 0; this.lastTapSpace = 0; this.sprintTap = false; this.useTicks = 0; this.using = null;
+    this.attackCooldown = 0; this.enderChest = new Inventory(27); this.portalTicks = 0; this.inPortal = null;
+    this.fovMod = 1; this.pfovMod = 1; this.hurtDir = 0; this.deathCause = '';
+  }
+  get eyeY() { return this.y + this.eyeH; }
+  heldItem() { return this.inv.held; }
+  animState(s) { s.holdRight = !!this.inv.held; s.holdLeft = !!this.inv.offhand; const u = this.using && ITEMS[this.using.id].name; if (u === 'bow') s.bow = true; if (u === 'shield') s.blocking = true; if (u === 'spyglass') s.spyglass = true; if (this.using && ITEMS[this.using.id].food) s.eating = true; }
+  get creative() { return this.gamemode === 'creative'; }
+  get spectator() { return this.gamemode === 'spectator'; }
+  get noFallDamage() { return this.creative || this.spectator || this.flying; }
+  setGamemode(m) {
+    this.gamemode = m;
+    this.mayFly = m === 'creative' || m === 'spectator';
+    if (!this.mayFly) this.flying = false;
+    if (m === 'spectator') { this.flying = true; this.noClip = true; } else this.noClip = false;
+    HUD.refresh();
+  }
+  // ---------------------------------------------------------------- input
+  readInput() {
+    const ui = UI.screenOpen() || !Input.locked;
+    const k = a => !ui && Input.isDown(a);
+    this.forward = (k('forward') ? 1 : 0) - (k('back') ? 1 : 0);
+    this.strafe = (k('left') ? 1 : 0) - (k('right') ? 1 : 0);
+    const now = this.age;
+    if (!ui && Input.wasPressed('forward')) { if (now - this.lastTapW < 7) this.sprintTap = true; this.lastTapW = now; }
+    if (!k('forward')) this.sprintTap = false;
+    this.sneaking = k('sneak') && !this.flying;
+    this.sneakEdge = this.sneaking && !this.spectator;
+    this.jumping = k('jump');
+    if (!ui && Input.wasPressed('jump') && this.mayFly) { if (now - this.lastTapSpace < 7) { this.flying = !this.flying || this.spectator; this.lastTapSpace = -100; } else this.lastTapSpace = now; }
+    if (this.sleeping || this.dead) { this.forward = this.strafe = 0; this.jumping = false; }
+    if (this.sneaking) { this.forward *= 0.3; this.strafe *= 0.3; }
+    if (this.using) { this.forward *= 0.2; this.strafe *= 0.2; }
+    // sprint: Ctrl or double-tap forward; not when hungry, sneaking, using an item, or walking into a wall
+    const canSprint = (this.food > 6 || this.mayFly) && !this.sneaking && !this.using && !this.effect('blindness');
+    if (canSprint && this.forward > 0.8 && (k('sprint') || this.sprintTap)) this.sprinting = true;
+    if (this.sprinting && (this.forward <= 0.8 || !canSprint || (this.hitH && !this.flying) || (this.inWater && !this.eyesInWater && !this.flying && false))) this.sprinting = false;
+    if (this.flying) {
+      this.vy += ((k('jump') ? 1 : 0) - (k('sneak') ? 1 : 0)) * this.flySpeed * 3;
+      this.jumping = false;
+      if (this.onGround && !this.spectator) this.flying = false;
+    }
+  }
+  tick() {
+    this.readInput();
+    this.tickBase();
+    if (this.spectator) { this.inWater = this.inLava = false; this.fireTicks = 0; }
+    this.tickLiving();
+    if (this.dead) { if (this.deathTime === 20) UI.showDeath(); return; }
+    this.peyeH = this.eyeH;
+    this.eyeH += ((this.sneaking ? 1.27 : this.sleeping ? 0.2 : 1.62) - this.eyeH) * 0.5;
+    this.h = this.sneaking ? 1.5 : 1.8;
+    // view bobbing follows the walking speed
+    this.pbob = this.bob;
+    const hs = Math.min(0.1, Math.hypot(this.x - this.px, this.z - this.pz));
+    this.bob += ((this.onGround && !this.dead ? hs : 0) - this.bob) * 0.4;
+    // field of view: faster movement widens it
+    this.pfovMod = this.fovMod;
+    let f = 1; if (this.flying) f *= 1.1; f *= (this.speedAttr / 0.1 + 1) / 2; if (this.using && ITEMS[this.using.id].name === 'bow') { const t = Math.min(1, this.useTicks / 20); f *= 1 - t * t * 0.15; }
+    if (this.using && ITEMS[this.using.id].name === 'spyglass') f = 0.1;
+    this.fovMod += (f - this.fovMod) * 0.5;
+    this.tickSurvival();
+    if (this.attackCooldown < 1000) this.attackCooldown++;
+    if (this.xpCooldown > 0) this.xpCooldown--;
+    if (!this.spectator) this.pickUp();
+    Hand && Hand.tick(this);
+    Beds.tick(this); Beds.phantoms(this); if (!this.spectator) Stats.tick(this);
+    if (this.sleeping && Input.wasPressed('sneak')) Beds.wake(this);
+    // walking: exhaustion and step sounds
+    const moved = Math.hypot(this.x - this.px, this.z - this.pz);
+    if (this.onGround && moved > 0.001 && !this.flying) { this.stepAcc = (this.stepAcc || 0) + moved; if (this.stepAcc > 1.6 && !this.sneaking) { this.stepAcc = 0; Sound.step(this); } }
+    if (this.sprinting && this.onGround) this.exhaust(0.1 * moved);
+    if (this.inWater && moved > 0) this.exhaust(0.01 * moved);
+  }
+  // items within reach of the player's box (grown by 1 sideways and 0.5 up and down) are picked up
+  pickUp() {
+    for (const e of Entities.list) {
+      if (e.type !== 'item' || e.removed || e.pickupDelay > 0) continue;
+      if (Math.abs(e.x - this.x) > 1 + this.w / 2 + e.w / 2 || e.y + e.h < this.y - 0.5 || e.y > this.y + this.h + 0.5 || Math.abs(e.z - this.z) > 1 + this.w / 2 + e.w / 2) continue;
+      const before = e.stack.count, left = this.inv.addItem(e.stack);
+      const got = before - (left ? left.count : 0);
+      if (got <= 0) continue;
+      Stats.add('picked_up', ITEMS[e.stack.id].name, got);
+      Advancements.check && Advancements.check('pickup', ITEMS[e.stack.id].name);
+      Sound.play('pop', this, { pitch: ((Math.random() - Math.random()) * 0.7 + 1) * 2 });
+      if (EntityRender && EntityRender.pickup) EntityRender.pickup(e, this);
+      if (left) e.stack.count = left.count; else e.removed = true;
+      HUD.refresh();
+    }
+  }
+  onJump() { this.exhaust(this.sprinting ? 0.2 : 0.05); Stats.add('custom', 'jump'); }
+  onLand(dist, block) { if (dist > 3) Sound.play('fall', this, { big: dist > 6, block }); }
+  // ---------------------------------------------------------------- survival
+  exhaust(x) { if (this.creative || this.spectator || Game.difficulty === 'peaceful') return; this.exhaustion = Math.min(40, this.exhaustion + x); }
+  eat(n, sat) { this.food = Math.min(20, this.food + n); this.saturation = Math.min(this.food, this.saturation + n * sat * 2); }
+  tickSurvival() {
+    if (this.creative || this.spectator) { this.air = 300; return; }
+    // hunger: exhaustion drains saturation first, then the food bar
+    if (this.exhaustion > 4) { this.exhaustion -= 4; if (this.saturation > 0) this.saturation = Math.max(0, this.saturation - 1); else if (Game.difficulty !== 'peaceful') this.food = Math.max(0, this.food - 1); }
+    const regen = Game.rules.naturalRegeneration;
+    if (Game.difficulty === 'peaceful') { if (this.age % 20 === 0) this.heal(1); if (this.age % 10 === 0 && this.food < 20) this.food++; }
+    if (regen && this.saturation > 0 && this.food >= 20 && this.health < this.maxHealth) {
+      // full food bar and saturation: fast healing (every half second)
+      if (++this.foodTick >= 10) { const k = Math.min(this.saturation, 6); this.heal(k / 6); this.exhaust(k); this.foodTick = 0; }
+    } else if (regen && this.food >= 18 && this.health < this.maxHealth) {
+      if (++this.foodTick >= 80) { this.heal(1); this.exhaust(6); this.foodTick = 0; }
+    } else if (this.food <= 0) {
+      if (++this.foodTick >= 80) { const lim = Game.difficulty === 'hard' ? 0 : Game.difficulty === 'normal' ? 1 : 10; if (this.health > lim) this.hurt(1, 'starve'); this.foodTick = 0; }
+    } else this.foodTick = 0;
+    // air under water
+    if (this.eyesInWater && !this.effect('water_breathing') && !this.effect('conduit_power')) {
+      const resp = this.armorEnch('respiration');
+      if (resp === 0 || Math.random() < 1 / (resp + 1)) this.air--;
+      if (this.air <= -20) { this.air = 0; this.hurt(2, 'drown'); }
+    } else if (this.air < 300) this.air = Math.min(300, this.air + 4);
+    // suffocation inside blocks
+    const ex = Math.floor(this.x), ey = Math.floor(this.eyeY), ez = Math.floor(this.z), eb = World.getBlock(ex, ey, ez);
+    if (OPAQUE[eb] && SOLID[eb] && !this.noClip && this.age % 10 === 0) this.hurt(1, 'inWall');
+    // standing on magma, in cactus, berry bushes, fire
+    const under = World.getBlock(Math.floor(this.x), Math.floor(this.y - 0.2), Math.floor(this.z));
+    if (under === BID.magma_block && !this.sneaking && !this.fireImmune && !this.armorEnch('frost_walker')) this.hurt(1, 'hotFloor');
+    if (Phys.touching(this, id => id === BID.cactus, 0.01)) this.hurt(1, 'cactus');
+    if (Phys.touching(this, id => id === BID.sweet_berry_bush) && (Math.abs(this.x - this.px) > 0.003 || Math.abs(this.z - this.pz) > 0.003)) this.hurt(1, 'sweetBerryBush');
+    if (Phys.touching(this, id => id === BID.fire || id === BID.soul_fire || (id === BID.campfire) || id === BID.soul_campfire)) { if (!this.effect('fire_resistance')) this.hurt(1, 'inFire'); this.fireTicks = Math.max(this.fireTicks, 160); }
+    if (Phys.touching(this, id => id === BID.wither_rose)) this.addEffect('wither', 40, 0);
+  }
+  get fireImmune() { return !!this.effect('fire_resistance') || this.creative || this.spectator; }
+  armorEnch(e) { let m = 0; for (let i = 0; i < 4; i++) m = Math.max(m, enchLevel(this.inv.armor(i), e)); return m; }
+  armorEnchSum(e) { let m = 0; for (let i = 0; i < 4; i++) m += enchLevel(this.inv.armor(i), e); return m; }
+  updateArmor() {
+    let p = 0, t = 0, kb = 0;
+    for (let i = 0; i < 4; i++) { const s = this.inv.armor(i); if (s && ITEMS[s.id].armor) { const a = ITEMS[s.id].armor; p += a.pts; t += a.tough; kb += a.kb; } }
+    this.armorPts = p; this.toughness = t; this.kbResist = kb; this.depthStrider = this.armorEnch('depth_strider');
+  }
+  // damage: armour, toughness and Protection reduce it (the 1.9+ formulas)
+  hurt(amount, source, attacker) {
+    if (this.dead || amount <= 0) return false;
+    if (this.creative && source !== 'outOfWorld' && source !== 'kill') return false;
+    if (this.spectator && source !== 'kill') return false;
+    if (Game.difficulty === 'peaceful' && attacker && attacker.hostile) return false;
+    if ((source === 'inFire' || source === 'onFire' || source === 'lava' || source === 'hotFloor' || source === 'fireball') && this.effect('fire_resistance')) return false;
+    if (attacker && attacker.hostile && attacker.type !== 'player') amount = Game.scaleDamage(amount);
+    if (this.sleeping) Beds.wake(this);
+    // shield blocks attacks from the front
+    if (this.using && ITEMS[this.using.id].name === 'shield' && this.useTicks >= 5 && attacker && ['mob', 'arrow', 'explosion', 'fireball'].includes(sourceKind(source))) {
+      const ax = attacker.x - this.x, az = attacker.z - this.z, lv = this.lookVec();
+      if (ax * lv[0] + az * lv[2] > 0) { Sound.play('shield_block', this); damageItem(this.using, Math.floor(amount) + 1, this, () => { this.inv.held = null; this.using = null; }); if (attacker.type === 'vindicator' || (attacker.heldAxe)) { this.shieldCooldown = 100; this.using = null; } return false; }
+    }
+    if (this.invul > 10) { if (amount <= this.lastDamage) return false; const d = amount - this.lastDamage; this.lastDamage = amount; amount = d; }
+    else { this.lastDamage = amount; this.invul = 20; this.hurtTime = 10; }
+    const bypassArmor = ['fall', 'drown', 'starve', 'magic', 'wither', 'outOfWorld', 'inWall', 'kill', 'flyIntoWall', 'freeze'].includes(source);
+    if (!bypassArmor) {
+      const a = this.armorPts, t = this.toughness;
+      amount = amount * (1 - Math.min(20, Math.max(a / 5, a - 4 * amount / (t + 8))) / 25);
+      // armour wears out
+      for (let i = 0; i < 4; i++) { const s = this.inv.armor(i); if (s && ITEMS[s.id].dur) damageItem(s, Math.max(1, Math.floor(this.lastDamage / 4)), this, () => { this.inv.set(36 + i, null); Sound.play('break_item', this); this.updateArmor(); }); }
+    }
+    const res = this.effect('resistance'); if (res && source !== 'outOfWorld') amount *= Math.max(0, 1 - 0.2 * (res.amp + 1));
+    if (!['outOfWorld', 'starve', 'kill'].includes(source)) {
+      let epf = this.armorEnchSum('protection');
+      if (['inFire', 'onFire', 'lava', 'hotFloor', 'fireball'].includes(source)) epf += 2 * this.armorEnchSum('fire_protection');
+      if (source === 'explosion') epf += 2 * this.armorEnchSum('blast_protection');
+      if (source === 'arrow' || source === 'projectile' || source === 'trident') epf += 2 * this.armorEnchSum('projectile_protection');
+      if (source === 'fall') epf += 3 * this.armorEnchSum('feather_falling');
+      amount *= 1 - Math.min(20, epf) / 25;
+    }
+    // absorption hearts take damage first
+    if (this.absorption > 0) { const k = Math.min(this.absorption, amount); this.absorption -= k; amount -= k; }
+    this.exhaust(0.1);
+    this.health -= amount; Stats.add('custom', 'damage_taken', amount);
+    this.lastHurtBy = attacker || null; this.lastHurtTime = this.age;
+    if (attacker) { this.hurtDir = Math.atan2(attacker.z - this.z, attacker.x - this.x) * 180 / Math.PI - this.yaw * 180 / Math.PI; }
+    Sound.play('player_hurt', this, { source });
+    // thorns on armour
+    if (attacker && attacker.hurt && !bypassArmor) { const th = this.armorEnch('thorns'); if (th && Math.random() < 0.15 * th) attacker.hurt(1 + Math.floor(Math.random() * 4), 'thorns', this); }
+    if (this.health <= 0) {
+      // a totem of undying in either hand saves you
+      const hands = [this.inv.selected, 40];
+      for (const h of hands) { const s = this.inv.get(h); if (s && ITEMS[s.id].name === 'totem_of_undying') { this.inv.set(h, null); this.health = 1; this.effects.clear(); this.addEffect('regeneration', 900, 1); this.addEffect('absorption', 100, 1); this.addEffect('fire_resistance', 800, 0); Particles.totem(this); Sound.play('totem', this); HUD.totem(); return true; } }
+      this.die(source, attacker);
+    }
+    return true;
+  }
+  knockback(strength, dx, dz) {
+    strength *= 1 - this.kbResist; if (strength <= 0) return;
+    const l = Math.hypot(dx, dz) || 1;
+    this.vx = this.vx / 2 - dx / l * strength; this.vz = this.vz / 2 - dz / l * strength;
+    if (this.onGround) this.vy = Math.min(0.4, this.vy / 2 + strength);
+  }
+  die(source, attacker) {
+    if (this.dead) return;
+    this.dead = true; this.health = 0; this.deathTime = 0; this.flying = false;
+    Stats.add('custom', 'deaths'); if (Stats.raw.custom) Stats.raw.custom.time_since_death = 0; if (this.sleeping) Beds.wake(this);
+    this.deathCause = DeathMessages.text(this, source, attacker);
+    Chat.system(this.deathCause);
+    if (!Game.rules.keepInventory) {
+      for (let i = 0; i < this.inv.size; i++) { const s = this.inv.get(i); if (s && !enchLevel(s, 'vanishing_curse')) Drops.spawnItem(this.x, this.y + 1, this.z, s, true); }
+      this.inv.clear();
+      const xp = Math.min(100, this.xpLevel * 7);
+      Drops.spawnXp(this.x, this.y + 0.5, this.z, xp);
+      this.xpLevel = 0; this.xpProgress = 0; this.xpTotal = 0;
+    }
+    this.updateArmor();
+  }
+  respawn() {
+    const sp = Beds.respawnPoint(this);
+    if (World.dim !== sp.dim) Portals.changeDim(sp.dim, sp.x, sp.y, sp.z, true);
+    this.x = this.px = sp.x; this.y = this.py = sp.y; this.z = this.pz = sp.z;
+    this.vx = this.vy = this.vz = 0; this.dead = false; this.deathTime = 0; this.health = this.maxHealth = 20; this.food = 20; this.saturation = 5; this.exhaustion = 0;
+    this.air = 300; this.fireTicks = 0; this.fallDistance = 0; this.effects.clear(); this.absorption = 0; this.hurtTime = 0;
+  }
+  // ---------------------------------------------------------------- experience (the game's level curve)
+  static xpForLevel(l) { return l >= 30 ? 112 + (l - 30) * 9 : l >= 15 ? 37 + (l - 15) * 5 : 7 + l * 2; }
+  addXp(n) {
+    this.score += n;
+    this.xpProgress += n / Player.xpForLevel(this.xpLevel);
+    this.xpTotal = Math.max(0, this.xpTotal + n);
+    while (this.xpProgress >= 1) { this.xpProgress = (this.xpProgress - 1) * Player.xpForLevel(this.xpLevel); this.xpLevel++; this.xpProgress /= Player.xpForLevel(this.xpLevel); if (this.xpLevel % 5 === 0) Sound.play('levelup', this); }
+  }
+  addLevels(n) { this.xpLevel = Math.max(0, this.xpLevel + n); if (this.xpProgress >= 1) this.xpProgress = 0; }
+  // ---------------------------------------------------------------- camera
+  updateCamera(a) {
+    const x = this.px + (this.x - this.px) * a, y = this.py + (this.y - this.py) * a, z = this.pz + (this.z - this.pz) * a;
+    const eh = this.peyeH + (this.eyeH - this.peyeH) * a;
+    let cx = x, cy = y + eh, cz = z;
+    let yaw = this.yaw, pitch = this.pitch, roll = 0;
+    if (this.vehicle && this.vehicle.seatY !== undefined) { cy = this.vehicle.renderY(a) + this.vehicle.seatY + 0.5; }
+    if (this.sleeping) { cy = this.sleeping.y + 0.7; pitch = -0.5; }
+    // bobbing and hurt tilt
+    const bob = this.pbob + (this.bob - this.pbob) * a, wd = this.pwalkDist + (this.walkDist - this.pwalkDist) * a;
+    let bx = 0, by = 0, bp = 0;
+    if (Settings.bobbing && this.view === 0 && !this.flying) {
+      const g = wd * Math.PI;
+      bx = Math.sin(g) * bob * 0.5; by = -Math.abs(Math.cos(g) * bob); roll += Math.sin(g) * bob * 3 * Math.PI / 180; bp = Math.abs(Math.cos(g - 0.2) * bob) * 5 * Math.PI / 180;
+    }
+    if (this.hurtTime > 0 && !this.dead) { const h = (this.hurtTime - a) / 10; roll += -Math.sin(h * h * h * h * Math.PI) * 14 * Math.PI / 180 * Math.cos(this.hurtDir * Math.PI / 180); }
+    if (this.dead) roll = Math.min(this.deathTime + a, 20) / 20 * 40 * Math.PI / 180;
+    // nausea wobble
+    const nau = this.effect('nausea'); if (nau) { roll += Math.sin(this.age * 0.15) * 0.15; }
+    camera.rotation.set(-(pitch + bp), yaw, -roll);
+    const right = [Math.cos(yaw), 0, -Math.sin(yaw)];
+    cx += right[0] * bx; cz += right[2] * bx; cy += by;
+    if (this.view !== 0) {
+      // third person: back off along the view direction until a block is in the way
+      const dir = this.lookVec(), sign = this.view === 1 ? -1 : 1;
+      let dist = 4;
+      const hit = Phys.raycast(cx, cy, cz, dir[0] * sign, dir[1] * sign, dir[2] * sign, 4.1, id => OPAQUE[id]);
+      if (hit) dist = Math.max(0.3, hit.t - 0.3);
+      cx += dir[0] * sign * dist; cy += dir[1] * sign * dist; cz += dir[2] * sign * dist;
+      if (this.view === 2) camera.rotation.set(pitch, yaw + Math.PI, 0);
+    }
+    camera.position.set(cx, cy, cz);
+    const fm = this.pfovMod + (this.fovMod - this.pfovMod) * a;
+    camera.fov = Settings.fov * fm * (this.eyesInWater ? 0.857 : 1);
+  }
+}
+function sourceKind(s) { if (s === 'arrow' || s === 'projectile' || s === 'trident') return 'arrow'; if (s === 'explosion') return 'explosion'; if (s === 'fireball') return 'fireball'; if (s === 'mob' || s === 'player') return 'mob'; return s; }
