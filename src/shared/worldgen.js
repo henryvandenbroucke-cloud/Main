@@ -705,6 +705,19 @@ SHARED.push(function worldgenModule(G) {
         out.heights[x + z * 16] = top;
       }
       const w = new ChunkWriter(out, cx, cz);
+      // the ten obsidian spikes around the main island (the game's SpikeFeature)
+      for (const sp of this.spikes()) {
+        if (sp.x + sp.r < x0 || sp.x - sp.r > x0 + 15 || sp.z + sp.r < z0 || sp.z - sp.r > z0 + 15) continue;
+        for (let x = sp.x - sp.r; x <= sp.x + sp.r; x++) for (let z = sp.z - sp.r; z <= sp.z + sp.r; z++) {
+          if (!w.inside(x, z)) continue;
+          const d2 = (x - sp.x) ** 2 + (z - sp.z) ** 2;
+          for (let y = 0; y <= sp.h + 10; y++) { if (d2 <= sp.r * sp.r + 1 && y < sp.h) w.set(x, y, z, B.obsidian, 0); else if (y > 65) w.set(x, y, z, 0, 0); }
+        }
+        if (sp.guarded) for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) for (let dy = 0; dy <= 3; dy++) {
+          if (Math.abs(dx) === 2 || Math.abs(dz) === 2 || dy === 3) w.set(sp.x + dx, sp.h + dy, sp.z + dz, B.iron_bars, 0);
+        }
+        w.set(sp.x, sp.h, sp.z, B.bedrock, 0); w.set(sp.x, sp.h + 1, sp.z, B.fire, 0);
+      }
       if (G.Structures) G.Structures.placeEnd(this, w, cx, cz);
       // chorus plants on the outer islands
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
@@ -717,6 +730,18 @@ SHARED.push(function worldgenModule(G) {
         }
       }
       return out;
+    }
+    // spike i stands at angle i * 36 degrees, 42 blocks out; its size comes from a shuffled index
+    spikes() {
+      if (this._spikes) return this._spikes;
+      const idx = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], r = new Rand(hashInt(this.seed, 5, 5, 31));
+      for (let i = idx.length - 1; i > 0; i--) { const j = r.int(i + 1); const t = idx[i]; idx[i] = idx[j]; idx[j] = t; }
+      const out = [];
+      for (let i = 0; i < 10; i++) {
+        const a = 2 * (-Math.PI + Math.PI / 10 * i), l = idx[i];
+        out.push({ x: Math.floor(42 * Math.cos(a)), z: Math.floor(42 * Math.sin(a)), r: 2 + Math.floor(l / 3), h: 76 + l * 3, guarded: l === 1 || l === 2 });
+      }
+      return (this._spikes = out);
     }
     chorus(w, r, x, y, z, depth) {
       const h = 1 + r.int(depth ? 3 : 4);

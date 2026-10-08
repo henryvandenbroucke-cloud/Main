@@ -15,7 +15,7 @@ scene.add(camera);
 const skyScene = new THREE.Scene(), skyCam = new THREE.PerspectiveCamera(70, 1, 0.5, 400); skyCam.rotation.order = 'YXZ';
 
 const LIGHT_GLSL = `
-uniform float uSkyLight; uniform vec3 uSkyTint; uniform float uGamma; uniform float uAmbient; uniform float uNV; uniform float uFlicker; uniform float uDark;
+uniform float uSkyLight; uniform vec3 uSkyTint; uniform float uGamma; uniform float uAmbient; uniform float uNV; uniform float uFlicker; uniform float uDark; uniform float uForceBright;
 float lmBr(float f){ return mix(f / (4.0 - 3.0 * f), 1.0, uAmbient); }
 vec3 lightmap(float sky, float blk){
   float s = lmBr(sky) * uSkyLight;
@@ -23,6 +23,8 @@ vec3 lightmap(float sky, float blk){
   vec3 bl = vec3(b, b * ((b * 0.6 + 0.4) * 0.6 + 0.4), b * (b * b * 0.6 + 0.4));
   vec3 lm = bl + uSkyTint * s;
   lm = mix(lm, vec3(0.75), 0.04);
+  // the End's lightmap is forced bright (DimensionSpecialEffects.forceBrightLightmap)
+  if (uForceBright > 0.0) lm = mix(lm, vec3(0.99, 1.12, 1.0), 0.25);
   lm = clamp(lm, 0.0, 1.0);
   if (uNV > 0.0) { float m = max(lm.r, max(lm.g, lm.b)); lm = mix(lm, lm / max(m, 0.001), uNV); }
   vec3 g = 1.0 - pow(1.0 - lm, vec3(4.0));
@@ -32,7 +34,7 @@ vec3 lightmap(float sky, float blk){
 }`;
 const U = {
   uTex: { value: null }, uTime: { value: 0 }, uSkyLight: { value: 1 }, uSkyTint: { value: new THREE.Color(1, 1, 1) }, uGamma: { value: 0.5 }, uAmbient: { value: 0 }, uNV: { value: 0 },
-  uFlicker: { value: 1 }, uDark: { value: 0 }, uFogColor: { value: new THREE.Color(0xc0d8ff) }, uFogStart: { value: 100 }, uFogEnd: { value: 128 },
+  uFlicker: { value: 1 }, uDark: { value: 0 }, uForceBright: { value: 0 }, uFogColor: { value: new THREE.Color(0xc0d8ff) }, uFogStart: { value: 100 }, uFogEnd: { value: 128 },
 };
 const VOX_VERT = `
 in vec4 aUV; in vec4 aLight; in vec4 aColor;

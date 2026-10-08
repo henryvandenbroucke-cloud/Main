@@ -317,7 +317,13 @@ void main(){
           }
           case 'fire': if (rnd(24) === 0) Sound.play('fire_ambient', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 }); for (let i = 0; i < 3; i++) smokeAt(x + rand(), y + rand() * 0.5 + 0.5, z + rand(), 0, 0, 0, true); break;
           case 'campfire': if ((World.getState(x, y, z) & 8) === 0) { if (rnd(10) === 0) Sound.play('campfire_crackle', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 }); if (rnd(5) === 0) lavaPop(x + 0.5, y + 0.5, z + 0.5); } break;
-          case 'portal': if (rnd(100) === 0) Sound.play('portal_ambient', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 }); for (let i = 0; i < 4; i++) { const p = generic(x + rand(), y + rand(), z + rand(), (rand() - 0.5) * 0.5, (rand() - 0.5) * 0.5, (rand() - 0.5) * 0.5, { size: 0.1 * (rand() * 0.2 + 0.5), life: 40 + rnd(10), phys: false, drag: 1, bright: true }); const f = rand() * 0.6 + 0.4; p.r = f * 0.9; p.g = f * 0.3; p.b = f; p.spriteFn = s => 'portal_' + Math.min(7, Math.floor(s.age / s.life * 8)); } break;
+          case 'portal': if (rnd(100) === 0) Sound.play('portal_ambient', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 }); for (let i = 0; i < 4; i++) {
+            // the game's PortalParticle: it starts off to one side and drifts back into the portal
+            const sx = x + rand(), sy = y + rand(), sz = z + rand(), vx = (rand() - 0.5) * 0.5, vy = (rand() - 0.5) * 0.5, vz = (rand() - 0.5) * 0.5;
+            const p = generic(sx + vx, sy + vy + 1, sz + vz, 0, 0, 0, { size: 0.1 * (rand() * 0.2 + 0.5), life: Math.floor(rand() * 10) + 40, phys: false, drag: 1, bright: true, sprite: 'generic_' + rnd(8) });
+            const f = rand() * 0.6 + 0.4; p.r = f * 0.9; p.g = f * 0.3; p.b = f;
+            p.update = q => { const t = q.age / q.life, f1 = -t + t * t * 2, f2 = 1 - f1; q.x = sx + vx * f2; q.y = sy + vy * f2 + (1 - t); q.z = sz + vz * f2; };
+          } break;
         }
         if (n === 'lava' && World.getBlock(x, y + 1, z) === 0 && rnd(100) === 0) { lavaPop(x + rand(), y + 1, z + rand()); Sound.play('lava_pop', null, { x: x + 0.5, y: y + 1, z: z + 0.5 }); }
         if ((n === 'water' || BLOCKS[World.getBlock(x, y, z)].fluid) && rnd(10) === 0 && World.getBlock(x, y - 1, z) === 0 && false) drip(x + rand(), y - 0.05, z + rand(), n === 'lava');
@@ -337,7 +343,12 @@ void main(){
     const f = rand() * 0.6 + 0.4; p.r = 0.9 * f * 0.9; p.g = 0.9 * f * 0.9; p.b = 0.9 * f;
     p.update = q => { const t = 1 - q.age / q.life, u = (1 - t) ** 4; q.x = x + dx * t; q.y = y + dy * t - u * 1.2; q.z = z + dz * t; };
   }
+  // dragon's breath: purple puffs that drift and fade
+  function dragonBreath(x, y, z) {
+    const p = generic(x, y, z, (rand() - 0.5) * 0.02, rand() * 0.02, (rand() - 0.5) * 0.02, { sprite: 'generic_' + rnd(8), size: 0.15, life: 20 + rnd(20), grav: 0, phys: false, drag: 0.96, bright: true });
+    const f = rand() * 0.2 + 0.8; p.r = 0.7 * f; p.g = 0.1 * f; p.b = 0.9 * f;
+  }
   function clear() { for (const k in SYS) SYS[k].list.length = 0; }
-  const api = { enchantGlyph, tick, render, blockBreak, blockHit, itemBreak, crit, magicCrit, sweep, smoke, poof, heart, happy, boneMeal, angry, totem, portal, bubble, splash, explosion, furnace, campfireSmoke, eat, slime, potionSplash, effects, note, firework, fireworkTrail, dust, drip, lavaPop, snow, damage, flameAt, smokeAt, clear, gust: (x, y, z) => explosion(x, y, z, false), sheet };
+  const api = { dragonBreath, enchantGlyph, tick, render, blockBreak, blockHit, itemBreak, crit, magicCrit, sweep, smoke, poof, heart, happy, boneMeal, angry, totem, portal, bubble, splash, explosion, furnace, campfireSmoke, eat, slime, potionSplash, effects, note, firework, fireworkTrail, dust, drip, lavaPop, snow, damage, flameAt, smokeAt, clear, gust: (x, y, z) => explosion(x, y, z, false), sheet };
   return new Proxy(api, { get: (t, k) => (k in t ? t[k] : () => {}) });
 })();

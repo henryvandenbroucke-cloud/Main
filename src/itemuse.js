@@ -87,7 +87,7 @@ const ItemUse = (() => {
         return false;
       case 'armor_stand': { const fx = x + DX[hit.face], fy = y + DY[hit.face], fz = z + DZ[hit.face]; if (hit.face === 1 && World.getBlock(fx, fy, fz) === 0 && World.getBlock(fx, fy + 1, fz) === 0) { Decor.armorStand(fx + 0.5, fy, fz + 0.5, p.yaw + Math.PI); consumeFrom(p, offhand); return true; } return false; }
       case 'painting': case 'item_frame': case 'glow_item_frame': if (hit.face >= 0) { if (Decor.hang(n, x, y, z, hit.face, p)) { consumeFrom(p, offhand); return true; } } return false;
-      case 'end_crystal': if ((d.name === 'obsidian' || d.name === 'bedrock') && World.getBlock(x, y + 1, z) === 0 && World.getBlock(x, y + 2, z) === 0) { Mobs.spawnEntity && Mobs.spawnEntity('end_crystal', x + 0.5, y + 1, z + 0.5); consumeFrom(p, offhand); return true; } return false;
+      case 'end_crystal': if ((d.name === 'obsidian' || d.name === 'bedrock') && World.getBlock(x, y + 1, z) === 0 && World.getBlock(x, y + 2, z) === 0) { Entities.add(new EndCrystal(x + 0.5, y + 1, z + 0.5, false)); consumeFrom(p, offhand); return true; } return false;
       case 'firework_rocket': { Projectiles.firework(x + 0.5 + DX[hit.face] * 0.5, y + 0.5 + DY[hit.face] * 0.5, z + 0.5 + DZ[hit.face] * 0.5, s.tag, null); consumeFrom(p, offhand); return true; }
       case 'ender_eye': return false;
       case 'lead': if (d.model === 'fence') return Leads.tieToFence(p, x, y, z); return false;

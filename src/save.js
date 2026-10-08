@@ -134,7 +134,7 @@ const Save = (() => {
     return {
       player: playerData(Game.player), dayTime: Game.dayTime, gameTime: Game.gameTime, rules: Object.assign({}, Game.rules), spawn: Game.spawn,
       difficulty: Game.difficulty, weather: typeof Weather.save === 'function' ? Weather.save() : null,
-      dragon: typeof Dragon !== 'undefined' && Dragon.save ? Dragon.save() : null, extra: Game.extra || null,
+      dragon: typeof EndFight !== 'undefined' && EndFight.save ? EndFight.save() : null, portals: Portals.save(), extra: Game.extra || null,
     };
   }
 
@@ -183,7 +183,8 @@ const Save = (() => {
     meta = m; dirty.clear(); lastSave = 0;
     World.savedChunks = state && state.chunks ? state.chunks : { overworld: new Map(), nether: new Map(), end: new Map() };
     if (state && state.weather && typeof Weather.load === 'function') Weather.pending = state.weather;
-    if (state && state.dragon && typeof Dragon !== 'undefined' && Dragon.load) Dragon.pending = state.dragon;
+    if (typeof EndFight !== 'undefined' && EndFight.load) EndFight.load(state && state.dragon);
+    Portals.load(state && state.portals);
     Game.extra = state && state.extra ? state.extra : null;
   }
   async function saveGame() {

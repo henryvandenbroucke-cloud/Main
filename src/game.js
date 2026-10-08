@@ -84,6 +84,8 @@ const Game = {
       else return;
     }
     Sky.update(this.dayTime, 0);
+    // waiting for the ground in another dimension to load
+    if (Portals.arriving) { Portals.tick(p); return; }
     p.tick();
     Interact.tick(p);
     for (const e of Entities.list) if (!e.removed) { e.tick(); }
@@ -94,6 +96,8 @@ const Game = {
     Mobs.tick();
     Weather.tick();
     Portals.tick(p);
+    if (World.dim === 'end') EndFight.afterArrival(p);
+    EndFight.tick();
     Sound.tick(p);
     HUD.tick();
     Save.tick();
@@ -140,6 +144,7 @@ const Loop = (() => {
     const sk = Sky.skyFactor; U.uSkyTint.value.setRGB(sk * 0.65 + 0.35, sk * 0.65 + 0.35, 1);
     U.uAmbient.value = World.dim === 'nether' ? 0.1 : World.dim === 'end' ? 0 : 0;
     if (World.dim === 'end') { U.uSkyLight.value = 0; U.uAmbient.value = 0.0; }
+    U.uForceBright.value = World.dim === 'end' ? 1 : 0;
     U.uGamma.value = Settings.gamma;
     U.uFlicker.value = 1.0 + (Math.random() - 0.5) * 0.02;
     const nv = p.effect('night_vision'); U.uNV.value = nv ? (nv.dur > 200 ? 1 : 0.7 + Math.sin((nv.dur - a) * Math.PI * 0.2) * 0.3) : 0;

@@ -305,6 +305,38 @@ EntityRender = (() => {
     update(a) { const e = this.e; this.obj.position.set(lerp(e.px, e.x, a), lerp(e.py, e.y, a), lerp(e.pz, e.z, a)); this.obj.rotation.set(-lerp(e.ppitch, e.pitch, a), lerpAng(e.pyaw, e.yaw, a), 0, 'YXZ'); const [sl, bl] = lightAt(e.x, e.y, e.z); this.m.material.uniforms.uEnv.value.set(sl, bl); }
     dispose() { scene.remove(this.obj); this.m.material.dispose(); }
   }
+  // end crystals: a pink core inside two turning glass frames, over a bedrock base (EndCrystalRenderer)
+  const crystalTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 16; const g = c.getContext('2d'); return { glass: (() => { g.clearRect(0, 0, 16, 16); g.strokeStyle = 'rgba(220,200,255,0.9)'; g.lineWidth = 2; g.strokeRect(1, 1, 14, 14); g.fillStyle = 'rgba(200,170,255,0.18)'; g.fillRect(2, 2, 12, 12); const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; return t; })() }; })();
+  class CrystalVisual {
+    constructor(e) {
+      this.e = e; this.obj = new THREE.Group(); scene.add(this.obj);
+      this.glassMat = new THREE.MeshBasicMaterial({ map: crystalTex.glass, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+      this.coreMat = new THREE.MeshBasicMaterial({ color: 0xe07cff });
+      this.outer = new THREE.Mesh(new THREE.BoxGeometry(0.875, 0.875, 0.875), this.glassMat);
+      this.inner = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.76, 0.76), this.glassMat);
+      this.core = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), this.coreMat);
+      this.outer.add(this.inner); this.inner.add(this.core); this.obj.add(this.outer);
+      if (e.showBottom) { this.baseMat = new THREE.MeshBasicMaterial({ color: 0x3a3a3a }); this.base = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.25, 0.75), this.baseMat); this.base.position.y = 0.125; this.obj.add(this.base); }
+    }
+    update(a) {
+      const e = this.e, t = e.time + a;
+      this.obj.position.set(lerp(e.px, e.x, a), lerp(e.py, e.y, a), lerp(e.pz, e.z, a));
+      const bob = Math.sin(t * 0.2) / 2 + 0.5, y = (bob * bob + bob) * 0.4 - 1.4 + 2.2;
+      this.outer.position.y = y * 0.5 + 0.2; this.outer.rotation.set(0.6, t * 3 * Math.PI / 180 * 3, 0.6);
+      this.inner.rotation.set(0.6 * Math.sin(t * 0.05), t * 0.06, 0.6); this.core.rotation.set(t * 0.04, t * 0.07, 0);
+    }
+    dispose() { scene.remove(this.obj); this.glassMat.dispose(); this.coreMat.dispose(); if (this.baseMat) this.baseMat.dispose(); for (const m of [this.outer, this.inner, this.core, this.base]) if (m) m.geometry.dispose(); }
+  }
+  // dragon fireballs: a purple glowing ball
+  class GlowVisual {
+    constructor(e, color, size) { this.e = e; this.mat = new THREE.SpriteMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending }); this.obj = new THREE.Sprite(this.mat); this.obj.scale.setScalar(size); scene.add(this.obj); }
+    update(a) { const e = this.e; this.obj.position.set(lerp(e.px, e.x, a), lerp(e.py, e.y, a), lerp(e.pz, e.z, a)); }
+    dispose() { scene.remove(this.obj); this.mat.dispose(); }
+  }
+  const NONE = { update() {}, dispose() {} };
+  factories.end_crystal = e => new CrystalVisual(e);
+  factories.dragon_fireball = e => new GlowVisual(e, 0xb040ff, 1.2);
+  factories.area_effect_cloud = () => NONE;
   factories.arrow = e => new ArrowVisual(e);
   factories.lightning_bolt = () => ({ update() {}, dispose() {} });
   factories.trident = e => new TridentVisual(e);

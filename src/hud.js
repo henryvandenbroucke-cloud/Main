@@ -130,6 +130,7 @@ const HUD = (() => {
       for (let i = 0; i < 10; i++) { const x = fx - i * 8 * S, y = fy - 10 * S; if (i < n) sprite('bubble', x, y); else if (i < n + pop) sprite('bubble_pop', x, y); }
     }
   }
+  let portalCanvas = null;
   function overlays(p, a) {
     // vignette darkens the edges a little (more in the dark)
     const vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
@@ -137,7 +138,14 @@ const HUD = (() => {
     g.fillStyle = vg; g.fillRect(0, 0, W, H);
     const helm = p.inv.armor(0);
     if (helm && ITEMS[helm.id].name === 'carved_pumpkin' && p.view === 0) { g.fillStyle = 'rgba(30,15,0,0.85)'; g.fillRect(0, 0, W, H); g.clearRect(W * 0.3, H * 0.35, W * 0.12, H * 0.12); g.clearRect(W * 0.58, H * 0.35, W * 0.12, H * 0.12); g.fillStyle = 'rgba(220,120,20,0.25)'; g.fillRect(W * 0.3, H * 0.35, W * 0.12, H * 0.12); g.fillRect(W * 0.58, H * 0.35, W * 0.12, H * 0.12); }
-    if (p.inPortalTime > 0) { const f = Math.min(1, p.inPortalTime / 80); g.fillStyle = `rgba(110,30,200,${f * 0.6})`; g.fillRect(0, 0, W, H); }
+    // the swirling portal over the view while waiting in a nether portal (the game's renderPortalOverlay)
+    if (p.portalTime > 0 && !p.creative) {
+      let f = Math.min(1, p.portalTime / 80); if (f < 1) f = f * f * f * 0.8 + 0.2;
+      const t = Tex.get('nether_portal'), fr = t.frames ? Math.floor(performance.now() / 100) % t.frames : 0;
+      if (!portalCanvas) { portalCanvas = document.createElement('canvas'); portalCanvas.width = portalCanvas.height = 16; }
+      const pc = portalCanvas.getContext('2d'), img = pc.createImageData(16, 16); img.data.set(Tex.paint('nether_portal', fr)); pc.putImageData(img, 0, 0);
+      g.save(); g.globalAlpha = f; g.imageSmoothingEnabled = false; g.drawImage(portalCanvas, 0, 0, W, H); g.restore();
+    }
     if (p.fireTicks > 0 && p.view === 0 && !p.fireImmune) { const t = performance.now() / 80; for (let i = 0; i < 12; i++) { const x = W * (i / 12), h = H * (0.25 + 0.08 * Math.sin(t + i * 1.7)); const gr = g.createLinearGradient(0, H, 0, H - h); gr.addColorStop(0, 'rgba(255,140,20,0.85)'); gr.addColorStop(1, 'rgba(255,220,80,0)'); g.fillStyle = gr; g.fillRect(x, H - h, W / 12 + 2, h); } }
     if (p.eyesInWater) { g.fillStyle = 'rgba(20,40,110,0.18)'; g.fillRect(0, 0, W, H); }
     if (p.freeze > 0) { g.fillStyle = `rgba(200,230,255,${Math.min(0.6, p.freeze / 140 * 0.6)})`; g.fillRect(0, 0, W, H); }

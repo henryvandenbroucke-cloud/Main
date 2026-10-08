@@ -185,7 +185,7 @@ const UI = (() => {
       let have = 0, total = 0;
       for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) { total++; const c = World.getChunk(pcx + dx, pcz + dz); if (c && c.lit && !c.dirty.some(x => x)) have++; }
       const bar = document.getElementById('loadBar'); if (bar) bar.style.width = (100 * have / total) + '%';
-      if (have >= total && Game.spawnReady) { hide(); Input.requestLock(); Advancements.welcome && Advancements.welcome(); }
+      if (have >= total && Game.spawnReady && !Portals.arriving) { hide(); Input.requestLock(); Advancements.welcome && Advancements.welcome(); }
     }
     if (page === 'title') { const sp = root.querySelector('.splash'); if (sp) sp.style.transform = `rotate(-20deg) scale(${1.8 - Math.abs(Math.sin(performance.now() / 1000 * Math.PI * 2 / 1.5)) * 0.1})`; }
     const p = Game.player;
