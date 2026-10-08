@@ -81,6 +81,10 @@ const Save = (() => {
   }
   // a chunk is stored if it was changed or holds entities; unchanged empty chunks are just generated again
   function storeChunk(c, unloading) {
+    if (!meta || !World.savedChunks) { // not saving (title panorama, tests): entities there just go away
+      if (unloading) for (const e of Entities.list) if (!e.isPlayer && e.dim === c.dim && Math.floor(e.x) >> 4 === c.cx && Math.floor(e.z) >> 4 === c.cz) e.removed = true;
+      return;
+    }
     const ents = entitiesIn(c);
     if (!c.modified && !ents.length && !c.fromSave) return;
     const rec = encodeChunk(c, ents);
