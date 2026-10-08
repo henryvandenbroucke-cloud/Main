@@ -11,5 +11,4 @@ const Decor = stub({});
 const Fishing = stub({});
 const Maps = stub({});
 const Leads = stub({});
-const Structures = stub({ locate() { return null; } });
 const Signs = stub({});

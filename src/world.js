@@ -94,6 +94,11 @@ const World = {
     if (dim !== this.dim) return;
     const c = new Chunk(dim, cx, cz, d);
     if (fromSave) { c.modified = true; if (d.beList) for (const b of d.beList) c.be.set(LIDX(b.x & 15, b.y, b.z & 15), b); c.pendingEntities = d.ents || []; c.fromSave = true; }
+    else {
+      // things the generator put in a new chunk: mobs of its structures, and items named in its containers
+      if (d.ents && d.ents.length) c.pendingEntities = d.ents.slice();
+      for (const b of c.be.values()) if (b.items) b.items = b.items.map(v => (v && v.$s ? Save.unpack(v) : v));
+    }
     this.chunks.set(k, c);
     Light.initChunk(c);
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) { const n = this.getChunk(cx + dx, cz + dz); if (n) n.dirty.fill(1); }

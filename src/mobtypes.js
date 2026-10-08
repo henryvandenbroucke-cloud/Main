@@ -600,7 +600,7 @@ const Mobs = (() => {
   function spawnable(type, x, y, z) {
     const below = World.getBlock(x, y - 1, z), bd = BLOCKS[below];
     const st = MOB_STATS[type], group = st ? st[4] : 'monster';
-    if (group === 'water') return BLOCKS[World.getBlock(x, y, z)].fluid === 'water' && BLOCKS[World.getBlock(x, y + 1, z)].fluid === 'water';
+    if (group === 'water' || type === 'guardian') return BLOCKS[World.getBlock(x, y, z)].fluid === 'water' && BLOCKS[World.getBlock(x, y + 1, z)].fluid === 'water';
     if (group === 'ambient') return World.getBlock(x, y, z) === 0 && y < 63 && World.lightLevel(x, y, z) <= rnd(4);
     if (!SOLID[below] || !bd.opaque && bd.model !== 'slab' && !bd.name.endsWith('_leaves') || below === BID.bedrock || below === BID.barrier || bd.name.endsWith('glass')) return false;
     if (bd.model === 'slab' && !((World.getState(x, y - 1, z) >> 3) & 2) && ((World.getState(x, y - 1, z) >> 3) & 3) === 0) return false;
@@ -637,6 +637,14 @@ const Mobs = (() => {
     const y0 = MINY + rnd(Math.max(1, top - MINY + 1));
     const bi = World.biomeAt(x0, z0), b = BIOMES[bi];
     let list = cat === 'monster' ? b.hostile : cat === 'creature' ? b.passive : cat === 'water' ? b.waterMobs : [['bat', 10, 8, 8]];
+    // structures with their own spawns (the game's structure spawn overrides)
+    if (cat === 'monster' || (cat === 'creature' && World.dim === 'overworld')) {
+      const here = Structures.at(x0, y0, z0, World.dim === 'nether' ? ['fortress'] : ['ocean_monument', 'swamp_hut', 'pillager_outpost']);
+      if (here.includes('fortress') && cat === 'monster') list = [['blaze', 10, 2, 3], ['zombified_piglin', 5, 4, 4], ['wither_skeleton', 8, 5, 5], ['skeleton', 2, 5, 5], ['magma_cube', 3, 4, 4]];
+      else if (here.includes('ocean_monument') && cat === 'monster') list = [['guardian', 1, 2, 4]];
+      else if (here.includes('swamp_hut')) list = cat === 'monster' ? [['witch', 1, 1, 1]] : [['cat', 1, 1, 1]];
+      else if (here.includes('pillager_outpost') && cat === 'monster') list = [['pillager', 1, 1, 1]];
+    }
     if (cat === 'monster' && World.dim === 'overworld' && b.name === 'mushroom_fields') return;
     if (cat === 'monster' && World.dim === 'overworld' && y0 < 0 && b.name === 'deep_dark') return;
     if (!list || !list.length) return;

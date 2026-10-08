@@ -366,8 +366,11 @@ SHARED.push(function worldgenModule(G) {
         snowy_taiga: 10, savanna: 1, savanna_plateau: 2, windswept_forest: 10, windswept_hills: 0.2, windswept_savanna: 2, jungle: 50, sparse_jungle: 3, bamboo_jungle: 12,
         wooded_badlands: 5, meadow: 0.1, cherry_grove: 1.5, grove: 10, snowy_plains: 0.1, swamp: 2, mangrove_swamp: 8, plains: 0.05, sunflower_plains: 0.05, mushroom_fields: 1, ice_spikes: 0 }[bio] || 0;
       let n = Math.floor(T) + (r.next() < T - Math.floor(T) ? 1 : 0);
+      // no trees on village streets and lots
+      const bare = n && this.structures && G.Structures ? G.Structures.treeless(this, cx, cz) : null;
       for (let k = 0; k < n; k++) {
         const x = cx * 16 + r.int(16), z = cz * 16 + r.int(16);
+        if (bare && bare.some(q => x >= q[0] - 3 && x <= q[2] + 3 && z >= q[1] - 3 && z <= q[3] + 3)) continue;
         at(x, z); const y = c.h + 1, b = BIOMES[c.biome].name;
         if (c.h < SEA && b !== 'mangrove_swamp') continue;
         // only checks that give the same answer from every chunk (noise, not blocks), so a tree is never cut in half
