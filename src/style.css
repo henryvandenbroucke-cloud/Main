@@ -173,3 +173,24 @@ input { font-family: inherit; }
 .gpart.beaconpyr { color: #3a6a8a; font-size: calc(var(--fs) * 0.8); letter-spacing: calc(var(--s) * 0.5); }
 .gpart.beaconitems span { position: absolute; top: 0; }
 .gpart.beaconitems .icon { position: absolute; }
+
+/* ---------------------------------------------------------------- villager trading */
+.gpart.tradelistbg { background: #8b8b8b; box-shadow: inset var(--s) var(--s) 0 #373737, inset calc(var(--s) * -1) calc(var(--s) * -1) 0 #fff; }
+.gpart.tradelist { overflow: hidden; }
+.tradebtn { position: absolute; left: 0; width: calc(var(--s) * 88); height: calc(var(--s) * 20); box-sizing: border-box; background: #c6c6c6; border: var(--s) solid; border-color: #fff #555 #555 #fff; }
+.tradebtn:hover { background: #d8d8ff; }
+.tradebtn.sel { background: #a8a8e0; border-color: #373797 #fff #fff #373797; }
+.tradebtn.out { background: #8b8b8b; }
+.tradebtn > span { position: absolute; top: calc(var(--s) * 1); }
+.tradebtn .icon { position: absolute; }
+.tradebtn .count { position: absolute; }
+.tradebtn .ta { left: calc(var(--s) * 4); } .tradebtn .tb { left: calc(var(--s) * 30); } .tradebtn .tout { left: calc(var(--s) * 66); }
+.tradebtn .ta, .tradebtn .tb, .tradebtn .tout { width: calc(var(--s) * 16); height: calc(var(--s) * 16); }
+.tradebtn s { position: absolute; left: calc(var(--s) * -3); top: calc(var(--s) * -1); color: #ff5555; font-size: calc(var(--fs) * 0.7); }
+.tradebtn .tarrow { left: calc(var(--s) * 50); top: calc(var(--s) * 5); width: calc(var(--s) * 10); height: calc(var(--s) * 9); background: linear-gradient(#373737, #373737) 0 50% / 60% calc(var(--s) * 3) no-repeat; }
+.tradebtn .tarrow::after { content: ''; position: absolute; right: 0; top: 0; border: calc(var(--s) * 4.5) solid transparent; border-left: calc(var(--s) * 4) solid #373737; border-right: 0; }
+.tradebtn .tarrow.x::before { content: '✖'; position: absolute; left: 0; top: calc(var(--s) * -3); color: #ff3a3a; font-size: var(--fs); }
+.gpart.tradetitle { width: calc(var(--s) * 175); text-align: center; color: #404040; white-space: nowrap; line-height: var(--lh); margin-top: calc(var(--s) * -1); }
+.gpart.tradexp { width: calc(var(--s) * 102); height: calc(var(--s) * 5); background: #2a2a2a; box-shadow: 0 0 0 var(--s) #000; }
+.gpart.tradexp i, .gpart.tradexp b { position: absolute; top: 0; height: 100%; left: 0; }
+.gpart.tradexp i { background: #80ff20; } .gpart.tradexp b { background: #c8ffa0; }

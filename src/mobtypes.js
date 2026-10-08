@@ -338,10 +338,15 @@ class Villager extends Mob {
     g.add(1, new G.Panic(this, 0.6)); g.add(3, new G.RandomStroll(this, 0.6)); g.add(4, new G.LookAtPlayer(this, 8, 0.05)); g.add(5, new G.LookAtPlayer(this, 8, 0.03, 'villager')); g.add(6, new G.RandomLookAround(this));
   }
   onInteract(p, s) { if (this.baby) { this.shake = 40; Sound.play('villager_no', this); return true; } if (typeof Trading !== 'undefined') { Trading.open(p, this); return true; } this.shake = 40; Sound.play('villager_no', this); return true; }
-  aiStep() { if (this.shake > 0) this.shake--; }
+  aiStep() {
+    if (this.shake > 0) this.shake--;
+    if (this.tradingWith) { const p = this.tradingWith; this.nav.stop && this.nav.stop(); this.lookAt(p.x, p.eyeY, p.z); if (this.distTo(p) > 8 || p.dead) this.tradingWith = null; }
+    Trading.jobTick(this);
+  }
   animState(s) { s.unhappy = this.shake > 0; }
   onLightning() { const w = Mobs.spawnEntity('witch', this.x, this.y, this.z); if (w) w.persistent = true; this.removed = true; }
-  saveExtra(d) { d.profession = this.profession; d.level = this.level; d.trades = this.trades; d.xp = this.xp || 0; } loadExtra(d) { this.profession = d.profession; this.level = d.level || 1; this.trades = d.trades; this.xp = d.xp || 0; }
+  saveExtra(d) { d.profession = this.profession; d.level = this.level; d.trades = this.trades; d.xp = this.xp || 0; d.job = this.job; d.vtype = this.vtype; d.restocks = this.restocks; d.lastRestock = this.lastRestock; }
+  loadExtra(d) { this.profession = d.profession; this.level = d.level || 1; this.trades = d.trades; this.xp = d.xp || 0; this.job = d.job || null; this.vtype = d.vtype; this.restocks = d.restocks || 0; this.lastRestock = d.lastRestock; if (this.profession && this.type === 'villager') this.model = 'villager_' + this.profession; }
 }
 reg('villager', Villager);
 class WanderingTrader extends Villager { constructor(t, x, y, z) { super('wandering_trader', x, y, z); this.persistent = false; this.despawnTime = 48000; } aiStep() { super.aiStep(); if (--this.despawnTime <= 0) this.removed = true; } }

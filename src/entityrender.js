@@ -338,6 +338,8 @@ EntityRender = (() => {
       if (e.removed || e.invisible) continue;
       if (p && e.dist2(p.x, p.y, p.z) > R) continue;
       let v = vis.get(e);
+      // a villager that takes a profession changes its clothes (a different model texture)
+      if (v && e.model && v.name && v.name !== e.model) { v.dispose(); v = null; }
       if (!v) { v = make(e); vis.set(e, v); }
       seen.add(e);
       v.update(a, animState(e, a));

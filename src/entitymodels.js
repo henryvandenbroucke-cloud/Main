@@ -485,6 +485,26 @@ const EntityModels = (() => {
   def('ocelot', 64, 32, catParts(), { anim: 'cat', skin: SK.ocelot, babyHead: 2 });
   def('villager', 64, 64, villagerParts({ rim: false }), { anim: 'villager', skin: SK.villager, scale: 0.9375, babyHead: 3 });
   def('wandering_trader', 64, 64, villagerParts({ rim: false }), { anim: 'villager', skin: SK.wandering_trader, scale: 0.9375 });
+  // professions: the robe, its trim and the hat each one wears over the villager
+  const hatTop = (col, rows, band) => S2 => { const H = S2.faces(32, 0, 8, 10, 8); S2.fill(H.top[0], H.top[1], 8, 8, col, 0.08); for (const f of ['front', 'back', 'left', 'right']) { S2.fill(H[f][0], H[f][1], f === 'left' || f === 'right' ? 8 : 8, rows, col, 0.08); if (band) S2.fill(H[f][0], H[f][1] + rows - 1, 8, 1, band, 0.05); } };
+  const rimHat = col => S2 => { S2.fill(30, 47, 16, 16, col, 0.1); for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const d = Math.hypot(x - 7.5, y - 7.5); if (d > 8) S2.px(30 + x, 47 + y, 0, 0); } };
+  const PROF = {
+    farmer: [0x8a6a3a, 0x5a3e26, { hat: S2 => { hatTop(0xd8c070, 2)(S2); rimHat(0xd8c070)(S2); } }, true],
+    fisherman: [0x5a6e4a, 0x3a4a2a, { hat: S2 => { hatTop(0xc8b070, 3)(S2); rimHat(0xb8a060)(S2); } }, true],
+    shepherd: [0x9a7a5a, 0xe8e0d0, { hat: hatTop(0xe8e0d0, 3, 0x7a5a3a) }],
+    fletcher: [0x8a7a5a, 0x5a8a3a, { hat: hatTop(0x6a4a2a, 2, 0xd84a3a) }],
+    librarian: [0xe8e4d8, 0x8a2a2a, { hat: hatTop(0xa02020, 4, 0x3a1a1a) }],
+    cartographer: [0x8a6a3a, 0xd8b44a, { hat: hatTop(0x5a4a3a, 2), eye: 0xd8b44a }],
+    cleric: [0x6a2a8a, 0xd8b44a, { hat: hatTop(0x6a2a8a, 3) }],
+    armorer: [0x3a3a3a, 0x8a8a8a, { hat: hatTop(0x2a2a2a, 5, 0x6a6a6a) }],
+    weaponsmith: [0x3a2a2a, 0x1a1a1a, { hat: hatTop(0x1a1a1a, 2) }],
+    toolsmith: [0x4a4a4a, 0x2a2a2a, { hat: hatTop(0x2a2a2a, 2) }],
+    butcher: [0xe8e8e0, 0xc03030, { hat: hatTop(0xc03030, 2) }],
+    leatherworker: [0x8a4a2a, 0x5a2a1a, { hat: hatTop(0x6a3a1a, 2) }],
+    mason: [0x3a3a3a, 0xd8d8d8, { hat: hatTop(0x2a2a2a, 2) }],
+    nitwit: [0x3a7a3a, 0x2a5a2a, {}],
+  };
+  for (const k in PROF) { const [robe, trim, o, rim] = PROF[k]; def('villager_' + k, 64, 64, villagerParts({ rim: !!rim }), { anim: 'villager', skin: s => robeSkin(s, robe, trim, o), scale: 0.9375, babyHead: 3 }); }
   def('witch', 64, 128, villagerParts({ rim: false }).map(p => { if (p.n === 'head') p.c.push(P('witch_hat', [-5, -10.03125, -5], 0, [[0, 64, 0, 0, 0, 10, 2, 10]], [P('hat2', [1.75, -4, 2], [-0.05235988, 0, 0.02617994], [[0, 76, 0, 0, 0, 7, 4, 7]], [P('hat3', [1.75, -4, 2], [-0.10471976, 0, 0.05235988], [[0, 87, 0, 0, 0, 4, 4, 4]], [P('hat4', [1.75, -2, 2], [-0.20943952, 0, 0.10471976], [[0, 95, 0, 0, 0, 1, 2, 1, 0.25]])])])])); return p; }),
     { anim: 'villager', skin: s => { SK.witch(s); s.box(0, 64, 10, 2, 10, 0x2a2a3a, 0.08); s.box(0, 76, 7, 4, 7, 0x2a2a3a, 0.08); s.box(0, 87, 4, 4, 4, 0x2a2a3a, 0.08); s.box(0, 95, 1, 2, 1, 0x2a2a3a, 0.08); const H2 = s.faces(0, 76, 7, 4, 7); s.fill(H2.front[0], H2.front[1] + 3, 7, 1, 0x4a8a2a, 0); }, scale: 0.9375 });
   def('iron_golem', 128, 128, [
