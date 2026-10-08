@@ -118,8 +118,9 @@ class Living extends Entity {
     strafe *= speed / l; forward *= speed / l;
     const s = Math.sin(this.yaw), c = Math.cos(this.yaw);
     // yaw 0 looks toward -z (north)
-    this.vx += strafe * c - forward * s;
-    this.vz += -strafe * s - forward * c;
+    // strafe is positive to the left, which is (-cos, sin) when facing (-sin, -cos)
+    this.vx += -strafe * c - forward * s;
+    this.vz += strafe * s - forward * c;
   }
   travel() {
     const strafe = this.strafe * 0.98, forward = this.forward * 0.98;

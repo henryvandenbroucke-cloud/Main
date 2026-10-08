@@ -72,11 +72,29 @@ class Player extends Living {
     this.fovMod += (f - this.fovMod) * 0.5;
     this.tickSurvival();
     if (this.attackCooldown < 1000) this.attackCooldown++;
+    if (this.xpCooldown > 0) this.xpCooldown--;
+    if (!this.spectator) this.pickUp();
     // walking: exhaustion and step sounds
     const moved = Math.hypot(this.x - this.px, this.z - this.pz);
     if (this.onGround && moved > 0.001 && !this.flying) { this.stepAcc = (this.stepAcc || 0) + moved; if (this.stepAcc > 1.6 && !this.sneaking) { this.stepAcc = 0; Sound.step(this); } }
     if (this.sprinting && this.onGround) this.exhaust(0.1 * moved);
     if (this.inWater && moved > 0) this.exhaust(0.01 * moved);
+  }
+  // items within reach of the player's box (grown by 1 sideways and 0.5 up and down) are picked up
+  pickUp() {
+    for (const e of Entities.list) {
+      if (e.type !== 'item' || e.removed || e.pickupDelay > 0) continue;
+      if (Math.abs(e.x - this.x) > 1 + this.w / 2 + e.w / 2 || e.y + e.h < this.y - 0.5 || e.y > this.y + this.h + 0.5 || Math.abs(e.z - this.z) > 1 + this.w / 2 + e.w / 2) continue;
+      const before = e.stack.count, left = this.inv.addItem(e.stack);
+      const got = before - (left ? left.count : 0);
+      if (got <= 0) continue;
+      Stats.add('picked_up', ITEMS[e.stack.id].name, got);
+      Advancements.check && Advancements.check('pickup', ITEMS[e.stack.id].name);
+      Sound.play('pop', this, { pitch: ((Math.random() - Math.random()) * 0.7 + 1) * 2 });
+      if (EntityRender && EntityRender.pickup) EntityRender.pickup(e, this);
+      if (left) e.stack.count = left.count; else e.removed = true;
+      HUD.refresh();
+    }
   }
   onJump() { this.exhaust(this.sprinting ? 0.2 : 0.05); }
   onLand(dist, block) { if (dist > 3) Sound.play('fall', this, { big: dist > 6, block }); }
@@ -226,7 +244,7 @@ class Player extends Living {
     if (this.dead) roll = Math.min(this.deathTime + a, 20) / 20 * 40 * Math.PI / 180;
     // nausea wobble
     const nau = this.effect('nausea'); if (nau) { roll += Math.sin(this.age * 0.15) * 0.15; }
-    camera.rotation.set(-(pitch + bp), -yaw, -roll);
+    camera.rotation.set(-(pitch + bp), yaw, -roll);
     const right = [Math.cos(yaw), 0, -Math.sin(yaw)];
     cx += right[0] * bx; cz += right[2] * bx; cy += by;
     if (this.view !== 0) {
@@ -236,7 +254,7 @@ class Player extends Living {
       const hit = Phys.raycast(cx, cy, cz, dir[0] * sign, dir[1] * sign, dir[2] * sign, 4.1, id => OPAQUE[id]);
       if (hit) dist = Math.max(0.3, hit.t - 0.3);
       cx += dir[0] * sign * dist; cy += dir[1] * sign * dist; cz += dir[2] * sign * dist;
-      if (this.view === 2) camera.rotation.set(pitch, -yaw + Math.PI, 0);
+      if (this.view === 2) camera.rotation.set(pitch, yaw + Math.PI, 0);
     }
     camera.position.set(cx, cy, cz);
     const fm = this.pfovMod + (this.fovMod - this.pfovMod) * a;

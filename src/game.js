@@ -8,16 +8,18 @@ const Game = {
   // hostile mob damage by difficulty: easy = half + 1, hard = 1.5x
   scaleDamage(d) { if (this.difficulty === 'easy') return Math.min(d / 2 + 1, d); if (this.difficulty === 'hard') return d * 1.5; if (this.difficulty === 'peaceful') return 0; return d; },
   start(opts) {
+    Panorama.stop();
     this.seed = opts.seed; this.name = opts.name; this.worldId = opts.id;
     this.difficulty = opts.difficulty || 'normal'; this.hardcore = !!opts.hardcore; this.cheats = opts.cheats !== false;
     this.dayTime = opts.dayTime || 0; this.gameTime = opts.gameTime || 0;
     if (opts.rules) Object.assign(this.rules, opts.rules);
     World.dim = opts.dim || 'overworld';
-    World.init(this.seed);
+    this.worldType = opts.worldType || 'default'; this.structures = opts.structures !== false;
+    World.init(this.seed, { type: this.worldType, structures: this.structures });
     Clouds.setSeed(this.seed);
     // the spawn point: a dry land column near 0,0
     if (opts.spawn) this.spawn = opts.spawn;
-    else { const g = new Overworld(this.seed); this.spawn = g.spawnPoint(); }
+    else { const g = new Overworld(this.seed, { type: this.worldType }); this.spawn = g.spawnPoint(); }
     const p = new Player(this.spawn[0], this.spawn[1], this.spawn[2]);
     this.player = p;
     p.setGamemode(opts.gamemode || 'survival');
@@ -26,9 +28,35 @@ const Game = {
     Entities.list.length = 0; Entities.byId.clear();
     this.running = true; this.paused = false;
     this.spawnReady = !!opts.player;
+    this.bonusPending = !!opts.bonus;
     UI.enterGame();
   },
   stop() { this.running = false; for (const d in World.dims) { for (const c of World.dims[d].values()) for (const m of c.meshes) if (m) Render.disposeSection(m); World.dims[d].clear(); } Entities.list.length = 0; },
+  // like the game, the player spawns on a grass or podzol surface (never on a tree) near the world spawn
+  findSpawn(x0, z0) {
+    const top = (x, z) => { let y = MAXY; while (y > MINY && (World.getBlock(x, y, z) === 0 || !SOLID[World.getBlock(x, y, z)] && !FLUID[World.getBlock(x, y, z)])) y--; return y; };
+    const ok = new Set([BID.grass_block, BID.podzol, BID.mycelium, BID.sand, BID.snow_block, BID.dirt, BID.moss_block, BID.red_sand, BID.coarse_dirt]);
+    for (let r = 0; r <= 10; r++) for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dz)) !== r || !World.loaded(x0 + dx, z0 + dz)) continue;
+      const y = top(x0 + dx, z0 + dz), b = World.getBlock(x0 + dx, y, z0 + dz);
+      if (ok.has(b) && World.getBlock(x0 + dx, y + 2, z0 + dz) === 0) return [x0 + dx + 0.5, y + 1, z0 + dz + 0.5];
+    }
+    return [x0 + 0.5, top(x0, z0) + 1, z0 + 0.5];
+  },
+  // the bonus chest: next to the spawn point with a torch on each side, filled from the game's loot table
+  placeBonusChest() {
+    const sx = Math.floor(this.spawn[0]), sz = Math.floor(this.spawn[2]);
+    for (let k = 0; k < 64; k++) {
+      const x = sx + Math.floor(Math.random() * 7) - 3, z = sz + Math.floor(Math.random() * 7) - 3;
+      if (x === sx && z === sz) continue;
+      let y = MAXY; while (y > MINY && !SOLID[World.getBlock(x, y, z)] && !FLUID[World.getBlock(x, y, z)]) y--;
+      if (!SOLID[World.getBlock(x, y, z)] || !OPAQUE[World.getBlock(x, y, z)] || World.getBlock(x, y + 1, z) !== 0) continue;
+      World.setBlock(x, y + 1, z, BID.chest, 2);
+      World.setBE(x, y + 1, z, { type: 'container', items: new Array(27).fill(null), loot: 'chests/spawn_bonus_chest' });
+      for (let f = 2; f <= 5; f++) { const tx = x + DX[f], tz = z + DZ[f]; if (World.getBlock(tx, y + 1, tz) === 0 && SOLID[World.getBlock(tx, y, tz)]) World.setBlock(tx, y + 1, tz, BID.torch, 0); }
+      return;
+    }
+  },
   // load chunks in a spiral around the player, and drop the far ones
   stream() {
     const p = this.player; const pcx = Math.floor(p.x / 16), pcz = Math.floor(p.z / 16), R = Settings.renderDist + 1;
@@ -40,7 +68,7 @@ const Game = {
     // forget queued requests that are now out of range
     for (const [k, v] of World.pending) if (v !== true && !v.sent && (Math.abs(v.cx - pcx) > R || Math.abs(v.cz - pcz) > R)) { World.pending.delete(k); }
     World.genQueue = World.genQueue.filter(k => World.pending.has(k));
-    for (const c of World.chunks.values()) if (Math.abs(c.cx - pcx) > R + 2 || Math.abs(c.cz - pcz) > R + 2) { if (c.modified) Save.storeChunk(c); World.unload(c); }
+    for (const c of World.chunks.values()) if (Math.abs(c.cx - pcx) > R + 2 || Math.abs(c.cz - pcz) > R + 2) { Save.storeChunk(c, true); World.unload(c); }
     World.pump();
     return wanted;
   },
@@ -51,7 +79,7 @@ const Game = {
     // until the ground under the spawn exists, hold the player still
     if (!this.spawnReady) {
       const c = World.chunkAt(Math.floor(p.x), Math.floor(p.z));
-      if (c && c.lit) { let y = MAXY; while (y > MINY && !SOLID[World.getBlock(Math.floor(p.x), y, Math.floor(p.z))]) y--; p.y = p.py = y + 1; this.spawn[1] = y + 1; this.spawnReady = true; }
+      if (c && c.lit) { const sp = this.findSpawn(Math.floor(p.x), Math.floor(p.z)); p.x = p.px = sp[0]; p.z = p.pz = sp[2]; p.y = p.py = sp[1]; this.spawn = sp; this.spawnReady = true; if (this.bonusPending) { this.bonusPending = false; this.placeBonusChest(); } }
       else return;
     }
     Sky.update(this.dayTime, 0);
@@ -60,11 +88,13 @@ const Game = {
     for (const e of Entities.list) if (!e.removed) { e.tick(); }
     for (let i = Entities.list.length - 1; i >= 0; i--) if (Entities.list[i].removed) { const e = Entities.list[i]; Entities.byId.delete(e.id); if (e.onRemove) e.onRemove(); Entities.list.splice(i, 1); }
     Ticks.tick();
+    BlockEntities.tick();
     Mobs.tick();
     Weather.tick();
     Portals.tick(p);
     Sound.tick(p);
     HUD.tick();
+    Save.tick();
   },
 };
 
@@ -86,7 +116,7 @@ const Loop = (() => {
     let dt = now - last; last = now; if (dt > 250) dt = 250;
     frames++; fpsT += dt; if (fpsT >= 1000) { fps = frames; frames = 0; fpsT = 0; }
     Loop.fps = fps;
-    if (!Game.running) { UI.frame(dt); return; }
+    if (!Game.running) { if (Panorama.active) Panorama.frame(dt, now); UI.frame(dt); return; }
     const p = Game.player;
     if (!Game.paused) {
       acc += dt;
@@ -97,6 +127,7 @@ const Loop = (() => {
     look(p);
     const a = Game.paused ? 1 : acc / 50;
     Game.stream();
+    World.processArrived(Game.spawnReady ? 4 : 30);
     // meshes: spend a few milliseconds per frame, more while the world is first loading
     Render.updateMeshes(p.x, p.z, Game.spawnReady ? 6 : 14);
     Tex.refresh();

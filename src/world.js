@@ -31,8 +31,8 @@ const World = {
   workers: [], pending: new Map(), genQueue: [], loadedCount: 0, time: 0, day: 0,
   savedChunks: null, // dim -> Map(key -> saved chunk record), filled by the save system
   listeners: { chunkLoaded: [], chunkUnloaded: [], blockChanged: [] },
-  init(seed) {
-    this.seed = seed;
+  init(seed, opts) {
+    this.seed = seed; this.genOpts = opts || {}; this.genId = (this.genId || 0) + 1;
     for (const d in this.dims) this.dims[d] = new Map();
     this.chunks = this.dims[this.dim];
     if (!this.workers.length) {
@@ -41,8 +41,8 @@ const World = {
       const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
       for (let i = 0; i < n; i++) { const w = new Worker(url); w.busy = 0; w.onmessage = e => this.onWorker(e.data, w); this.workers.push(w); }
     }
-    for (const w of this.workers) { w.busy = 0; w.postMessage({ type: 'init', seed }); }
-    this.pending.clear(); this.genQueue.length = 0;
+    for (const w of this.workers) { w.busy = 0; w.postMessage({ type: 'init', seed, opts: this.genOpts }); }
+    this.pending.clear(); this.genQueue.length = 0; this.arrived.length = 0;
   },
   setDim(dim) { this.dim = dim; this.chunks = this.dims[dim]; },
   getChunk(cx, cz) { return this.chunks.get(ckey(cx, cz)); },
@@ -65,17 +65,28 @@ const World = {
         const k = this.genQueue.shift(), p = this.pending.get(k);
         if (!p || p === true || p.dim !== this.dim) continue;
         p.sent = true; w.busy++;
-        w.postMessage({ type: 'gen', dim: p.dim, cx: p.cx, cz: p.cz });
+        w.postMessage({ type: 'gen', dim: p.dim, cx: p.cx, cz: p.cz, gen: this.genId });
       }
     }
   },
   onWorker(m, w) {
     if (m.type !== 'chunk') return;
     w.busy = Math.max(0, w.busy - 1);
+    if (m.gen !== this.genId) return; // generated for a world that is no longer loaded
     const k = ckey(m.cx, m.cz);
     const p = this.pending.get(k);
     if (!p || p === true || m.dim !== this.dim) { if (m.dim !== this.dim) this.pending.delete(k); return; }
-    this.adopt(m.dim, m.cx, m.cz, m, false);
+    this.arrived.push(m);
+  },
+  arrived: [],
+  // light and add arrived chunks without spending more than budgetMs this frame
+  processArrived(budgetMs) {
+    const t0 = performance.now();
+    while (this.arrived.length && performance.now() - t0 < budgetMs) {
+      const m = this.arrived.shift();
+      if (m.dim !== this.dim || !this.pending.has(ckey(m.cx, m.cz))) continue;
+      this.adopt(m.dim, m.cx, m.cz, m, false);
+    }
   },
   adopt(dim, cx, cz, d, fromSave) {
     const k = ckey(cx, cz);
@@ -155,10 +166,10 @@ function workerMain() {
   let gens = null;
   self.onmessage = e => {
     const m = e.data;
-    if (m.type === 'init') { gens = { overworld: new self.Overworld(m.seed), nether: new self.Nether(m.seed), end: new self.End(m.seed) }; return; }
+    if (m.type === 'init') { gens = { overworld: new self.Overworld(m.seed, m.opts), nether: new self.Nether(m.seed), end: new self.End(m.seed) }; return; }
     if (m.type === 'gen') {
       const o = gens[m.dim].generate(m.cx, m.cz);
-      self.postMessage({ type: 'chunk', dim: m.dim, cx: m.cx, cz: m.cz, blocks: o.blocks, states: o.states, biomes: o.biomes, heights: o.heights, be: o.be, ents: o.ents, ticks: o.ticks },
+      self.postMessage({ type: 'chunk', gen: m.gen, dim: m.dim, cx: m.cx, cz: m.cz, blocks: o.blocks, states: o.states, biomes: o.biomes, heights: o.heights, be: o.be, ents: o.ents, ticks: o.ticks },
         [o.blocks.buffer, o.states.buffer, o.biomes.buffer, o.heights.buffer]);
     }
   };

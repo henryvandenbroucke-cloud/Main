@@ -57,8 +57,11 @@ SHARED.push(function worldgenModule(G) {
   const MOUNTAIN_BIOMES = new Set(['windswept_hills', 'windswept_gravelly_hills', 'windswept_forest', 'windswept_savanna', 'meadow', 'cherry_grove', 'grove', 'snowy_slopes', 'frozen_peaks', 'jagged_peaks', 'stony_peaks']);
 
   class Overworld {
-    constructor(seed) {
+    constructor(seed, opts) {
       this.seed = seed;
+      // world types: default, superflat (bedrock, two dirt, grass) and large biomes (climate noise four times wider)
+      this.flat = !!(opts && opts.type === 'flat'); this.bs = opts && opts.type === 'large' ? 4 : 1;
+      this.structures = !(opts && opts.structures === false);
       const h = k => hashInt(seed, k, 31, 17);
       this.nC = new Octaves(h(1), 6, 0.5); this.nE = new Octaves(h(2), 5, 0.5); this.nW = new Octaves(h(3), 5, 0.5);
       this.nT = new Octaves(h(4), 4, 0.5); this.nH = new Octaves(h(5), 4, 0.5); this.nD = new Octaves(h(6), 4, 0.5);
@@ -74,11 +77,13 @@ SHARED.push(function worldgenModule(G) {
     // the noise parameters, terrain height and biome of one column
     column(x, z, o) {
       o = o || this.col;
-      const C = this.nC.n2(x / 1100, z / 1100) * 2.9 + 0.15;
-      const E = this.nE.n2(x / 700, z / 700) * 3.0;
-      const Wn = this.nW.n2(x / 400, z / 400) * 2.6;
+      const bs = this.bs;
+      if (this.flat) { o.h = -61; o.biome = BIOME.plains; o.C = 0.3; o.E = 0; o.PV = 0; o.Wn = 0; o.T = 0.2; o.Hm = 0; o.m = 0; o.river = 0; return o; }
+      const C = this.nC.n2(x / 1100 / bs, z / 1100 / bs) * 2.9 + 0.15;
+      const E = this.nE.n2(x / 700 / bs, z / 700 / bs) * 3.0;
+      const Wn = this.nW.n2(x / 400 / bs, z / 400 / bs) * 2.6;
       const PV = -(Math.abs(Math.abs(Wn) - 0.6667) - 0.3333) * 3;
-      const T = this.nT.n2(x / 1700, z / 1700) * 2.8, Hm = this.nH.n2(x / 1400, z / 1400) * 2.8;
+      const T = this.nT.n2(x / 1700 / bs, z / 1700 / bs) * 2.8, Hm = this.nH.n2(x / 1400 / bs, z / 1400 / bs) * 2.8;
       const inland = smooth(-0.15, 0.25, C);
       const m = Math.pow(clamp((0.05 - E) / 0.75, 0, 1), 1.3) * inland;
       const peak = Math.max(0, PV);
@@ -150,6 +155,7 @@ SHARED.push(function worldgenModule(G) {
       return f;
     }
     generate(cx, cz) {
+      if (this.flat) return this.generateFlat(cx, cz);
       const out = { cx, cz, blocks: new Uint16Array(65536), states: new Uint8Array(65536), biomes: new Uint8Array(256), heights: new Int16Array(256), be: [], ents: [], ticks: [] };
       const blocks = out.blocks, x0 = cx * 16, z0 = cz * 16;
       // column parameters with a one-block border (for slopes)
@@ -205,7 +211,7 @@ SHARED.push(function worldgenModule(G) {
       // ores and features of this chunk and its neighbours (clipped to this chunk)
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) this.ores(w, cx + dx, cz + dz);
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) this.decorate(w, cx + dx, cz + dz);
-      if (G.Structures) G.Structures.place(this, w, cx, cz);
+      if (this.structures && G.Structures) G.Structures.place(this, w, cx, cz);
       this.freeze(out, cols);
       return out;
     }
@@ -528,7 +534,7 @@ SHARED.push(function worldgenModule(G) {
         const bx = x + r.int(rx * 2 + 1) - rx, bz = z + r.int(rz * 2 + 1) - rz;
         let walls = 0; for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (solid(bx + dx, y, bz + dz)) walls++;
         if (walls !== 1 || w.get(bx, y, bz) !== 0) continue;
-        w.set(bx, y, bz, B.chest, 2); w.blockEntity(bx, y, bz, { type: 'chest', loot: 'simple_dungeon' }); chests++;
+        w.set(bx, y, bz, B.chest, 2); w.blockEntity(bx, y, bz, { type: 'container', items: new Array(27).fill(null), loot: 'chests/simple_dungeon', seed: r.int(2147483647) }); chests++;
       }
       w.set(x, y, z, B.spawner, 0);
       w.blockEntity(x, y, z, { type: 'spawner', mob: r.pick(['skeleton', 'zombie', 'zombie', 'spider']) });
@@ -546,8 +552,16 @@ SHARED.push(function worldgenModule(G) {
         else w.set(x, y + 1, z, B.seagrass, 0);
       }
     }
+    // the classic superflat preset: bedrock, two layers of dirt and grass on top, all plains
+    generateFlat(cx, cz) {
+      const out = { cx, cz, blocks: new Uint16Array(65536), states: new Uint8Array(65536), biomes: new Uint8Array(256).fill(BIOME.plains), heights: new Int16Array(256).fill(-61), be: [], ents: [], ticks: [] };
+      for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) { out.blocks[I(x, -64, z)] = B.bedrock; out.blocks[I(x, -63, z)] = B.dirt; out.blocks[I(x, -62, z)] = B.dirt; out.blocks[I(x, -61, z)] = B.grass_block; }
+      if (this.structures && G.Structures) G.Structures.place(this, new ChunkWriter(out, cx, cz), cx, cz, true);
+      return out;
+    }
     // the highest block a mob can stand on (for spawn points)
     spawnPoint() {
+      if (this.flat) return [0.5, -60, 0.5];
       for (let k = 0; k < 400; k++) {
         const r = new Rand(hashInt(this.seed, k, 9, 9)), x = Math.floor((r.next() - 0.5) * 64 * (1 + k / 20)), z = Math.floor((r.next() - 0.5) * 64 * (1 + k / 20));
         const c = this.column(x, z, {}); const b = BIOMES[c.biome];

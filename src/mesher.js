@@ -142,21 +142,37 @@ const Mesher = (() => {
     const ctx = (x, y, z) => PB[P(x - bx, y - by, z - bz)];
     ctx.state = (x, y, z) => PS[P(x - bx, y - by, z - bz)];
     for (let y = 0; y < 16; y++) for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
-      const p = P(x, y, z), id = PB[p];
-      if (id === 0) continue;
-      const d = BLOCKS[id], st = PS[p];
-      const model = d.model;
-      if (model === 'none') continue;
-      if (model === 'liquid') { liquid(d, st, x, y, z, tintArr); continue; }
-      // waterlogged blocks also draw their water
-      if (st & 128 && d.waterlog) liquid(BLOCKS[BID.water], 0, x, y, z, tintArr, true);
-      if (d.fluidLog) liquid(BLOCKS[BID.water], 0, x, y, z, tintArr, true);
-      const buf = BUFS[d.layer];
-      const tint = tintOf(d, st, tintArr, x, z);
-      if (model === 'cube' && !d.place && !d.stateTex && d.name !== 'grass_block' && d.name !== 'farmland' && d.name !== 'redstone_lamp' && d.name !== 'jukebox') { cube(d, id, st, x, y, z, buf, tint); continue; }
-      const els = Models.get(id, st, ctx, bx + x, by + y, bz + z);
-      elements(els, d, id, st, x, y, z, buf, tint, model);
+      const id = PB[P(x, y, z)];
+      if (id !== 0) block(x, y, z, id, tintArr, ctx, bx, by, bz);
     }
+    return BUFS;
+  }
+  function block(x, y, z, id, tintArr, ctx, bx, by, bz) {
+    const p = P(x, y, z);
+    const d = BLOCKS[id], st = PS[p];
+    const model = d.model;
+    if (model === 'none') return;
+    if (model === 'liquid') { liquid(d, st, x, y, z, tintArr); return; }
+    // waterlogged blocks also draw their water
+    if (st & 128 && d.waterlog) liquid(BLOCKS[BID.water], 0, x, y, z, tintArr, true);
+    if (d.fluidLog) liquid(BLOCKS[BID.water], 0, x, y, z, tintArr, true);
+    const buf = BUFS[d.layer];
+    const tint = tintOf(d, st, tintArr, x, z);
+    if (model === 'cube' && !d.place && !d.stateTex && d.name !== 'grass_block' && d.name !== 'farmland' && d.name !== 'redstone_lamp' && d.name !== 'jukebox') { cube(d, id, st, x, y, z, buf, tint); return; }
+    const els = Models.get(id, st, ctx, bx + x, by + y, bz + z);
+    elements(els, d, id, st, x, y, z, buf, tint, model);
+  }
+  // one block on its own (for inventory icons and held blocks), lit fully, with default biome colours
+  const ICON_TINT = new Uint8Array(256 * 9);
+  for (let i = 0; i < 256; i++) ICON_TINT.set([0x91, 0xbd, 0x59, 0x77, 0xab, 0x2f, 0x3f, 0x76, 0xe4], i * 9);
+  function meshSingle(id, st) {
+    for (const b of BUFS) { b.n = 0; b.ni = 0; }
+    PB.fill(0); PS.fill(0); PL.fill(0xf0);
+    PB[P(0, 0, 0)] = id; PS[P(0, 0, 0)] = st || 0;
+    const prev = smoothOn; smoothOn = false;
+    const ctx = (x, y, z) => (x === 0 && y === 0 && z === 0 ? id : 0); ctx.state = () => st || 0;
+    block(0, 0, 0, id, ICON_TINT, ctx, 0, 0, 0);
+    smoothOn = prev;
     return BUFS;
   }
   // a plain full cube (the fast path)
@@ -329,5 +345,5 @@ const Mesher = (() => {
       quad(buf, fp, uvTmp, still.layer, still.frames, lTmp, tr, tg, tb);
     }
   }
-  return { mesh, BUFS, faceLight };
+  return { mesh, meshSingle, BUFS, faceLight };
 })();

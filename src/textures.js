@@ -348,6 +348,7 @@ const Tex = (() => {
       def('bamboo_planks', c => c.each((x, y) => { const col = x % 4 === 3 ? W.seam : W.planks[Math.floor(cl01(0.5 + (c.n(x, y >> 2, 5) - 0.5) * 0.6) * 5)]; c.px(x, y, H(col)); }));
       def('bamboo_block', c => c.each((x, y) => c.px(x, y, pick(W.bark, (x % 5 === 0 ? 0.1 : 0.5) + c.n(x, y, 6) * 0.4))));
       def('bamboo_block_top', c => { c.fill(H(0x6a8a24)); c.rect(3, 3, 12, 12, H(0xc5b35a)); c.rect(5, 5, 10, 10, H(0x8c7b34)); });
+      def('bamboo_door_top', c => door(c, W, true, w)); def('bamboo_door_bottom', c => door(c, W, false, w)); def('bamboo_trapdoor', c => trapdoor(c, W, w));
       continue;
     }
     const lg = stem ? w + '_stem' : w + '_log';
@@ -672,6 +673,10 @@ const Tex = (() => {
     def(k + '_front', c => face(c, false)); def(k + '_front_lid', c => face(c, true));
     def(k + '_top', c => { c.each((x, y) => c.px(x, y, x === 0 || y === 0 || x === 15 || y === 15 ? frame : pick(pal, 0.35 + c.n(x, y, 272) * 0.4))); if (k === 'ender_chest') c.rect(6, 6, 9, 9, H(0x5ff0b0)); });
   }
+  def('barrel_side', c => { c.each((x, y) => c.px(x, y, pick(WOOD.spruce.planks, 0.3 + c.v(x, y, 1, 8, 330) * 0.4 + c.n(x, y, 330) * 0.2))); c.rect(0, 2, 15, 3, H(0x3a3a3a)); c.rect(0, 12, 15, 13, H(0x3a3a3a)); for (let x = 0; x < 16; x += 4) c.rect(x, 0, x, 15, H(0x45311a)); });
+  def('barrel_top', c => { c.copy('spruce_planks'); c.each((x, y) => { if (x === 0 || y === 0 || x === 15 || y === 15) c.px(x, y, H(0x3a3a3a)); }); c.rect(6, 6, 9, 9, H(0x45311a)); });
+  def('barrel_top_open', c => { c.copy('barrel_top'); c.rect(2, 2, 13, 13, H(0x1e140a)); });
+  def('barrel_bottom', c => c.copy('barrel_top'));
   def('chest_latch', c => { c.fill(H(0xc0c0c0)); c.rect(0, 2, 15, 3, H(0x5a5a5a)); });
   def('bed_leg', c => c.copy('oak_planks'));
   def('anvil', c => c.each((x, y) => c.px(x, y, pick([0x3f3f3f, 0x484848, 0x515151, 0x5a5a5a], c.n(x, y, 273) * 0.6 + c.v(x, y, 4, 4, 273) * 0.4))));
@@ -831,5 +836,6 @@ const Tex = (() => {
   function refresh() { if (dirty) upload(); }
   // the pixels of a texture (frame 0), for icons and particles
   function pixels(name) { return paint(painters[name] ? name : 'missing', 0); }
-  return { get, build, refresh, pixels, def, paint, H, mul, pick, WOOL, CLR, CONCRETE, TERRA, WOOD, has: n => !!painters[n], get texture() { return texture; } };
+  function missing() { const out = []; for (const d of BLOCKS) for (const k of ['up', 'down', 'north', 'south', 'west', 'east']) { const n = d.tex[k]; if (n && !painters[n] && !out.includes(n)) out.push(n); } return out; }
+  return { missing, get, build, refresh, pixels, def, paint, ctx, H, mul, mixc, pick, WOOL, CLR, CONCRETE, TERRA, WOOD, has: n => !!painters[n], get texture() { return texture; } };
 })();
