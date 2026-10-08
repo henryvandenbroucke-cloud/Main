@@ -37,7 +37,7 @@ const SLOTS = ['helmet', 'chestplate', 'leggings', 'boots'];
 (function buildItems() {
   // block items first, in registry order
   const placeAs = { redstone_wire: 'redstone', wheat: 'wheat_seeds', carrots: 'carrot', potatoes: 'potato', beetroots: 'beetroot_seeds', cocoa: 'cocoa_beans', pumpkin_stem: 'pumpkin_seeds',
-    melon_stem: 'melon_seeds', sweet_berry_bush: 'sweet_berries', tripwire: 'string', cave_vines: 'glow_berries' };
+    melon_stem: 'melon_seeds', sweet_berry_bush: 'sweet_berries', tripwire: 'string', cave_vines: 'glow_berries', nether_wart: 'nether_wart', torchflower_crop: 'torchflower_seeds', pitcher_crop: 'pitcher_pod' };
   for (const d of BLOCKS) {
     if (!d.item && !placeAs[d.name]) continue;
     const name = placeAs[d.name] || d.name;
@@ -48,6 +48,8 @@ const SLOTS = ['helmet', 'chestplate', 'leggings', 'boots'];
   const wallOf = { torch: 'wall_torch', soul_torch: 'soul_wall_torch', redstone_torch: 'redstone_wall_torch' };
   for (const k in wallOf) ITEMS[IID[k]].wall = BID[wallOf[k]];
   for (const w of WOODS.concat(STEMS, ['bamboo'])) ITEMS[IID[w + '_sign']].wall = BID[w + '_wall_sign'];
+  for (const w of WOODS.concat(STEMS, ['bamboo'])) ITEMS[IID[w + '_hanging_sign']].wall = BID[w + '_wall_hanging_sign'];
+  for (const k of ['tube', 'brain', 'bubble', 'fire', 'horn']) { ITEMS[IID[k + '_coral_fan']].wall = BID[k + '_coral_wall_fan']; ITEMS[IID['dead_' + k + '_coral_fan']].wall = BID['dead_' + k + '_coral_wall_fan']; }
   // tools and weapons
   for (const mat in TIERS) {
     for (const kind of ['sword', 'shovel', 'pickaxe', 'axe', 'hoe']) {
@@ -83,7 +85,14 @@ const SLOTS = ['helmet', 'chestplate', 'leggings', 'boots'];
   regItem('bamboo_raft', { use: 'boat' }); regItem('bamboo_chest_raft', { use: 'boat' });
   regItem('painting', { use: 'hang' }); regItem('item_frame', { use: 'hang' }); regItem('glow_item_frame', { use: 'hang' }); regItem('armor_stand', { use: 'armor_stand' });
   for (const c of COLORS) regItem(c + '_dye', { use: 'dye' });
-  for (const d of ['13', 'cat', 'blocks', 'chirp', 'far', 'mall', 'mellohi', 'stal', 'strad', 'ward', '11', 'wait', 'pigstep', 'otherside']) regItem('music_disc_' + d, { use: 'disc', rarity: 2 });
+  for (const d of ['13', 'cat', 'blocks', 'chirp', 'far', 'mall', 'mellohi', 'stal', 'strad', 'ward', '11', 'wait', 'pigstep', 'otherside', '5', 'relic', 'creator', 'creator_music_box', 'precipice']) regItem('music_disc_' + d, { use: 'disc', rarity: 2 });
+  regItem('wolf_armor', { armor: { slot: -1, pts: 11, tough: 0, kb: 0, mat: 'wolf' }, use: 'wolf_armor' }); regItem('bundle', { use: 'bundle' });
+  regItem('knowledge_book', { use: 'knowledge_book', rarity: 1 }); regItem('debug_stick', { use: 'debug_stick', rarity: 3 }); regItem('command_block_minecart', { use: 'minecart', rarity: 3 });
+  regItem('trial_key'); regItem('ominous_trial_key'); regItem('ominous_bottle', { use: 'drink', rarity: 1 });
+  // armour trims, banner patterns and pottery sherds
+  for (const t of ['sentry', 'dune', 'coast', 'wild', 'ward', 'eye', 'vex', 'tide', 'snout', 'rib', 'spire', 'wayfinder', 'shaper', 'silence', 'raiser', 'host', 'flow', 'bolt']) regItem(t + '_armor_trim_smithing_template', { rarity: ['ward', 'eye', 'vex', 'tide', 'spire', 'silence'].includes(t) ? (t === 'silence' ? 3 : 2) : 1 });
+  for (const b of ['flower', 'creeper', 'skull', 'mojang', 'globe', 'piglin', 'flow', 'guster']) regItem(b + '_banner_pattern', { rarity: ['creeper', 'skull', 'mojang', 'piglin', 'flow', 'guster'].includes(b) ? (b === 'mojang' ? 2 : 1) : 0 });
+  for (const sh of ['angler', 'archer', 'arms_up', 'blade', 'brewer', 'burn', 'danger', 'explorer', 'flow', 'friend', 'guster', 'heart', 'heartbreak', 'howl', 'miner', 'mourner', 'plenty', 'prize', 'scrape', 'sheaf', 'shelter', 'skull', 'snort']) regItem(sh + '_pottery_sherd');
   // materials
   for (const n of ['stick', 'coal', 'charcoal', 'diamond', 'emerald', 'lapis_lazuli', 'quartz', 'amethyst_shard', 'raw_iron', 'raw_copper', 'raw_gold', 'iron_ingot', 'copper_ingot', 'gold_ingot',
     'netherite_ingot', 'netherite_scrap', 'iron_nugget', 'gold_nugget', 'glowstone_dust', 'feather', 'gunpowder', 'flint', 'leather', 'rabbit_hide', 'rabbit_foot', 'bone', 'bone_meal', 'ink_sac', 'glow_ink_sac',
@@ -137,6 +146,11 @@ const ITEM_OF_BLOCK = new Int16Array(BLOCKS.length).fill(-1);
 for (const it of ITEMS) if (it.block >= 0 && ITEM_OF_BLOCK[it.block] < 0) ITEM_OF_BLOCK[it.block] = it.id;
 for (const [w, f] of [['wall_torch', 'torch'], ['soul_wall_torch', 'soul_torch'], ['redstone_wall_torch', 'redstone_torch']]) ITEM_OF_BLOCK[BID[w]] = IID[f];
 for (const w of WOODS.concat(STEMS, ['bamboo'])) ITEM_OF_BLOCK[BID[w + '_wall_sign']] = IID[w + '_sign'];
+for (const w of WOODS.concat(STEMS, ['bamboo'])) ITEM_OF_BLOCK[BID[w + '_wall_hanging_sign']] = IID[w + '_hanging_sign'];
+for (const k of ['tube', 'brain', 'bubble', 'fire', 'horn']) { ITEM_OF_BLOCK[BID[k + '_coral_wall_fan']] = IID[k + '_coral_fan']; ITEM_OF_BLOCK[BID['dead_' + k + '_coral_wall_fan']] = IID['dead_' + k + '_coral_fan']; }
+for (const c of [''].concat(COLORS)) ITEM_OF_BLOCK[BID[(c ? c + '_' : '') + 'candle_cake']] = IID.cake;
+ITEM_OF_BLOCK[BID.pitcher_crop] = IID.pitcher_pod; ITEM_OF_BLOCK[BID.torchflower_crop] = IID.torchflower_seeds; ITEM_OF_BLOCK[BID.bamboo_sapling] = IID.bamboo;
+ITEM_OF_BLOCK[BID.frosted_ice] = IID.ice; ITEM_OF_BLOCK[BID.big_dripleaf_stem] = IID.big_dripleaf;
 ITEM_OF_BLOCK[BID.kelp_plant] = IID.kelp; ITEM_OF_BLOCK[BID.weeping_vines_plant] = IID.weeping_vines; ITEM_OF_BLOCK[BID.twisting_vines_plant] = IID.twisting_vines;
 ITEM_OF_BLOCK[BID.cave_vines_plant] = IID.glow_berries; ITEM_OF_BLOCK[BID.attached_pumpkin_stem] = IID.pumpkin_seeds; ITEM_OF_BLOCK[BID.attached_melon_stem] = IID.melon_seeds;
 ITEM_OF_BLOCK[BID.water] = IID.water_bucket; ITEM_OF_BLOCK[BID.lava] = IID.lava_bucket; ITEM_OF_BLOCK[BID.tall_seagrass] = IID.seagrass;

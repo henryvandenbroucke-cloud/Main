@@ -41,12 +41,15 @@ const ItemUse = (() => {
     if (it.tool && it.tool.kind === 'axe') {
       const m = d.name.match(/^(oak|spruce|birch|jungle|acacia|dark_oak|mangrove|cherry|crimson|warped)_(log|wood|stem|hyphae)$/) || (d.name === 'bamboo_block' ? [0, 'bamboo', 'block'] : null);
       if (m) { const to = B['stripped_' + d.name]; if (to !== undefined) { World.setBlock(x, y, z, to, st); Sound.play('axe_strip', null, { x, y, z }); p.swingArm(); p.inv.damageHeld(1, p); return true; } }
+      if (BlockExtras.axe(p, x, y, z, id, st)) return true;
     }
     switch (n) {
+      case 'honeycomb': if (BlockExtras.wax(p, x, y, z, id, st)) { if (!p.creative) { s.count--; if (!s.count) swapHeld(p, null, offhand); p.inv.changed(); } p.swingArm(); return true; } break;
       case 'bone_meal': if (boneMeal(x, y, z, p)) { if (!p.creative) { s.count--; if (!s.count) swapHeld(p, null, offhand); p.inv.changed(); } p.swingArm(); return true; } break;
       case 'flint_and_steel': case 'fire_charge': {
         if (d.name === 'tnt') return false; // BlockUse handles it
         if ((d.name === 'campfire' || d.name === 'soul_campfire') && (st & 8)) { World.setBlock(x, y, z, id, st & ~8); fireUsed(p, n, offhand); return true; }
+        if (BlockExtras.light(x, y, z, id, st)) { fireUsed(p, n, offhand); return true; }
         const fx = x + DX[hit.face], fy = y + DY[hit.face], fz = z + DZ[hit.face];
         if (World.getBlock(fx, fy, fz) === 0) {
           const below = World.getBlock(fx, fy - 1, fz);
@@ -108,7 +111,8 @@ const ItemUse = (() => {
   function boneMeal(x, y, z, p) {
     const id = World.getBlock(x, y, z), st = World.getState(x, y, z), d = BLOCKS[id], n = d.name;
     let ok = false;
-    if (['wheat', 'carrots', 'potatoes', 'beetroots', 'pumpkin_stem', 'melon_stem', 'torchflower'].includes(n)) {
+    if (BlockExtras.boneMeal(x, y, z)) ok = true;
+    else if (['wheat', 'carrots', 'potatoes', 'beetroots', 'pumpkin_stem', 'melon_stem'].includes(n)) {
       const max = n === 'beetroots' ? 3 : 7, age = st & 7;
       if (age < max) { World.setBlock(x, y, z, id, Math.min(max, age + (n === 'beetroots' ? (Math.random() < 0.75 ? 1 : 0) || 1 : 2 + Math.floor(Math.random() * 4)))); ok = true; }
       else if (n.endsWith('_stem')) { Blocks.randomTick(x, y, z, id, st); ok = true; }

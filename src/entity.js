@@ -172,6 +172,8 @@ class Living extends Entity {
   updateFall(prevY) {
     const dy = this.y - prevY;
     if (this.onGround) {
+      const ex = Math.floor(this.x), ey = Math.floor(this.y), ez = Math.floor(this.z);
+      if (World.getBlock(ex, ey, ez) === BID.turtle_egg && this.type !== 'item' && this.type !== 'xp_orb') BlockExtras.trample(this, ex, ey, ez, this.fallDistance > 0);
       if (this.fallDistance > 0) {
         const land = World.getBlock(Math.floor(this.x), Math.floor(this.y - 0.2), Math.floor(this.z));
         this.onLand && this.onLand(this.fallDistance, land);

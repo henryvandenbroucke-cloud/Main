@@ -248,5 +248,5 @@ const ItemTex = (() => {
   for (const c of COLORS) { def(c + '_stained_glass_pane', flat(c + '_stained_glass')); def(c + '_bed', cc => { const w = Tex.pixels(c + '_wool'); for (let y = 5; y < 11; y++) for (let x = 1; x < 15; x++) { const o = (y * 16 + x) * 4; cc.px(x, y, [w[o], w[o + 1], w[o + 2]]); } cc.rect(1, 5, 4, 7, H(0xf2f2f2)); cc.rect(1, 11, 14, 12, H(0xa2834f)); cc.rect(1, 13, 2, 14, H(0x6b5128)); cc.rect(13, 13, 14, 14, H(0x6b5128)); }); }
   def('glass_pane', flat('glass'));
   function fallback(name) { return c => { const t = ['cross', 'tall', 'crop'].includes((BLOCKS[BID[name]] || {}).model) ? name : null; if (t && Tex.has(t)) c.data.set(Tex.pixels(t)); else { const k = 7; blob(c, 7.5, 8, 5, [0x8a2a8a, 0xc84ac8, 0xf0a0f0, 0x3a0a3a]); void k; } }; }
-  return { def, pixels, has, P };
+  return { def, pixels, has, P, tpl, blob, outline, rect, book, bottle };
 })();

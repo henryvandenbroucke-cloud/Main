@@ -3,19 +3,10 @@
    method that is not listed here does nothing. */
 const NOOP = () => undefined;
 const stub = o => new Proxy(o, { get: (t, k) => (k in t ? t[k] : typeof k === 'string' ? NOOP : undefined) });
-const Stats = stub({ all() { return { general: {} }; } });
 const Advancements = stub({ page() { return '<div class="mtitle">Advancements</div><div class="mhint big">Coming soon</div><div class="mbottom"><div class="mbtn" data-act="pause">Done</div></div>'; } });
-const Beds = stub({ use() { return false; }, respawnPoint(p) { return { dim: 'overworld', x: Game.spawn[0], y: Game.spawn[1], z: Game.spawn[2] }; } });
 const Portals = stub({});
-const Weather = stub({ rainingAt() { return false; }, rain: 0, thunder: 0 });
 const Redstone = stub({ connects() { return false; }, isComponent() { return false; } });
-const Fire = stub({ flammableAround() { return false; } });
 const Rails = stub({ shapeFor() { return 0; } });
-const Leaves = stub({});
-const Sponge = stub({});
-const Golems = stub({});
-const Chorus = stub({});
-const DragonEgg = stub({});
 const Vehicles = stub({});
 const Decor = stub({});
 const Fishing = stub({});

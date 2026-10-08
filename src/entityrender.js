@@ -306,6 +306,7 @@ EntityRender = (() => {
     dispose() { scene.remove(this.obj); this.m.material.dispose(); }
   }
   factories.arrow = e => new ArrowVisual(e);
+  factories.lightning_bolt = () => ({ update() {}, dispose() {} });
   factories.trident = e => new TridentVisual(e);
   factories.shulker_bullet = e => new SpriteVisual(e, IID.shulker_shell); factories.llama_spit = e => new SpriteVisual(e, IID.snowball);
   for (const k of ['snowball', 'egg', 'ender_pearl', 'splash_potion', 'lingering_potion', 'experience_bottle', 'wind_charge', 'eye_of_ender', 'firework_rocket', 'fireball', 'small_fireball', 'dragon_fireball']) factories[k] = e => new SpriteVisual(e, e.item !== undefined ? e.item : IID[k] !== undefined ? IID[k] : IID.fire_charge);

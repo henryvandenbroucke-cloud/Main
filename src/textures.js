@@ -829,7 +829,12 @@ const Tex = (() => {
       texture.format = THREE.RGBAFormat; texture.type = THREE.UnsignedByteType;
       texture.magFilter = THREE.NearestFilter; texture.minFilter = THREE.NearestMipmapLinearFilter; texture.generateMipmaps = true;
       texture.anisotropy = 1; // vanilla has no anisotropic filtering (it also blurs magnified pixels on some drivers)
-    } else { texture.image = { data, width: 16, height: 16, depth: n }; }
+    } else {
+      // more layers than before: the GPU texture has to be made again at the new size (an update in place
+      // would write past its end)
+      if (texture.image.depth !== n) texture.dispose();
+      texture.image = { data, width: 16, height: 16, depth: n };
+    }
     texture.needsUpdate = true; built = true; dirty = false;
     return texture;
   }
@@ -837,5 +842,5 @@ const Tex = (() => {
   // the pixels of a texture (frame 0), for icons and particles
   function pixels(name) { return paint(painters[name] ? name : 'missing', 0); }
   function missing() { const out = []; for (const d of BLOCKS) for (const k of ['up', 'down', 'north', 'south', 'west', 'east']) { const n = d.tex[k]; if (n && !painters[n] && !out.includes(n)) out.push(n); } return out; }
-  return { missing, get, build, refresh, pixels, def, paint, ctx, H, mul, mixc, pick, WOOL, CLR, CONCRETE, TERRA, WOOD, has: n => !!painters[n], get texture() { return texture; } };
+  return { missing, get, build, refresh, pixels, def, paint, ctx, H, mul, mixc, pick, WOOL, CLR, CONCRETE, TERRA, WOOD, fx: { stone, dirt, speckle, cobble, bricks, planks, bark, logTop, leaves, metal, wool, grain, voro, cells }, has: n => !!painters[n], get texture() { return texture; } };
 })();

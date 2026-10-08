@@ -84,7 +84,7 @@ const UI = (() => {
   PAGES.title.after = () => drawLogo();
   PAGES.single.after = () => listWorlds();
   PAGES.sign.after = d => { const ins = root.querySelectorAll('.signline'); ins[0].focus(); ins.forEach((el, i) => el.addEventListener('keydown', e => { e.stopPropagation(); if (e.code === 'Enter' || e.code === 'ArrowDown') { (ins[i + 1] || ins[0]).focus(); e.preventDefault(); } if (e.code === 'ArrowUp') { (ins[i - 1] || ins[3]).focus(); e.preventDefault(); } if (e.code === 'Escape') act('signdone'); })); signTarget = d; };
-  let signTarget = null, createData = {}, selected = null, confirmFn = null, optionsFrom = 'title', binding = null;
+  let leaveBtn = null, signTarget = null, createData = {}, selected = null, confirmFn = null, optionsFrom = 'title', binding = null;
   const pct = v => v === 0 ? 'OFF' : Math.round(v * 100) + '%';
   const cap = s => String(s)[0].toUpperCase() + String(s).slice(1);
   const modeName = m => ({ survival: 'Survival', hardcore: 'Hardcore', creative: 'Creative', spectator: 'Spectator', adventure: 'Adventure' }[m]);
@@ -189,6 +189,11 @@ const UI = (() => {
     }
     if (page === 'title') { const sp = root.querySelector('.splash'); if (sp) sp.style.transform = `rotate(-20deg) scale(${1.8 - Math.abs(Math.sin(performance.now() / 1000 * Math.PI * 2 / 1.5)) * 0.1})`; }
     const p = Game.player;
+    // the Leave Bed button while sleeping
+    if (!leaveBtn) { leaveBtn = document.createElement('div'); leaveBtn.className = 'mbtn leavebed hidden'; leaveBtn.textContent = 'Leave Bed'; leaveBtn.onclick = () => { if (Game.player) Beds.wake(Game.player); Input.requestLock(); }; document.body.appendChild(leaveBtn); }
+    const sleeping = game && p && p.sleeping && !page;
+    leaveBtn.classList.toggle('hidden', !sleeping);
+    if (sleeping && Input.locked && !Input.testLock) Input.releaseLock();
     if (game && p && !screen && !page) { const w = Input.consumeWheel(); if (w) { p.inv.selected = (p.inv.selected + w + 9) % 9; } }
     if (Screens.current) Screens.tick();
   }

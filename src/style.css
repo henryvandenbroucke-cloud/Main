@@ -125,3 +125,5 @@ input { font-family: inherit; }
 
 /* chat */
 #chatInput { position: fixed; z-index: 25; left: calc(var(--s) * 2); right: calc(var(--s) * 2); bottom: calc(var(--s) * 2); height: calc(var(--s) * 12); box-sizing: border-box; background: rgba(0, 0, 0, 0.5); border: none; outline: none; color: #fff; font-size: var(--fs); padding: 0 calc(var(--s) * 2); text-shadow: var(--s) var(--s) 0 #3f3f3f; user-select: text; -webkit-user-select: text; }
+
+.mbtn.leavebed { position: fixed; z-index: 26; left: 50%; bottom: calc(var(--s) * 40); transform: translateX(-50%); font-size: var(--fs); line-height: var(--lh); text-shadow: var(--s) var(--s) 0 #3f3f3f; }

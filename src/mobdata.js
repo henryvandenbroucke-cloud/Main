@@ -21,6 +21,8 @@ const MOB_STATS = {
   pillager: [24, 0.35, 4, '5', 'monster'], vindicator: [24, 0.35, 13, '5', 'monster'], evoker: [24, 0.5, 6, '10', 'monster'], vex: [14, 0.7, 9, '0', 'monster'],
   ravager: [100, 0.3, 12, '20', 'monster'], guardian: [30, 0.5, 6, '10', 'monster'], elder_guardian: [80, 0.3, 8, '10', 'monster'], shulker: [30, 0, 4, '5', 'monster'],
   skeleton_horse: [15, 0.2, 0, '1-3', 'creature'], zombie_horse: [15, 0.2, 0, '1-3', 'creature'],
+  trader_llama: [22, 0.175, 1, '1-3', 'creature'], sniffer: [14, 0.1, 0, '1-3', 'creature'], allay: [20, 0.1, 2, '0', 'creature'], tadpole: [6, 1.0, 0, '0', 'water'],
+  bogged: [16, 0.25, 3, '5', 'monster'], breeze: [30, 0.63, 1, '10', 'monster'], warden: [500, 0.3, 30, '5', 'monster'],
   ender_dragon: [200, 0, 10, 'dragon', 'boss'], wither: [300, 0.6, 8, '50', 'boss'],
 };
-const MOB_LIST = Object.keys(MOB_STATS).filter(m => m !== 'ender_dragon' && m !== 'wither');
+const MOB_LIST = Object.keys(MOB_STATS);

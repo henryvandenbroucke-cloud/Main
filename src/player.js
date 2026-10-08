@@ -77,6 +77,8 @@ class Player extends Living {
     if (this.xpCooldown > 0) this.xpCooldown--;
     if (!this.spectator) this.pickUp();
     Hand && Hand.tick(this);
+    Beds.tick(this); Beds.phantoms(this); if (!this.spectator) Stats.tick(this);
+    if (this.sleeping && Input.wasPressed('sneak')) Beds.wake(this);
     // walking: exhaustion and step sounds
     const moved = Math.hypot(this.x - this.px, this.z - this.pz);
     if (this.onGround && moved > 0.001 && !this.flying) { this.stepAcc = (this.stepAcc || 0) + moved; if (this.stepAcc > 1.6 && !this.sneaking) { this.stepAcc = 0; Sound.step(this); } }
@@ -99,7 +101,7 @@ class Player extends Living {
       HUD.refresh();
     }
   }
-  onJump() { this.exhaust(this.sprinting ? 0.2 : 0.05); }
+  onJump() { this.exhaust(this.sprinting ? 0.2 : 0.05); Stats.add('custom', 'jump'); }
   onLand(dist, block) { if (dist > 3) Sound.play('fall', this, { big: dist > 6, block }); }
   // ---------------------------------------------------------------- survival
   exhaust(x) { if (this.creative || this.spectator || Game.difficulty === 'peaceful') return; this.exhaustion = Math.min(40, this.exhaustion + x); }
@@ -178,7 +180,7 @@ class Player extends Living {
     // absorption hearts take damage first
     if (this.absorption > 0) { const k = Math.min(this.absorption, amount); this.absorption -= k; amount -= k; }
     this.exhaust(0.1);
-    this.health -= amount;
+    this.health -= amount; Stats.add('custom', 'damage_taken', amount);
     this.lastHurtBy = attacker || null; this.lastHurtTime = this.age;
     if (attacker) { this.hurtDir = Math.atan2(attacker.z - this.z, attacker.x - this.x) * 180 / Math.PI - this.yaw * 180 / Math.PI; }
     Sound.play('player_hurt', this, { source });
@@ -201,6 +203,7 @@ class Player extends Living {
   die(source, attacker) {
     if (this.dead) return;
     this.dead = true; this.health = 0; this.deathTime = 0; this.flying = false;
+    Stats.add('custom', 'deaths'); if (Stats.raw.custom) Stats.raw.custom.time_since_death = 0; if (this.sleeping) Beds.wake(this);
     this.deathCause = DeathMessages.text(this, source, attacker);
     Chat.system(this.deathCause);
     if (!Game.rules.keepInventory) {

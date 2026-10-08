@@ -94,6 +94,7 @@ const Models = (() => {
     cube: (d, s) => {
       const t = sides(d), tint = !!d.tint;
       const n = d.name;
+      if (d.stateTex) return [box(0, 0, 0, 16, 16, 16, d.stateTex(s))];
       if (d.place === 'axis') {
         const ax = s & 3, e = d.tex.up, sd = d.tex.side;
         if (ax === 1) return [box(0, 0, 0, 16, 16, 16, { west: e, east: e, up: sd, down: sd, north: sd, south: sd }, { rot: [90, 90, 90, 90, 0, 0] })];
@@ -181,12 +182,12 @@ const Models = (() => {
       if (!open) return [top ? box(0, 13, 0, 16, 16, 16, t) : box(0, 0, 0, 16, 3, 16, t)];
       return rotY([box(0, 0, 13, 16, 16, 16, t)], turnsOf(s));
     },
-    torch: (d) => {
-      const t = d.tex.side;
+    torch: (d, s) => {
+      const t = (s & 8) && d.name === 'redstone_torch' ? 'redstone_torch_off' : d.tex.side;
       return [box(7, 0, 7, 9, 10, 9, { up: t, down: t, side: t }, { uv: [[7, 13, 9, 15], [7, 6, 9, 8], [7, 6, 9, 16], [7, 6, 9, 16], [7, 6, 9, 16], [7, 6, 9, 16]], noCull: true })];
     },
     wall_torch: (d, s) => {
-      const t = d.tex.side;
+      const t = (s & 8) && d.name === 'redstone_wall_torch' ? 'redstone_torch_off' : d.tex.side;
       // leaning 22.5 degrees away from the wall it hangs on; facing = direction away from the wall
       const els = [box(-1, 3.5, 7, 1, 13.5, 9, { up: t, down: t, side: t }, { uv: [[7, 13, 9, 15], [7, 6, 9, 8], [7, 6, 9, 16], [7, 6, 9, 16], [7, 6, 9, 16], [7, 6, 9, 16]], noCull: true, r: { axis: 'z', angle: -22.5, origin: [0, 3.5, 8] } })];
       // built leaning east (away from a wall on the west): turn so it faces the stored direction
@@ -339,7 +340,7 @@ const Models = (() => {
     cross: (d, s) => {
       let t = d.tex.side;
       if (d.name === 'sweet_berry_bush') t = 'sweet_berry_bush_stage' + Math.min(3, s & 3);
-      if (d.name.endsWith('_sapling') || d.name === 'mangrove_propagule') t = d.name;
+      if ((d.name.endsWith('_sapling') && d.name !== 'bamboo_sapling') || d.name === 'mangrove_propagule') t = d.name;
       return crossEls(t, !!d.tint);
     },
     tall: (d, s) => { const up = s & 8; const t = d.name + (up ? '_top' : '_bottom'); const els = crossEls(t, !!d.tint); if (d.name === 'sunflower' && up) els.push(box(9.6, -1, 0, 9.6, 15, 16, { west: 'sunflower_front', east: 'sunflower_back' }, { noCull: true, r: { axis: 'z', angle: 22.5, origin: [8, 0, 8] } })); return els; },
@@ -352,6 +353,8 @@ const Models = (() => {
         case 'potatoes': t = 'potatoes_stage' + [0, 0, 1, 1, 2, 2, 2, 3][age]; break;
         case 'beetroots': t = 'beetroots_stage' + Math.min(3, age); break;
         case 'nether_wart': t = 'nether_wart_stage' + [0, 1, 1, 2][Math.min(3, age)]; break;
+        case 'torchflower_crop': t = 'torchflower_crop_stage' + Math.min(1, age); break;
+        case 'pitcher_crop': t = (s & 8) ? 'pitcher_crop_top_stage_' + Math.max(3, Math.min(4, age)) : 'pitcher_crop_bottom_stage_' + Math.min(4, age); break;
         case 'pumpkin_stem': case 'melon_stem': { const h = (age + 1) * 2; return [box(0, -1, 8, 16, h - 1, 8, { north: 'stem', south: 'stem' }, { noCull: true, tint: true, uv: [null, null, [0, 16 - h, 16, 16], [0, 16 - h, 16, 16], null, null], r: { axis: 'y', angle: 45, origin: [8, 8, 8] } }), box(8, -1, 0, 8, h - 1, 16, { west: 'stem', east: 'stem' }, { noCull: true, tint: true, uv: [null, null, null, null, [0, 16 - h, 16, 16], [0, 16 - h, 16, 16]], r: { axis: 'y', angle: 45, origin: [8, 8, 8] } })]; }
       }
       const els = [];
@@ -444,6 +447,72 @@ const Models = (() => {
     liquid: () => [],
   };
   MODEL.end_rod = MODEL.rod;
+  // ---------------------------------------------------------------- blocks of 1.20 and 1.21
+  const chainPair = (x, y0, y1, z) => {
+    // the chain texture holds two link planes side by side (columns 0-2 and 3-5)
+    const a = [0, 0, 3, y1 - y0], b = [3, 0, 6, y1 - y0];
+    return [box(x - 1.5, y0, z, x + 1.5, y1, z, { north: 'chain', south: 'chain' }, { noCull: true, uv: [null, null, a, a, null, null], r: { axis: 'y', angle: 45, origin: [x, 8, z] } }),
+      box(x - 1.5, y0, z, x + 1.5, y1, z, { north: 'chain', south: 'chain' }, { noCull: true, uv: [null, null, b, b, null, null], r: { axis: 'y', angle: -45, origin: [x, 8, z] } })];
+  };
+  // candles: positions [x, z, height] for 1-4 candles
+  const CANDLES = [[[7, 7, 6]], [[5, 7, 6], [9, 6, 5]], [[7, 9, 6], [5, 6, 5], [9, 6, 3]], [[5, 5, 6], [9, 5, 5], [5, 9, 4], [9, 9, 3]]];
+  function candleEls(t, list) {
+    const els = [];
+    for (const [x, z, h] of list) {
+      const side = [0, 8, 2, 8 + h];
+      els.push(box(x, 0, z, x + 2, h, z + 2, t, { uv: [[0, 6, 2, 8], [0, 6, 2, 8], side, side, side, side] }));
+      els.push(box(x + 0.5, h, z + 1, x + 1.5, h + 1, z + 1, { north: t, south: t }, { noCull: true, uv: [null, null, [0, 5, 1, 6], [0, 5, 1, 6], null, null] }));
+      els.push(box(x + 1, h, z + 0.5, x + 1, h + 1, z + 1.5, { west: t, east: t }, { noCull: true, uv: [null, null, null, null, [0, 5, 1, 6], [0, 5, 1, 6]] }));
+    }
+    return els;
+  }
+  Object.assign(MODEL, {
+    // hanging signs: bits 0-3 rotation (sixteenths), bit 4 attached to the block above by one chain
+    hanging_sign: (d, s) => {
+      const t = d.tex.side, els = [box(1, 0, 7, 15, 10, 9, t)];
+      if (s & 16) els.push(...chainPair(8, 10, 16, 8)); else els.push(...chainPair(3, 10, 16, 8), ...chainPair(13, 10, 16, 8));
+      return rotYdeg(els, (s & 15) * 22.5);
+    },
+    wall_hanging_sign: (d, s) => rotY([box(0, 14, 6, 16, 16, 10, t2(d)), box(1, 0, 7, 15, 10, 9, d.tex.side), ...chainPair(3, 10, 14, 8), ...chainPair(13, 10, 14, 8)], turnsOf(s)),
+    candle: (d, s) => candleEls((s & 4) ? d.tex.side + '_lit' : d.tex.side, CANDLES[s & 3]),
+    candle_cake: (d, s) => [box(1, 0, 1, 15, 8, 15, { up: 'cake_top', down: 'cake_bottom', side: 'cake_side' }), ...candleEls((s & 4) ? d.tex.extra + '_lit' : d.tex.extra, [[7, 7, 6]]).map(e => Object.assign({}, e, { a: [e.a[0], e.a[1] + 8, e.a[2]], b: [e.b[0], e.b[1] + 8, e.b[2]] }))],
+    // coral fans on a wall: two planes leaning out from the wall behind (built for a wall to the south)
+    wall_fan: (d, s) => {
+      const t = d.tex.side, o = { noCull: true, uv: [[0, 0, 16, 16], [0, 0, 16, 16], null, null, null, null] };
+      return rotY([box(0, 8, 5, 16, 8, 16, { up: t, down: t }, Object.assign({ r: { axis: 'x', angle: 22.5, origin: [8, 8, 16] } }, o)),
+        box(0, 8, 5, 16, 8, 16, { up: t, down: t }, Object.assign({ r: { axis: 'x', angle: -22.5, origin: [8, 8, 16] } }, o))], turnsOf(s));
+    },
+    // turtle eggs: bits 0-1 eggs-1, bits 2-3 cracks
+    turtle_egg: (d, s) => {
+      const t = ['turtle_egg', 'turtle_egg_slightly_cracked', 'turtle_egg_very_cracked'][Math.min(2, (s >> 2) & 3)];
+      const P = [[5, 4, 4, 7], [1, 8, 3, 5], [10, 10, 3, 5], [9, 3, 2, 4]], els = [];
+      for (let i = 0; i <= (s & 3); i++) { const [x, z, w, h] = P[i]; const uvS = [0, 0, w, h], uvT = [0, 0, w, w]; els.push(box(x, 0, z, x + w, h, z + w, t, { uv: [uvT, uvT, uvS, uvS, uvS, uvS] })); }
+      return els;
+    },
+    sniffer_egg: (d, s) => {
+      const st = ['not_cracked', 'slightly_cracked', 'very_cracked'][Math.min(2, s & 3)], p = 'sniffer_egg_' + st + '_';
+      return [box(1, 0, 2, 15, 16, 14, { up: p + 'top', down: p + 'bottom', north: p + 'north', south: p + 'south', west: p + 'west', east: p + 'east' })];
+    },
+    shrieker: d => [box(0, 0, 0, 16, 8, 16, { up: d.tex.up, down: d.tex.down, side: d.tex.side }, { uv: [null, null, [0, 8, 16, 16], [0, 8, 16, 16], [0, 8, 16, 16], [0, 8, 16, 16]] }),
+      box(1, 8, 1, 15, 15, 15, { up: 'sculk_shrieker_inner_top', side: 'sculk_shrieker_can' }, { uv: [null, [1, 1, 15, 15], [1, 1, 15, 8], [1, 1, 15, 8], [1, 1, 15, 8], [1, 1, 15, 8]] })],
+    // sculk sensors: a half block with four tendrils (bits 0-1 phase: 0 inactive, 1 active, 2 cooldown)
+    sensor: (d, s) => {
+      const tend = (s & 3) === 1 ? 'sculk_sensor_tendril_active' : 'sculk_sensor_tendril_inactive';
+      const els = [box(0, 0, 0, 16, 8, 16, { up: d.tex.up, down: d.tex.down, side: d.tex.side }, { uv: [null, null, [0, 8, 16, 16], [0, 8, 16, 16], [0, 8, 16, 16], [0, 8, 16, 16]] })];
+      const a = { noCull: true, uv: [null, null, [0, 0, 16, 8], [0, 0, 16, 8], [0, 0, 16, 8], [0, 0, 16, 8]], r: { axis: 'y', angle: 45, origin: [8, 8, 8] } };
+      els.push(box(0, 8, 8, 16, 16, 8, { north: tend, south: tend }, a), box(8, 8, 0, 8, 16, 16, { west: tend, east: tend }, a));
+      if (d.name === 'calibrated_sculk_sensor') {
+        const am = 'calibrated_sculk_sensor_amethyst', b = { noCull: true, uv: [null, null, [4, 2, 12, 16], [4, 2, 12, 16], [4, 2, 12, 16], [4, 2, 12, 16]] };
+        els.push(...rotY([box(4, 8, 8, 12, 16, 8, { north: am, south: am }, b), box(8, 8, 4, 8, 16, 12, { west: am, east: am }, b)], turnsOf(s >> 2)));
+      }
+      return els;
+    },
+    decorated_pot: (d, s) => rotY([box(1, 0, 1, 15, 16, 15, { up: 'decorated_pot_base', down: 'decorated_pot_base', side: d.tex.side }),
+      box(5, 16, 5, 11, 17, 11, d.tex.side, { uv: [[5, 5, 11, 11], [5, 5, 11, 11], [5, 2, 11, 3], [5, 2, 11, 3], [5, 2, 11, 3], [5, 2, 11, 3]] }),
+      box(4, 17, 4, 12, 20, 12, d.tex.side, { uv: [[4, 4, 12, 12], [4, 4, 12, 12], [4, 0, 12, 3], [4, 0, 12, 3], [4, 0, 12, 3], [4, 0, 12, 3]] })], turnsOf(s)),
+    heavy_core: d => [box(4, 0, 4, 12, 8, 12, { up: d.tex.up, down: d.tex.down, side: d.tex.side }, { uv: [[4, 4, 12, 12], [4, 4, 12, 12], [4, 4, 12, 12], [4, 4, 12, 12], [4, 4, 12, 12], [4, 4, 12, 12]] })],
+  });
+  function t2(d) { return d.tex.side; }
   const POT_PLANTS = [null, 'poppy', 'dandelion', 'blue_orchid', 'allium', 'azure_bluet', 'red_tulip', 'orange_tulip', 'white_tulip', 'pink_tulip', 'oxeye_daisy', 'cornflower', 'lily_of_the_valley', 'wither_rose',
     'oak_sapling', 'spruce_sapling', 'birch_sapling', 'jungle_sapling', 'acacia_sapling', 'dark_oak_sapling', 'cherry_sapling', 'mangrove_propagule', 'red_mushroom', 'brown_mushroom', 'fern', 'dead_bush', 'cactus', 'bamboo', 'crimson_fungus', 'warped_fungus', 'crimson_roots', 'warped_roots'];
   function crossEls(t, tint, size) {
@@ -557,6 +626,15 @@ const Models = (() => {
       case 'sign': return col ? null : [[0.25, 0, 0.25, 0.75, 1, 0.75]];
       case 'wall_sign': return col ? null : [rot([0, 4.5 / 16, 14 / 16, 1, 12.5 / 16, 1])];
       case 'beacon': case 'conduit': return FULL;
+      case 'candle': { const L = CANDLES[st & 3]; let x0 = 1, z0 = 1, x1 = 0, z1 = 0, h = 0; for (const [x, z, hh] of L) { x0 = Math.min(x0, x / 16); z0 = Math.min(z0, z / 16); x1 = Math.max(x1, (x + 2) / 16); z1 = Math.max(z1, (z + 2) / 16); h = Math.max(h, hh / 16); } return [[x0, 0, z0, x1, h, z1]]; }
+      case 'candle_cake': return [[1 / 16, 0, 1 / 16, 15 / 16, 0.5, 15 / 16], [7 / 16, 0.5, 7 / 16, 9 / 16, 14 / 16, 9 / 16]];
+      case 'turtle_egg': return (st & 3) ? [[1 / 16, 0, 1 / 16, 15 / 16, 7 / 16, 15 / 16]] : [[3 / 16, 0, 3 / 16, 12 / 16, 7 / 16, 12 / 16]];
+      case 'sniffer_egg': return [[1 / 16, 0, 2 / 16, 15 / 16, 1, 14 / 16]];
+      case 'shrieker': case 'sensor': return [[0, 0, 0, 1, 0.5, 1]];
+      case 'decorated_pot': return [[1 / 16, 0, 1 / 16, 15 / 16, 1, 15 / 16]];
+      case 'heavy_core': return [[4 / 16, 0, 4 / 16, 12 / 16, 0.5, 12 / 16]];
+      case 'hanging_sign': return col ? null : [[1 / 16, 0, 1 / 16, 15 / 16, 1, 15 / 16]];
+      case 'wall_hanging_sign': return col ? null : [rot([0, 14 / 16, 6 / 16, 1, 1, 10 / 16]), rot([1 / 16, 0, 7 / 16, 15 / 16, 10 / 16, 9 / 16])];
     }
     if (col) return d.solid ? FULL : null;
     // thin selection boxes for non-solid things
@@ -574,6 +652,7 @@ const Models = (() => {
       case 'end_portal': return [[0, 0, 0, 1, 12 / 16, 1]];
       case 'banner': return [[0.25, 0, 0.25, 0.75, 1, 0.75]];
       case 'tripwire_hook': return [rot([5 / 16, 0, 10 / 16, 11 / 16, 10 / 16, 1])];
+      case 'wall_fan': return [rot([0, 4 / 16, 5 / 16, 1, 12 / 16, 1])];
     }
     return FULL;
   }

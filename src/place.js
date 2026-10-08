@@ -37,10 +37,19 @@ const Place = (() => {
       case 'chorus_flower': return below === BID.end_stone || below === BID.chorus_plant;
       case 'pickle': return bd.opaque;
       case 'sign': case 'banner': return SOLID[below] === 1 || bd.model === 'fence' || bd.model === 'wall';
+      case 'hanging_sign': { const a = World.getBlock(x, y + 1, z); return a !== 0 && !BLOCKS[a].replaceable; }
+      case 'water_plant_any': return solidTop(x, y - 1, z);
+      case 'candle': return solidTop(x, y - 1, z) || bd.model === 'fence' || bd.model === 'wall';
       case 'dripstone': return true;
     }
     if (n === 'wheat' || n === 'carrots' || n === 'potatoes' || n === 'beetroots' || n === 'pumpkin_stem' || n === 'melon_stem' || n === 'attached_pumpkin_stem' || n === 'attached_melon_stem') return below === BID.farmland;
     if (n === 'nether_wart') return below === BID.soul_sand;
+    if (n === 'torchflower_crop' || (n === 'pitcher_crop' && !(st & 8))) return below === BID.farmland;
+    if (n === 'pitcher_crop') return World.getBlock(x, y - 1, z) === id;
+    if (d.model === 'wall_fan') { const f = st & 7; return sturdyFace(x - DX[f], y, z - DZ[f]); }
+    if (d.model === 'wall_hanging_sign') { const f = st & 7, sx = f === 2 || f === 3 ? 1 : 0, sz = 1 - sx; return SOLID[World.getBlock(x + sx, y, z + sz)] === 1 || SOLID[World.getBlock(x - sx, y, z - sz)] === 1 || World.getBlock(x, y + 1, z) !== 0; }
+    if (n === 'turtle_egg') return below === BID.sand || below === BID.red_sand || SOLID[below] === 1;
+    if (n === 'sniffer_egg' || d.model === 'shrieker' || d.model === 'sensor' || n === 'heavy_core' || n === 'decorated_pot') return true;
     if (n === 'sweet_berry_bush') return soil(below);
     if (n === 'cocoa') { const f = st & 7; const l = World.getBlock(x + DX[f], y, z + DZ[f]); return l === BID.jungle_log || l === BID.jungle_wood || l === BID.stripped_jungle_log || l === BID.stripped_jungle_wood; }
     if (n === 'kelp_plant' || n === 'tall_seagrass') return true;
@@ -67,6 +76,9 @@ const Place = (() => {
     }
     if (hit.id === id && BLOCKS[id].name === 'snow' && (hit.state & 7) < 7) return commit(p, s, x, y, z, id, (hit.state & 7) + 1, offhand);
     if (hit.id === id && BLOCKS[id].name === 'sea_pickle' && (hit.state & 3) < 3) return commit(p, s, x, y, z, id, (hit.state & ~3) | ((hit.state & 3) + 1), offhand);
+    // candles and turtle eggs stack up to four; a candle on an untouched cake makes a candle cake
+    if (hit.id === id && (BLOCKS[id].model === 'candle' || BLOCKS[id].model === 'turtle_egg') && (hit.state & 3) < 3) return commit(p, s, x, y, z, id, hit.state + 1, offhand, true);
+    if (BLOCKS[id].model === 'candle' && hit.id === BID.cake && (hit.state & 7) === 0 && face === 1) return commit(p, s, x, y, z, BID[BLOCKS[id].name + '_cake'], 0, offhand, true);
     if (!hd.replaceable || (hd.fluid && hit.id !== 0 && false)) { x += DX[face]; y += DY[face]; z += DZ[face]; }
     else face = 1;
     // a slab placed into the free half of a slab in the neighbouring block
@@ -125,7 +137,24 @@ const Place = (() => {
         break;
       }
       case 'dripstone': st = face === 0 ? 8 : 0; break;
-      case 'water_plant': if (!waterHere) return false; break;
+      case 'water_plant': case 'water_plant_any':
+        if (d.place === 'water_plant' && !waterHere) return false;
+        if (face === 0) return false;
+        // coral fans go on the side of a block as wall fans
+        if (face > 1 && it.wall !== undefined) { id = it.wall; st = face; if (!sturdyFace(x - DX[face], y, z - DZ[face])) return false; if (BLOCKS[id].waterlog && waterHere) st |= 128; return commit(p, s, x, y, z, id, st, offhand); }
+        break;
+      case 'hanging_sign':
+        if (face === 1) return false;
+        if (face > 1) { id = it.wall; st = face === 4 || face === 5 ? (L === 2 || L === 3 ? L : 2) : (L === 4 || L === 5 ? L : 5); break; }
+        {
+          // a hanging sign under a full block hangs from two chains and turns in quarter turns; under anything
+          // narrower (or when sneaking) it hangs from one chain and can face any of the sixteen directions
+          const above = World.getBlock(x, y + 1, z), attached = p.sneaking || !BLOCKS[above].opaque;
+          const r = Math.round((((-p.yaw * 180 / Math.PI) + 180) % 360 + 360) % 360 / 22.5) & 15;
+          st = attached ? (r | 16) : (Math.round(r / 4) * 4) & 15;
+        }
+        break;
+      case 'candle': st = 0; break;
       case 'lily': if (hit && BLOCKS[hit.id].fluid === 'water') { x = hit.x; y = hit.y + 1; z = hit.z; } break;
       case 'bed': {
         const hx = x + DX[L], hz = z + DZ[L];

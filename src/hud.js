@@ -40,6 +40,8 @@ const HUD = (() => {
     if (!p || !Game.running) return;
     const hud = Settings.hud;
     overlays(p, a);
+    // falling asleep: the screen fades to dark
+    if (p.sleeping) { const f = Math.min(1, (p.sleepTimer + a) / 100); g.fillStyle = `rgba(16,16,16,${(f * 0.82).toFixed(3)})`; g.fillRect(0, 0, W, H); }
     if (!hud) return;
     const cx = Math.floor(W / 2), bottom = H;
     const spectator = p.spectator;

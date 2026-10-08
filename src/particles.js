@@ -295,6 +295,15 @@ void main(){
             else flameAt(ox, oy, oz, 0, 0, 0, n.includes('soul'));
             break;
           }
+          case 'candle': case 'candle_cake': {
+            const st = World.getState(x, y, z); if (!(st & 4)) break;
+            // wick tops of the candle model (1-4 candles), or the one candle on a cake
+            const L = BLOCKS[id].model === 'candle' ? [[[8, 8]], [[6, 8], [10, 7]], [[8, 10], [6, 7], [10, 7]], [[6, 6], [10, 6], [6, 10], [10, 10]]][st & 3] : [[8, 8]];
+            const H = BLOCKS[id].model === 'candle' ? [[7], [7, 6], [7, 6, 4], [7, 6, 5, 4]][st & 3] : [15];
+            L.forEach(([cx, cz], i) => { const ox = x + cx / 16, oy = y + H[i] / 16 + 0.03, oz = z + cz / 16; if (rnd(3) === 0) smokeAt(ox, oy, oz, 0, 0, 0); const f = flameAt(ox, oy, oz, 0, 0, 0, false); if (f) f.size *= 0.5; });
+            if (rnd(30) === 0) Sound.play('candle_ambient', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 });
+            break;
+          }
           case 'fire': if (rnd(24) === 0) Sound.play('fire_ambient', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 }); for (let i = 0; i < 3; i++) smokeAt(x + rand(), y + rand() * 0.5 + 0.5, z + rand(), 0, 0, 0, true); break;
           case 'campfire': if ((World.getState(x, y, z) & 8) === 0) { if (rnd(10) === 0) Sound.play('campfire_crackle', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 }); if (rnd(5) === 0) lavaPop(x + 0.5, y + 0.5, z + 0.5); } break;
           case 'portal': if (rnd(100) === 0) Sound.play('portal_ambient', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 }); for (let i = 0; i < 4; i++) { const p = generic(x + rand(), y + rand(), z + rand(), (rand() - 0.5) * 0.5, (rand() - 0.5) * 0.5, (rand() - 0.5) * 0.5, { size: 0.1 * (rand() * 0.2 + 0.5), life: 40 + rnd(10), phys: false, drag: 1, bright: true }); const f = rand() * 0.6 + 0.4; p.r = f * 0.9; p.g = f * 0.3; p.b = f; p.spriteFn = s => 'portal_' + Math.min(7, Math.floor(s.age / s.life * 8)); } break;

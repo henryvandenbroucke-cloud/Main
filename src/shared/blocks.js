@@ -393,6 +393,118 @@ SHARED.push(function blocksModule(G) {
   }
   reg('nether_brick_fence', { model: 'fence', tex: 'nether_bricks', sound: 'nether_bricks', waterlog: true });
 
+  // ------------------------------------------------------------------ the rest of the game's 1.20/1.21 blocks
+  reg('bamboo_mosaic', { sound: 'bamboo_wood', flam: [5, 20] });
+  reg('stripped_bamboo_block', { tex: { side: 'stripped_bamboo_block', end: 'stripped_bamboo_block_top' }, place: 'axis', sound: 'bamboo_wood', flam: [5, 5] });
+  for (const [p2, src] of [['bamboo_mosaic', 'bamboo_mosaic']]) { const base = { tex: src, sound: 'bamboo_wood', flam: [5, 20], waterlog: true }; reg(p2 + '_stairs', Object.assign({ model: 'stairs', place: 'stairs', opacity: 15 }, base)); reg(p2 + '_slab', Object.assign({ model: 'slab', place: 'slab', opacity: 15 }, base)); }
+  reg('petrified_oak_slab', { model: 'slab', place: 'slab', opacity: 15, tex: 'oak_planks', waterlog: true });
+  // hanging signs: like signs, made of stripped logs; standing ones hang under a block (bits 0-3 rotation, bit 4 attached)
+  for (const w of WOODS.concat(STEMS, ['bamboo'])) {
+    const t = w === 'bamboo' ? 'stripped_bamboo_block' : STEMS.includes(w) ? 'stripped_' + w + '_stem' : 'stripped_' + w + '_log';
+    const snd = STEMS.includes(w) ? 'nether_wood' : w === 'bamboo' ? 'bamboo_wood' : 'wood';
+    reg(w + '_hanging_sign', { model: 'hanging_sign', layer: 1, solid: false, place: 'hanging_sign', sound: snd, tex: t, flam: STEMS.includes(w) ? null : [5, 20] });
+    reg(w + '_wall_hanging_sign', { model: 'wall_hanging_sign', layer: 1, solid: false, item: false, sound: snd, tex: t });
+  }
+  reg('infested_mossy_stone_bricks', { tex: 'mossy_stone_bricks' }); reg('infested_cracked_stone_bricks', { tex: 'cracked_stone_bricks' }); reg('infested_chiseled_stone_bricks', { tex: 'chiseled_stone_bricks' });
+  reg('infested_deepslate', { tex: { side: 'deepslate', end: 'deepslate_top' }, place: 'axis', sound: 'deepslate' });
+  // blocks only for building worlds (creative operators)
+  reg('barrier', { model: 'none', opacity: 0, layer: 1, tex: 'barrier' });
+  reg('light', { model: 'none', solid: false, opacity: 0, replaceable: true, light: 15, tex: 'light' });
+  reg('structure_void', { model: 'none', solid: false, opacity: 0, replaceable: true, tex: 'structure_void' });
+  for (const n of ['command_block', 'repeating_command_block', 'chain_command_block']) reg(n, { tex: { front: n + '_front', side: n + '_side', top: n + '_side', bottom: n + '_back' }, place: 'facing6_opp', sound: 'metal' });
+  reg('structure_block', { tex: 'structure_block' }); reg('jigsaw', { tex: { side: 'jigsaw_side', top: 'jigsaw_top', bottom: 'jigsaw_bottom' } });
+  // crops and plants of 1.20
+  reg('torchflower_crop', plant({ model: 'crop', ticks: true, item: false, tex: 'torchflower_crop_stage1' }));
+  reg('pitcher_crop', plant({ model: 'crop', ticks: true, item: false, tex: 'pitcher_crop_top_stage_4' }));
+  reg('pitcher_plant', plant({ model: 'tall', place: 'tall_plant', tex: 'pitcher_plant_top' }));
+  reg('bamboo_sapling', plant({ item: false, ticks: true, tex: 'bamboo_stage0', place: 'bamboo' }));
+  reg('big_dripleaf_stem', plant({ item: false, tex: 'big_dripleaf_stem' }));
+  reg('frosted_ice', { layer: 2, opacity: 2, slip: 0.98, ticks: true, item: false, sound: 'glass', tex: 'frosted_ice_0' });
+  // eggs: turtle eggs (bits 0-1 count-1, bits 2-3 hatch stage), sniffer eggs (bits 0-1 hatch stage)
+  reg('turtle_egg', { model: 'turtle_egg', layer: 1, opacity: 0, sound: 'stone', ticks: true });
+  reg('sniffer_egg', { model: 'sniffer_egg', layer: 0, opacity: 0, sound: 'metal', ticks: true, tex: { top: 'sniffer_egg_not_cracked_top', side: 'sniffer_egg_not_cracked_east', bottom: 'sniffer_egg_not_cracked_bottom' } });
+  reg('frogspawn', { model: 'lily', layer: 1, solid: false, opacity: 0, item: true, place: 'lily', tex: 'frogspawn', sound: 'slime' });
+  // corals that died out of water, and the fans on walls (bits 0-2 facing)
+  for (const k of ['tube', 'brain', 'bubble', 'fire', 'horn']) {
+    reg('dead_' + k + '_coral', plant({ tex: 'dead_' + k + '_coral', place: 'water_plant_any', sound: 'stone', waterlog: true }));
+    reg('dead_' + k + '_coral_fan', plant({ tex: 'dead_' + k + '_coral_fan', place: 'water_plant_any', sound: 'stone', waterlog: true }));
+    reg('dead_' + k + '_coral_wall_fan', plant({ model: 'wall_fan', item: false, tex: 'dead_' + k + '_coral_fan', sound: 'stone', waterlog: true }));
+    reg(k + '_coral_wall_fan', plant({ model: 'wall_fan', item: false, tex: k + '_coral_fan', sound: 'coral', fluidLog: true }));
+  }
+  // candles: bits 0-1 candles-1, bit 2 lit, bit 7 waterlogged; candle cakes: bit 2 lit
+  for (const c of [''].concat(COLORS)) {
+    const n = (c ? c + '_' : '') + 'candle';
+    reg(n, { model: 'candle', layer: 1, opacity: 0, solid: true, place: 'candle', sound: 'wool', tex: n, waterlog: true });
+    reg(n + '_cake', { model: 'candle_cake', opacity: 0, item: false, tex: { top: 'cake_top', side: 'cake_side', bottom: 'cake_bottom', extra: n }, sound: 'wool' });
+  }
+  // tuff family (1.21)
+  reg('polished_tuff', { sound: 'tuff' }); reg('chiseled_tuff', { sound: 'tuff', tex: { side: 'chiseled_tuff', end: 'chiseled_tuff_top' } });
+  reg('tuff_bricks', { sound: 'tuff' }); reg('chiseled_tuff_bricks', { sound: 'tuff', tex: { side: 'chiseled_tuff_bricks', end: 'chiseled_tuff_bricks_top' } });
+  for (const [p2, src] of [['polished_tuff', 'polished_tuff'], ['tuff_brick', 'tuff_bricks']]) { const base = { tex: src, sound: 'tuff', waterlog: true }; reg(p2 + '_stairs', Object.assign({ model: 'stairs', place: 'stairs', opacity: 15 }, base)); reg(p2 + '_slab', Object.assign({ model: 'slab', place: 'slab', opacity: 15 }, base)); reg(p2 + '_wall', Object.assign({ model: 'wall' }, base)); }
+  // sculk
+  reg('sculk', { sound: 'sculk', tex: 'sculk' });
+  reg('sculk_vein', plant({ model: 'vine', place: 'vine', replaceable: true, sound: 'sculk', tex: 'sculk_vein', tint: null }));
+  reg('sculk_catalyst', { light: 6, sound: 'sculk', tex: { top: 'sculk_catalyst_top', side: 'sculk_catalyst_side', bottom: 'sculk_catalyst_bottom' } });
+  reg('sculk_shrieker', { model: 'shrieker', opacity: 0, sound: 'sculk', waterlog: true, tex: { top: 'sculk_shrieker_top', side: 'sculk_shrieker_side', bottom: 'sculk_shrieker_bottom' } });
+  reg('sculk_sensor', { model: 'sensor', layer: 1, opacity: 0, light: 1, sound: 'sculk', waterlog: true, tex: { top: 'sculk_sensor_top', side: 'sculk_sensor_side', bottom: 'sculk_sensor_bottom', extra: 'sculk_sensor_tendril_inactive' } });
+  reg('calibrated_sculk_sensor', { model: 'sensor', layer: 1, opacity: 0, light: 1, sound: 'sculk', waterlog: true, place: 'facing_h', tex: { top: 'calibrated_sculk_sensor_top', side: 'sculk_sensor_side', bottom: 'sculk_sensor_bottom', extra: 'calibrated_sculk_sensor_amethyst' } });
+  // the whole copper family: four stages of oxidation, each with a waxed twin that stops ageing
+  const OX = ['', 'exposed_', 'weathered_', 'oxidized_'];
+  for (const o of OX) {
+    const blockName = o ? o + 'copper' : 'copper_block', cut = o + 'cut_copper';
+    if (!BID[cut]) reg(cut, { sound: 'metal', ticks: !!0 || true });
+    reg(o + 'chiseled_copper', { sound: 'metal', ticks: true });
+    reg(o + 'copper_grate', { layer: 1, opacity: 0, sound: 'metal', waterlog: true, ticks: true });
+    reg(o + 'copper_bulb', { sound: 'metal', ticks: true, tex: o + 'copper_bulb' });
+    reg(o + 'copper_door', { model: 'door', layer: 1, opacity: 0, place: 'door', sound: 'metal', ticks: true, tex: { top: o + 'copper_door_top', bottom: o + 'copper_door_bottom' } });
+    reg(o + 'copper_trapdoor', { model: 'trapdoor', layer: 1, opacity: 0, place: 'trapdoor', sound: 'metal', waterlog: true, ticks: true });
+    if (o) { const base = { tex: cut, sound: 'metal', waterlog: true, ticks: true }; reg(o + 'cut_copper_stairs', Object.assign({ model: 'stairs', place: 'stairs', opacity: 15 }, base)); reg(o + 'cut_copper_slab', Object.assign({ model: 'slab', place: 'slab', opacity: 15 }, base)); }
+    void blockName;
+  }
+  for (const o of OX) {
+    const src = o ? o + 'copper' : 'copper_block';
+    reg('waxed_' + src, { tex: src, sound: 'metal' });
+    for (const n of ['cut_copper', 'chiseled_copper', 'copper_grate', 'copper_bulb']) { const d0 = BLOCKS[BID[o + n]]; reg('waxed_' + o + n, Object.assign({}, { tex: { top: d0.tex.up, bottom: d0.tex.down, side: d0.tex.side }, sound: 'metal' }, n === 'copper_grate' ? { layer: 1, opacity: 0, waterlog: true } : {})); }
+    reg('waxed_' + o + 'cut_copper_stairs', { model: 'stairs', place: 'stairs', opacity: 15, tex: o + 'cut_copper', sound: 'metal', waterlog: true });
+    reg('waxed_' + o + 'cut_copper_slab', { model: 'slab', place: 'slab', opacity: 15, tex: o + 'cut_copper', sound: 'metal', waterlog: true });
+    reg('waxed_' + o + 'copper_door', { model: 'door', layer: 1, opacity: 0, place: 'door', sound: 'metal', tex: { top: o + 'copper_door_top', bottom: o + 'copper_door_bottom' } });
+    reg('waxed_' + o + 'copper_trapdoor', { model: 'trapdoor', layer: 1, opacity: 0, place: 'trapdoor', sound: 'metal', waterlog: true, tex: o + 'copper_trapdoor' });
+  }
+  // froglights, the decorated pot, the crafter, the vault and the heavy core
+  for (const f of ['ochre', 'verdant', 'pearlescent']) reg(f + '_froglight', { light: 15, place: 'axis', sound: 'froglight', tex: { side: f + '_froglight_side', end: f + '_froglight_top' } });
+  reg('decorated_pot', { model: 'decorated_pot', opacity: 0, place: 'facing_h_opp', sound: 'decorated_pot', waterlog: true, tex: 'decorated_pot_side' });
+  reg('crafter', { place: 'facing6_opp', sound: 'metal', tex: { front: 'crafter_north', side: 'crafter_east', top: 'crafter_top', bottom: 'crafter_bottom' } });
+  reg('vault', { layer: 1, opacity: 1, place: 'facing_h_opp', light: 6, sound: 'metal', tex: { front: 'vault_front_off', side: 'vault_side_off', top: 'vault_top', bottom: 'vault_bottom' } });
+  reg('heavy_core', { model: 'heavy_core', opacity: 0, sound: 'metal', waterlog: true, tex: { top: 'heavy_core_top', side: 'heavy_core_side', bottom: 'heavy_core_bottom' } });
+  reg('bubble_column', { model: 'liquid', layer: 2, solid: false, opacity: 1, fluid: 'water', replaceable: true, tint: 'water', tex: { all: 'water_still', side: 'water_flow' }, item: false, cullSame: true, ticks: true });
+
+  // copper that is not waxed ages over time (random ticks); frosted ice shows how far it has melted
+  for (const d of BLOCKS) if (/(^|_)copper(_|$)/.test(d.name) && !d.name.startsWith('waxed_') && !/raw_|_ore|lightning_rod|copper_ingot/.test(d.name) && !d.name.startsWith('oxidized_')) d.ticks = true;
+  BLOCKS[BID.frosted_ice].stateTex = s => 'frosted_ice_' + (s & 3);
+  BLOCKS[BID.vault].ticks = false;
+
+  // ------------------------------------------------------------------ light that depends on the block state
+  // (LIGHT holds the most a block can give; lightFn gives the value for a state)
+  const lit = (n, fn) => { const d = BLOCKS[BID[n]]; d.lightFn = fn; for (let st = 0; st < 256; st++) d.light = Math.max(d.light, fn(st)); };
+  for (const c of [''].concat(COLORS)) { const n = (c ? c + '_' : '') + 'candle'; BLOCKS[BID[n]].light = 12; lit(n, s => (s & 4) ? 3 * ((s & 3) + 1) : 0); lit(n + '_cake', s => (s & 4) ? 3 : 0); }
+  OX.forEach((o, i) => {
+    const level = [15, 12, 8, 4][i];
+    for (const n of [o + 'copper_bulb', 'waxed_' + o + 'copper_bulb']) {
+      const d = BLOCKS[BID[n]], base = o + 'copper_bulb';
+      d.stateTex = s => base + (s & 1 ? '_lit' : '') + (s & 2 ? '_powered' : '');
+      lit(n, s => (s & 1) ? level : 0);
+    }
+  });
+  for (const f of ['furnace', 'blast_furnace', 'smoker']) lit(f, s => (s & 8) ? 13 : 0);
+  lit('redstone_lamp', s => (s & 1) ? 15 : 0);
+  lit('sea_pickle', s => (s & 128) ? 3 * ((s & 3) + 2) : 0);
+  lit('light', s => 15 - (s & 15));
+  lit('campfire', s => (s & 8) ? 0 : 15); lit('soul_campfire', s => (s & 8) ? 0 : 10);
+  lit('redstone_ore', s => (s & 1) ? 9 : 0); lit('deepslate_redstone_ore', s => (s & 1) ? 9 : 0);
+  lit('cave_vines', s => (s & 8) ? 14 : 0); lit('cave_vines_plant', s => (s & 8) ? 14 : 0);
+  lit('respawn_anchor', s => [0, 3, 7, 11, 15][Math.min(4, s & 7)]);
+  lit('redstone_torch', s => (s & 8) ? 0 : 7); lit('redstone_wall_torch', s => (s & 8) ? 0 : 7);
+
   // ------------------------------------------------------------------ derived tables
   const N = BLOCKS.length;
   const T = (f) => { const a = new Uint8Array(N); for (const d of BLOCKS) a[d.id] = f(d) ? 1 : 0; return a; };

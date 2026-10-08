@@ -25,6 +25,7 @@ const Blocks = (() => {
   }
   function onPlaced(x, y, z, id, st, p, s) {
     const d = BLOCKS[id];
+    BlockExtras.onPlaced(x, y, z, id, st);
     // block entities for containers and machines
     const be = newBE(d.name);
     if (be) { if (s && s.tag && s.tag.items) be.items = s.tag.items.slice(); if (s && s.tag && s.tag.name) be.customName = s.tag.name; World.setBE(x, y, z, be); }
@@ -34,7 +35,7 @@ const Blocks = (() => {
     if (d.name === 'carved_pumpkin' || d.name === 'wither_skeleton_skull') Golems.check(x, y, z, p);
     if (d.name === 'fire') Portals.tryLight(x, y, z);
     if (d.name === 'sponge') Sponge.absorb(x, y, z);
-    if (d.name === 'sign' || d.model === 'sign' || d.model === 'wall_sign') { World.setBE(x, y, z, { type: 'sign', lines: ['', '', '', ''] }); if (p && p.isPlayer) UI.open('sign', { x, y, z }); }
+    if (d.name === 'sign' || d.model === 'sign' || d.model === 'wall_sign' || d.model === 'hanging_sign' || d.model === 'wall_hanging_sign') { World.setBE(x, y, z, { type: 'sign', lines: ['', '', '', ''] }); if (p && p.isPlayer) UI.open('sign', { x, y, z }); }
     updateAround(x, y, z);
     Redstone.update(x, y, z);
   }
@@ -61,6 +62,7 @@ const Blocks = (() => {
     const id = World.getBlock(x, y, z); if (!id) return;
     const d = BLOCKS[id], st = World.getState(x, y, z);
     if (d.fluid) { Ticks.schedule(x, y, z, Fluids.delay(id)); return; }
+    BlockExtras.neighborChanged(x, y, z, id);
     if ((d.waterlog && (st & 128)) || d.fluidLog) Ticks.schedule(x, y, z, 5, B.water);
     if (d.gravity) Ticks.schedule(x, y, z, 2);
     if (d.name === 'redstone_wire' || d.model === 'repeater' || d.model === 'comparator' || d.model === 'piston' || d.name === 'redstone_lamp' || d.model === 'door' || d.model === 'trapdoor' || d.model === 'gate' || d.name === 'tnt' || d.name === 'note_block' || d.name === 'dispenser' || d.name === 'dropper' || d.name === 'observer' || d.name === 'hopper' || d.model === 'rail' || d.name.startsWith('redstone_') && d.model.includes('torch')) Redstone.neighbor(x, y, z, id, st, fx, fy, fz);
@@ -83,6 +85,7 @@ const Blocks = (() => {
     if (d.fluid) return Fluids.tick(x, y, z, id, st);
     if ((d.waterlog && (st & 128)) || d.fluidLog) { Fluids.tick(x, y, z, B.water, 0); return; }
     if (d.gravity) return Falling.check(x, y, z, id, st);
+    if (BlockExtras.scheduledTick(x, y, z, id, st)) return;
     if (Redstone.isComponent(id)) return Redstone.scheduled(x, y, z, id, st);
     if (id === B.fire || id === B.soul_fire) return Fire.tick(x, y, z, id, st);
     if (d.model === 'button') { World.setBlock(x, y, z, id, st & ~32); Sound.play('click_off', null, { x, y, z }); Redstone.update(x, y, z); return; }
@@ -91,6 +94,7 @@ const Blocks = (() => {
   }
   // ---------------------------------------------------------------- random ticks
   function randomTick(x, y, z, id, st) {
+    if (BlockExtras.randomTick(x, y, z, id, st)) return;
     const d = BLOCKS[id], n = d.name;
     const light = World.lightLevel(x, y + 1, z);
     switch (n) {
@@ -112,7 +116,7 @@ const Blocks = (() => {
         else if (!['wheat', 'carrots', 'potatoes', 'beetroots', 'pumpkin_stem', 'melon_stem', 'attached_pumpkin_stem', 'attached_melon_stem'].includes(BLOCKS[World.getBlock(x, y + 1, z)].name)) World.setBlock(x, y, z, B.dirt, 0);
         return;
       }
-      case 'wheat': case 'carrots': case 'potatoes': case 'beetroots': case 'pumpkin_stem': case 'melon_stem': case 'nether_wart': case 'torchflower': {
+      case 'wheat': case 'carrots': case 'potatoes': case 'beetroots': case 'pumpkin_stem': case 'melon_stem': case 'nether_wart': {
         const max = n === 'beetroots' || n === 'nether_wart' ? 3 : 7, age = st & 7;
         if (n !== 'nether_wart' && World.lightLevel(x, y + 1, z) < 9) return;
         if (age < max) { const g = n === 'nether_wart' ? 0.1 : growthChance(x, y, z, id); if (Math.random() < g) World.setBlock(x, y, z, id, age + 1); }
@@ -210,6 +214,7 @@ const Blocks = (() => {
     const { x, y, z } = hit, id = World.getBlock(x, y, z), st = World.getState(x, y, z), d = BLOCKS[id], n = d.name;
     if (p.spectator) return false;
     const held = p.inv.held;
+    if (BlockExtras.use(p, hit, id, st, held)) return true;
     switch (d.model) {
       case 'door': if (n === 'iron_door') return false; { const by = st & 8 ? y - 1 : y; const bs = World.getState(x, by, z); World.setBlock(x, by, z, id, bs ^ 16); World.setBlock(x, by + 1, z, id, World.getState(x, by + 1, z) ^ 16); Sound.play(bs & 16 ? 'door_close' : 'door_open', null, { x, y, z, iron: false }); return true; }
       case 'trapdoor': if (n === 'iron_trapdoor') return false; World.setBlock(x, y, z, id, st ^ 16); Sound.play(st & 16 ? 'trapdoor_close' : 'trapdoor_open', null, { x, y, z }); return true;

@@ -141,7 +141,7 @@ const World = {
     c.blocks[i] = id; c.states[i] = state; c.modified = true;
     if (old !== id && c.be.has(i) && !(flags & 4)) c.be.delete(i);
     const lx = x & 15, lz = z & 15;
-    if (OPACITY[old] !== OPACITY[id] || SOLID[old] !== SOLID[id] || LIGHT[old] !== LIGHT[id] || (LIGHT[id] && BLOCKS[id].lightFn)) {
+    if (OPACITY[old] !== OPACITY[id] || SOLID[old] !== SOLID[id] || LIGHT[old] !== LIGHT[id] || (LIGHT[id] && BLOCKS[id].lightFn) || (LIGHT[old] && BLOCKS[old].lightFn)) {
       const h = c.height[lx + lz * 16];
       if (y >= h) c.colHeight(lx, lz);
       Light.update(x, y, z, old, id);
@@ -181,6 +181,8 @@ const Light = (() => {
   const qx = new Int32Array(QN), qy = new Int16Array(QN), qz = new Int32Array(QN), qv = new Uint8Array(QN);
   const rx = new Int32Array(QN), ry = new Int16Array(QN), rz = new Int32Array(QN), rv = new Uint8Array(QN);
   let qh = 0, qt = 0, rh = 0, rt = 0;
+  // light given off by a block in a state (some blocks only glow when lit, or by how many there are)
+  const emit = (id, st) => { const e = LIGHT[id]; if (!e) return 0; const fn = BLOCKS[id].lightFn; return fn ? fn(st) : e; };
   let cc = null, ccx = 1e9, ccz = 1e9; // last chunk looked up
   function chunk(x, z) { const cx = x >> 4, cz = z >> 4; if (cx === ccx && cz === ccz) return cc; ccx = cx; ccz = cz; cc = World.chunks.get(ckey(cx, cz)) || null; return cc; }
   function reset() { cc = null; ccx = ccz = 1e9; }
@@ -220,7 +222,7 @@ const Light = (() => {
         if (nl === 0) continue;
         if (nl < l || (sky && f === 0 && l === 15 && nl === 15)) {
           n.light[i] &= keep; markSec(n, ny); pushR(nx, ny, nz, nl);
-          if (!sky && LIGHT[n.blocks[i]]) { n.light[i] = (n.light[i] & keep) | LIGHT[n.blocks[i]]; push(nx, ny, nz, LIGHT[n.blocks[i]]); }
+          if (!sky && LIGHT[n.blocks[i]]) { const e = emit(n.blocks[i], n.states[i]); if (e) { n.light[i] = (n.light[i] & keep) | e; push(nx, ny, nz, e); } }
         } else push(nx, ny, nz, nl);
       }
     }
@@ -244,7 +246,7 @@ const Light = (() => {
       }
     }
     qh = qt = 0;
-    for (let i = 0; i < 65536; i++) { const e = LIGHT[B[i]]; if (e) { L[i] |= e; push(x0 + (i & 15), (i >> 8) - 64, z0 + ((i >> 4) & 15), e); } }
+    for (let i = 0; i < 65536; i++) { if (!LIGHT[B[i]]) continue; const e = emit(B[i], c.states[i]); if (e) { L[i] |= e; push(x0 + (i & 15), (i >> 8) - 64, z0 + ((i >> 4) & 15), e); } }
     // block light from the neighbours' edges
     seedEdges(c, false);
     spread(false);
@@ -297,7 +299,7 @@ const Light = (() => {
     const curB = c.light[i] & 15;
     rh = rt = 0; qh = qt = 0;
     if (curB) { c.light[i] &= 0xf0; pushR(x, y, z, curB); }
-    if (LIGHT[id]) { c.light[i] = (c.light[i] & 0xf0) | LIGHT[id]; push(x, y, z, LIGHT[id]); }
+    const e = emit(id, c.states[i]); if (e) { c.light[i] = (c.light[i] & 0xf0) | e; push(x, y, z, e); }
     if (OPACITY[id] < OPACITY[old] || !curB) for (let f = 0; f < 6; f++) { const nx = x + DX[f], ny = y + DY[f], nz = z + DZ[f]; const l = World.getLight(nx, ny, nz) & 15; if (l > 1) push(nx, ny, nz, l); }
     unspread(false);
     // sky light

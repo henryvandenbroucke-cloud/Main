@@ -13,11 +13,11 @@ const Path = (() => {
     if (id === 0) return 0;
     if (d.fluid === 'lava' || id === BID.fire || id === BID.soul_fire || id === BID.magma_block || id === BID.cactus || id === BID.sweet_berry_bush || id === BID.campfire || id === BID.powder_snow || id === BID.wither_rose) return 2;
     if (d.fluid === 'water' || (d.waterlog && (World.getState(x, y, z) & 128) && !SOLID[id])) return 3;
-    if (d.model === 'door') return (World.getState(x, y, z) & 4) ? 4 : (d.name === 'iron_door' ? 1 : 5); // 5: closed wooden door
-    if (d.model === 'gate') return (World.getState(x, y, z) & 4) ? 0 : 1;
+    if (d.model === 'door') return (World.getState(x, y, z) & 16) ? 4 : (d.name === 'iron_door' ? 1 : 5); // 5: closed wooden door
+    if (d.model === 'gate') return (World.getState(x, y, z) & 16) ? 0 : 1;
     if (!SOLID[id]) return id === BID.cobweb ? 2 : 0;
     if (d.model === 'carpet' || d.model === 'layer' && (World.getState(x, y, z) & 7) < 1) return 0;
-    if (d.model === 'trapdoor') return (World.getState(x, y, z) & 4) ? 0 : 1;
+    if (d.model === 'trapdoor') return (World.getState(x, y, z) & 16) ? 0 : 1;
     return 1;
   }
   const tall = id => { const m = BLOCKS[id].model; return m === 'fence' || m === 'wall' || m === 'gate'; };

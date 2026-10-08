@@ -29,6 +29,7 @@ const Game = {
     this.running = true; this.paused = false;
     this.spawnReady = !!opts.player;
     this.bonusPending = !!opts.bonus;
+    if (!opts.player) { Weather.reset(); Stats.reset(); }
     UI.enterGame();
   },
   stop() { this.running = false; EntityRender && EntityRender.clear(); Particles.clear(); for (const d in World.dims) { for (const c of World.dims[d].values()) for (const m of c.meshes) if (m) Render.disposeSection(m); World.dims[d].clear(); } Entities.list.length = 0; },
@@ -155,6 +156,8 @@ const Loop = (() => {
     SkyRender.update(World.dim, BIOMES[World.biomeAt(Math.floor(p.x), Math.floor(p.z))].sky, under);
     Clouds.update(dt / 1000, camera.position, World.dim);
     EntityRender && EntityRender.update(a);
+    WeatherRender.update(a, p);
+    const flash = WeatherRender.updateBolts(); if (flash > 0 && World.dim === 'overworld') U.uSkyLight.value = Math.min(1, U.uSkyLight.value + flash * 0.7);
     Hand && Hand.update(a, p);
     Particles.tick && Particles.render && Particles.render(a);
     // draw: sky first, then the world
