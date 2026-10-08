@@ -17,6 +17,9 @@ const Particles = (() => {
   for (let i = 0; i < 8; i++) cell('generic_' + i, 8, 8, c => { const r = 3.6 - i * 0.42; disc(c, 4, 4, r, '#ffffff'); if (r > 1.5) { px(c, 3, 3, '#e8e8e8'); px(c, 5, 5, '#d8d8d8'); } });
   for (let i = 0; i < 8; i++) cell('spark_' + i, 8, 8, c => { const r = 3 - i * 0.35; c.fillStyle = '#fff'; c.fillRect(4 - 0.5, 4 - r, 1, r * 2); c.fillRect(4 - r, 4 - 0.5, r * 2, 1); if (r > 1.5) { px(c, 3, 3, '#fff'); px(c, 4, 3, '#fff'); px(c, 3, 4, '#fff'); px(c, 4, 4, '#fff'); } });
   for (let i = 0; i < 8; i++) cell('effect_' + i, 8, 8, c => { const a = i / 8 * Math.PI * 2; for (let k = 0; k < 6; k++) { const t = a + k * 0.9; px(c, Math.round(4 + Math.cos(t) * (3 - k * 0.4)), Math.round(4 + Math.sin(t) * (3 - k * 0.4)), '#fff'); } px(c, 4, 4, '#fff'); });
+  // the enchanting table's glyphs (letters of the standard galactic alphabet)
+  const SGA = [['#.#', '###', '#.#'], ['##.', '#.#', '##.'], ['###', '#..', '###'], ['#..', '###', '..#'], ['.#.', '#.#', '.#.'], ['###', '.#.', '.#.'], ['#.#', '.#.', '#.#'], ['##.', '.##', '..#']];
+  SGA.forEach((g, i) => cell('sga_' + i, 8, 8, c => g.forEach((r, y) => [...r].forEach((ch, x) => { if (ch === '#') px(c, 2 + x, 2 + y, '#ffffff'); }))));
   cell('flame', 8, 8, c => { const rows = ['...##...', '..####..', '..#yy#..', '.#yyyy#.', '.#yoyy#.', '.#yooy#.', '..#oo#..', '...##...']; rows.forEach((r, y) => [...r].forEach((ch, x) => { if (ch !== '.') px(c, x, y, ch === '#' ? '#ff8a1e' : ch === 'y' ? '#ffd84a' : '#fff6c8'); })); });
   cell('soul_flame', 8, 8, c => { const rows = ['...##...', '..####..', '..#yy#..', '.#yyyy#.', '.#yoyy#.', '.#yooy#.', '..#oo#..', '...##...']; rows.forEach((r, y) => [...r].forEach((ch, x) => { if (ch !== '.') px(c, x, y, ch === '#' ? '#1aa0c8' : ch === 'y' ? '#5ae0f0' : '#d8ffff'); })); });
   cell('lava', 8, 8, c => { disc(c, 4, 4, 2.6, '#ff8a00'); px(c, 3, 3, '#ffd84a'); px(c, 4, 3, '#ffd84a'); });
@@ -304,6 +307,14 @@ void main(){
             if (rnd(30) === 0) Sound.play('candle_ambient', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 });
             break;
           }
+          case 'ench': {
+            for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) for (let dy = 0; dy <= 1; dy++) {
+              if ((Math.abs(dx) !== 2 && Math.abs(dz) !== 2) || rnd(16) !== 0) continue;
+              if (World.getBlock(x + dx, y + dy, z + dz) !== BID.bookshelf || !BLOCKS[World.getBlock(x + Math.trunc(dx / 2), y + dy, z + Math.trunc(dz / 2))].replaceable) continue;
+              enchantGlyph(x + 0.5, y + 2, z + 0.5, dx + rand() - 0.5, dy - rand() - 1, dz + rand() - 0.5);
+            }
+            break;
+          }
           case 'fire': if (rnd(24) === 0) Sound.play('fire_ambient', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 }); for (let i = 0; i < 3; i++) smokeAt(x + rand(), y + rand() * 0.5 + 0.5, z + rand(), 0, 0, 0, true); break;
           case 'campfire': if ((World.getState(x, y, z) & 8) === 0) { if (rnd(10) === 0) Sound.play('campfire_crackle', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 }); if (rnd(5) === 0) lavaPop(x + 0.5, y + 0.5, z + 0.5); } break;
           case 'portal': if (rnd(100) === 0) Sound.play('portal_ambient', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 }); for (let i = 0; i < 4; i++) { const p = generic(x + rand(), y + rand(), z + rand(), (rand() - 0.5) * 0.5, (rand() - 0.5) * 0.5, (rand() - 0.5) * 0.5, { size: 0.1 * (rand() * 0.2 + 0.5), life: 40 + rnd(10), phys: false, drag: 1, bright: true }); const f = rand() * 0.6 + 0.4; p.r = f * 0.9; p.g = f * 0.3; p.b = f; p.spriteFn = s => 'portal_' + Math.min(7, Math.floor(s.age / s.life * 8)); } break;
@@ -320,7 +331,13 @@ void main(){
       }
     }
   }
+  // a glyph that flies from a bookshelf into the enchanting table (the game's EnchantmentTableParticle)
+  function enchantGlyph(x, y, z, dx, dy, dz) {
+    const p = generic(x + dx, y + dy, z + dz, 0, 0, 0, { sprite: 'sga_' + rnd(8), size: 0.1 * (rand() * 0.5 + 0.2), life: Math.floor(rand() * 10) + 30, grav: 0, phys: false, drag: 1, bright: true });
+    const f = rand() * 0.6 + 0.4; p.r = 0.9 * f * 0.9; p.g = 0.9 * f * 0.9; p.b = 0.9 * f;
+    p.update = q => { const t = 1 - q.age / q.life, u = (1 - t) ** 4; q.x = x + dx * t; q.y = y + dy * t - u * 1.2; q.z = z + dz * t; };
+  }
   function clear() { for (const k in SYS) SYS[k].list.length = 0; }
-  const api = { tick, render, blockBreak, blockHit, itemBreak, crit, magicCrit, sweep, smoke, poof, heart, happy, boneMeal, angry, totem, portal, bubble, splash, explosion, furnace, campfireSmoke, eat, slime, potionSplash, effects, note, firework, fireworkTrail, dust, drip, lavaPop, snow, damage, flameAt, smokeAt, clear, gust: (x, y, z) => explosion(x, y, z, false), sheet };
+  const api = { enchantGlyph, tick, render, blockBreak, blockHit, itemBreak, crit, magicCrit, sweep, smoke, poof, heart, happy, boneMeal, angry, totem, portal, bubble, splash, explosion, furnace, campfireSmoke, eat, slime, potionSplash, effects, note, firework, fireworkTrail, dust, drip, lavaPop, snow, damage, flameAt, smokeAt, clear, gust: (x, y, z) => explosion(x, y, z, false), sheet };
   return new Proxy(api, { get: (t, k) => (k in t ? t[k] : () => {}) });
 })();

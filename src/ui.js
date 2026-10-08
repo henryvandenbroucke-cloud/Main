@@ -213,6 +213,8 @@ const UI = (() => {
       Game.paused = true; Input.releaseLock(); show('pause'); return;
     }
     if (Screens.current) {
+      // typing in a screen's text box (the anvil's name field)
+      const ae = document.activeElement; if (ae && ae.tagName === 'INPUT' && Screens.root.contains(ae)) return;
       if (Slots.key(e)) { e.preventDefault(); return; }
       if (e.code === Input.BIND.inventory) Screens.close();
       return;

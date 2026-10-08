@@ -14,18 +14,30 @@ const Enchant = (() => {
     return it.enchCat && it.enchCat.length ? 1 : 0;
   }
   const cost = (c, lvl) => c.a * lvl + c.b;
-  function applies(e, it) { if (it.name === 'book' || it.name === 'enchanted_book') return true; return it.enchCat && it.enchCat.includes(e.cat); }
+  // which items an enchantment goes on (1.21 data): "supported" items take it on an anvil or from loot, the
+  // enchanting table only offers it for its "primary" items (Sharpness: swords at the table, axes too on an anvil)
+  const tagSets = {};
+  const inTag = (tag, n) => { if (!tag) return false; let set = tagSets[tag]; if (!set) set = tagSets[tag] = new Set(MCDATA.itemTags[tag] || []); return set.has(n); };
+  const nameOf = e => typeof e === 'string' ? e : e && e.key;
+  for (const k in MCDATA.enchantments) MCDATA.enchantments[k].key = k;
+  function applies(e, it, primary) {
+    if (it.name === 'book' || it.name === 'enchanted_book') return true;
+    const d = MCDATA.enchantDefs[nameOf(e)]; if (!d) return false;
+    return inTag(primary && d[2] ? d[2] : d[1], it.name);
+  }
+  const anvilCost = name => (MCDATA.enchantDefs[name] || [1])[0];
   // the enchantments (with levels) available at a given power
   function available(power, it, list) {
     const out = [];
     for (const name of list) {
-      const e = MCDATA.enchantments[name]; if (!e || !applies(e, it)) continue;
+      const e = MCDATA.enchantments[name]; if (!e || !applies(name, it, true)) continue;
       for (let l = e.max; l >= 1; l--) if (power >= cost({ a: e.minA, b: e.minB }, l) && power <= cost({ a: e.maxA, b: e.maxB }, l)) { out.push({ name, lvl: l, w: e.w }); break; }
     }
     return out;
   }
   function weighted(list, r) { let t = 0; for (const x of list) t += x.w; let k = r() * t; for (const x of list) { k -= x.w; if (k < 0) return x; } return list[list.length - 1]; }
-  const compatible = (a, b) => a !== b && !(MCDATA.enchantments[a].excl || []).includes(b) && !(MCDATA.enchantments[b].excl || []).includes(a);
+  const excl = n => (MCDATA.enchantDefs[n] || [0, 0, 0, []])[3];
+  const compatible = (a, b) => a !== b && !excl(a).includes(b) && !excl(b).includes(a);
   // the game's selection: power is raised by the item's enchantability, then enchantments are drawn by weight
   function select(it, level, list, r) {
     r = r || Math.random;
@@ -49,11 +61,10 @@ const Enchant = (() => {
   }
   // enchantment groups the loot tables and the enchanting table refer to
   function group(opt) {
-    const all = Object.keys(MCDATA.enchantments);
-    if (!opt || opt === '#on_random_loot') return all.filter(n => !['soul_speed', 'swift_sneak', 'wind_burst'].includes(n));
-    if (opt === '#in_enchanting_table' || opt === '#non_treasure') return all.filter(n => !MCDATA.enchantments[n].treasure);
-    if (opt === '#tradeable' || opt === '#on_traded_equipment') return all.filter(n => !['soul_speed', 'swift_sneak', 'wind_burst'].includes(n));
+    const T = MCDATA.enchantTags;
+    if (!opt) return T.on_random_loot;
     if (Array.isArray(opt)) return opt;
+    if (opt[0] === '#') return T[opt.slice(1)] || [];
     return [opt];
   }
   // put enchantments on a stack (a book becomes an enchanted book with stored enchantments)
@@ -63,7 +74,7 @@ const Enchant = (() => {
     s.tag = Object.assign({}, s.tag); s.tag.ench = Object.assign({}, s.tag.ench); for (const x of list) s.tag.ench[x.name] = x.lvl;
     return s;
   }
-  return { select, apply, group, available, enchantability, applies, compatible };
+  return { select, apply, group, available, enchantability, applies, compatible, anvilCost, cost: (name, lvl, max) => { const e = MCDATA.enchantments[name]; return max ? cost({ a: e.maxA, b: e.maxB }, lvl) : cost({ a: e.minA, b: e.minB }, lvl); } };
 })();
 
 const LootTables = (() => {
@@ -132,7 +143,7 @@ const LootTables = (() => {
       case 'enchanted_count_increase': case 'looting_enchant': { const lvl = ctx.looting || 0; if (lvl > 0) { s.count += Math.round(num(f.count, r) * lvl); if (f.limit) s.count = Math.min(s.count, f.limit); } break; }
       case 'set_damage': if (it.dur) { const d = num(f.damage, r); s.dmg = Math.floor((1 - Math.max(0, Math.min(1, d))) * it.dur); } break;
       case 'enchant_randomly': {
-        const list = Enchant.group(Array.isArray(f.options) ? f.options.map(strip) : f.options ? strip(f.options) : null).filter(n => Enchant.applies(MCDATA.enchantments[n] || {}, it) && MCDATA.enchantments[n]);
+        const list = Enchant.group(Array.isArray(f.options) ? f.options.map(strip) : f.options ? strip(f.options) : null).filter(n => Enchant.applies(n, it, false) && MCDATA.enchantments[n]);
         if (!list.length) break;
         const name = list[Math.floor(r() * list.length)], max = MCDATA.enchantments[name].max;
         s = Enchant.apply(s, [{ name, lvl: 1 + Math.floor(r() * max) }]);

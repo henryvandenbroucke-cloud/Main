@@ -106,7 +106,7 @@ const Save = (() => {
     return pack({
       x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, vx: p.vx, vy: p.vy, vz: p.vz, dim: World.dim,
       health: p.health, maxHealth: p.maxHealth, absorption: p.absorption, food: p.food, saturation: p.saturation, exhaustion: p.exhaustion,
-      xpLevel: p.xpLevel, xpProgress: p.xpProgress, xpTotal: p.xpTotal, score: p.score, gamemode: p.gamemode, flying: p.flying,
+      xpLevel: p.xpLevel, xpProgress: p.xpProgress, xpTotal: p.xpTotal, score: p.score, enchSeed: p.enchSeed, gamemode: p.gamemode, flying: p.flying,
       inv: p.inv.slots, selected: p.inv.selected, ender: p.enderChest.slots, effects: [...p.effects], spawn: p.spawn,
       fire: p.fireTicks, air: p.air, fall: p.fallDistance, dead: p.dead, onGround: p.onGround, frozen: p.frozenTicks || 0,
       recipes: p.knownRecipes ? [...p.knownRecipes] : null, seenCredits: !!p.seenCredits, stats: typeof Stats.save === 'function' ? Stats.save() : null,
@@ -119,7 +119,7 @@ const Save = (() => {
     p.vx = d.vx || 0; p.vy = d.vy || 0; p.vz = d.vz || 0; p.onGround = !!d.onGround;
     p.maxHealth = d.maxHealth || 20; p.health = d.health > 0 ? d.health : 20; p.absorption = d.absorption || 0;
     p.food = d.food ?? 20; p.saturation = d.saturation ?? 5; p.exhaustion = d.exhaustion || 0;
-    p.xpLevel = d.xpLevel || 0; p.xpProgress = d.xpProgress || 0; p.xpTotal = d.xpTotal || 0; p.score = d.score || 0;
+    p.enchSeed = d.enchSeed; p.xpLevel = d.xpLevel || 0; p.xpProgress = d.xpProgress || 0; p.xpTotal = d.xpTotal || 0; p.score = d.score || 0;
     p.setGamemode(d.gamemode || 'survival'); p.flying = !!d.flying && p.mayFly;
     p.inv.load(d.inv); p.inv.selected = d.selected || 0; p.enderChest.load(d.ender);
     p.effects = new Map(d.effects || []); p.spawn = d.spawn || null;

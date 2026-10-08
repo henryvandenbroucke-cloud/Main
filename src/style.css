@@ -127,3 +127,49 @@ input { font-family: inherit; }
 #chatInput { position: fixed; z-index: 25; left: calc(var(--s) * 2); right: calc(var(--s) * 2); bottom: calc(var(--s) * 2); height: calc(var(--s) * 12); box-sizing: border-box; background: rgba(0, 0, 0, 0.5); border: none; outline: none; color: #fff; font-size: var(--fs); padding: 0 calc(var(--s) * 2); text-shadow: var(--s) var(--s) 0 #3f3f3f; user-select: text; -webkit-user-select: text; }
 
 .mbtn.leavebed { position: fixed; z-index: 26; left: 50%; bottom: calc(var(--s) * 40); transform: translateX(-50%); font-size: var(--fs); line-height: var(--lh); text-shadow: var(--s) var(--s) 0 #3f3f3f; }
+
+/* ---------------------------------------------------------------- work stations */
+.gpart.enchfield { background: #8b8b8b; box-shadow: inset var(--s) var(--s) 0 #373737, inset calc(var(--s) * -1) calc(var(--s) * -1) 0 #fff; }
+.gpart.enchopt { width: calc(var(--s) * 108); height: calc(var(--s) * 19); box-sizing: border-box; background: #c9b991; border: var(--s) solid; border-color: #e9dfc5 #7a6b4a #7a6b4a #e9dfc5; cursor: default; }
+.gpart.enchopt.hover { background: #c7a9e0; border-color: #e8d8ff #6a4a8a #6a4a8a #e8d8ff; }
+.gpart.enchopt.no { background: #a09679; border-color: #b8ae95 #6a5f45 #6a5f45 #b8ae95; }
+.gpart.enchopt.off { background: #8b8b8b; border-color: #6b6b6b #a0a0a0 #a0a0a0 #6b6b6b; }
+.enchopt > div { position: absolute; }
+.enchlvl { left: 0; top: 0; width: calc(var(--s) * 17); height: calc(var(--s) * 17); }
+.enchlvl::before { content: ''; position: absolute; left: calc(var(--s) * 3); top: calc(var(--s) * 3); width: calc(var(--s) * 10); height: calc(var(--s) * 10); border-radius: 50%; background: radial-gradient(circle at 35% 35%, #d8ff8a, #80ff20 45%, #3c8a10); box-shadow: 0 0 0 var(--s) #1a3a08; }
+.enchlvl.dim::before { filter: grayscale(0.7) brightness(0.6); }
+.enchlvl::after { position: absolute; left: 0; width: 100%; top: calc(var(--s) * 4); text-align: center; font-size: calc(var(--fs) * 0.75); color: #1a3a08; }
+.enchlvl.l1::after { content: 'I'; } .enchlvl.l2::after { content: 'II'; } .enchlvl.l3::after { content: 'III'; }
+.enchglyph { left: calc(var(--s) * 19); top: calc(var(--s) * 2); width: calc(var(--s) * 86); height: calc(var(--s) * 16); overflow: hidden; color: #685e4a; font-size: calc(var(--fs) * 0.7); line-height: calc(var(--s) * 8); word-break: break-all; font-family: serif; }
+.gpart.enchopt.no .enchglyph { color: #4a4230; }
+.enchcost { right: calc(var(--s) * 2); bottom: 0; font-size: var(--fs); text-shadow: var(--s) var(--s) 0 #1a3a08; }
+.gpart.enchbook { width: calc(var(--s) * 36); height: calc(var(--s) * 28); background: linear-gradient(#6b3a1f, #6b3a1f) center / calc(var(--s) * 18) calc(var(--s) * 24) no-repeat; transform: rotate(-12deg); }
+.gpart.enchbook.open { background: linear-gradient(90deg, #6b3a1f 0 6%, #efe6cf 6% 48%, #b8ad94 48% 52%, #efe6cf 52% 94%, #6b3a1f 94%) center / calc(var(--s) * 34) calc(var(--s) * 22) no-repeat; transform: rotate(-6deg); }
+.gpart.anvilfield { background: #000; box-shadow: inset 0 0 0 var(--s) #a0a0a0; }
+.gscreen input.anvilname { position: absolute; box-sizing: border-box; background: transparent; border: none; outline: none; color: #e0e0e0; font: inherit; font-size: var(--fs); padding: 0; margin: 0; text-shadow: var(--s) var(--s) 0 #383838; }
+.gscreen input.anvilname:disabled { color: #707070; }
+.gpart.anvilplus { width: calc(var(--s) * 13); height: calc(var(--s) * 13); margin: calc(var(--s) * 2) 0 0 calc(var(--s) * 4); background: linear-gradient(#373737, #373737) center / 100% calc(var(--s) * 3) no-repeat, linear-gradient(#373737, #373737) center / calc(var(--s) * 3) 100% no-repeat; }
+.gpart.anvilerr { width: calc(var(--s) * 22); height: calc(var(--s) * 15); color: #ff3a3a; font-size: calc(var(--fs) * 1.6); line-height: calc(var(--s) * 15); text-align: center; text-shadow: var(--s) var(--s) 0 #3a0a0a; }
+.gpart.anvilerr::before { content: '✖'; }
+.gpart.anvilcost { left: auto !important; right: calc(var(--s) * 8); padding: calc(var(--s) * 1) calc(var(--s) * 2); background: rgba(0, 0, 0, 0.31); font-size: calc(var(--fs) * 0.8); line-height: var(--lh); text-shadow: var(--s) var(--s) 0 #3f3f3f; white-space: nowrap; }
+.gpart.grindpic { width: calc(var(--s) * 34); height: calc(var(--s) * 40); background: radial-gradient(circle at 50% 50%, #9a9a9a 0 30%, #6f6f6f 31% 48%, transparent 49%), linear-gradient(#6b5128, #6b5128) 50% 100% / calc(var(--s) * 4) 40% no-repeat; }
+.gpart.stonelist { overflow: hidden; }
+.stonebtn { position: absolute; box-sizing: border-box; width: calc(var(--s) * 16); height: calc(var(--s) * 18); background: #c6c6c6; border: var(--s) solid; border-color: #fff #555 #555 #fff; }
+.stonebtn:hover { background: #d8d8ff; }
+.stonebtn.sel { background: #8b8bcf; border-color: #373797 #fff #fff #373797; }
+.stonebtn .icon { position: absolute; left: calc(var(--s) * -1); top: 0; }
+.gpart.smithicon, .gpart.brewpipes { display: none; }
+.gpart.beaconbtn { width: calc(var(--s) * 22); height: calc(var(--s) * 22); box-sizing: border-box; background: #6f6f6f; border: var(--s) solid; border-color: #aaa #3a3a3a #3a3a3a #aaa; }
+.gpart.beaconbtn:hover { background: #7e88bf; }
+.gpart.beaconbtn.sel { background: #3a6a3a; border-color: #1a3a1a #8ac08a #8ac08a #1a3a1a; }
+.gpart.beaconbtn.off { background: #2c2c2c; border-color: #1c1c1c #3c3c3c #3c3c3c #1c1c1c; }
+.gpart.beaconbtn.off i { opacity: 0.35; }
+.beaconbtn i { position: absolute; left: calc(var(--s) * 1); top: calc(var(--s) * 1); }
+.beaconbtn b { position: absolute; right: calc(var(--s) * 1); bottom: 0; color: #fff; font-size: calc(var(--fs) * 0.7); font-weight: normal; text-shadow: var(--s) var(--s) 0 #000; }
+.gpart.beaconok, .gpart.beaconno { width: calc(var(--s) * 22); height: calc(var(--s) * 22); box-sizing: border-box; background: #6f6f6f; border: var(--s) solid; border-color: #aaa #3a3a3a #3a3a3a #aaa; text-align: center; line-height: calc(var(--s) * 20); font-size: calc(var(--fs) * 1.3); }
+.gpart.beaconok::before { content: '✔'; color: #5aff3a; } .gpart.beaconno::before { content: '✖'; color: #ff3a3a; }
+.gpart.beaconok:hover, .gpart.beaconno:hover { background: #7e88bf; }
+.gpart.beaconok.off { background: #2c2c2c; } .gpart.beaconok.off::before { color: #3a6a2a; }
+.gpart.beaconpyr { color: #3a6a8a; font-size: calc(var(--fs) * 0.8); letter-spacing: calc(var(--s) * 0.5); }
+.gpart.beaconitems span { position: absolute; top: 0; }
+.gpart.beaconitems .icon { position: absolute; }

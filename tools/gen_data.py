@@ -17,7 +17,9 @@ FILES = {
 }
 BASE = 'https://raw.githubusercontent.com/PrismarineJS/minecraft-data/master/data/'
 # the game's own loot tables and painting variants, from the summary branch of misode/mcmeta
-META = {'loot': 'data/loot_table/data.min.json', 'paintings': 'data/painting_variant/data.min.json'}
+META = {'loot': 'data/loot_table/data.min.json', 'paintings': 'data/painting_variant/data.min.json',
+        'recipe': 'data/recipe/data.min.json', 'itemtags': 'data/tag/item/data.min.json',
+        'enchant': 'data/enchantment/data.min.json', 'enchtags': 'data/tag/enchantment/data.min.json'}
 META_BASE = 'https://raw.githubusercontent.com/misode/mcmeta/1.21.1-summary/'
 
 
@@ -160,6 +162,52 @@ def main():
         return o
     loot = {k: compact(v) for k, v in load(folder, 'loot').items() if not k.startswith('blocks/')}
     paintings = {k: [v['width'], v['height']] for k, v in load(folder, 'paintings').items()}
+    # item tags, with nested tags resolved to plain item lists
+    raw_tags = load(folder, 'itemtags')
+    def resolve(name, seen=()):
+        out = []
+        for v in raw_tags.get(name, {}).get('values', []):
+            v = v['id'] if isinstance(v, dict) else v
+            if v.startswith('#'):
+                t = v[1:].replace('minecraft:', '')
+                if t not in seen:
+                    out += resolve(t, seen + (t,))
+            else:
+                out.append(v.replace('minecraft:', ''))
+        return sorted(set(out))
+    item_tags = {k: resolve(k) for k in raw_tags}
+    # enchantment definitions (1.21 is data driven): anvil cost, the items it can go on (supported) and the
+    # items the enchanting table offers it for (primary), and the enchantment tags
+    raw_etags = load(folder, 'enchtags')
+    def eresolve(name, seen=()):
+        out = []
+        for v in raw_etags.get(name, {}).get('values', []):
+            v = v['id'] if isinstance(v, dict) else v
+            if v.startswith('#'):
+                t = v[1:].replace('minecraft:', '')
+                if t not in seen:
+                    out += eresolve(t, seen + (t,))
+            else:
+                out.append(v.replace('minecraft:', ''))
+        return sorted(set(out))
+    ench_tags = {k: eresolve(k) for k in raw_etags}
+    tagname = lambda v: v.replace('#', '').replace('minecraft:', '') if isinstance(v, str) else None
+    ench_defs = {}
+    for k, v in load(folder, 'enchant').items():
+        ex = v.get('exclusive_set')
+        excl = ench_tags.get(tagname(ex), []) if isinstance(ex, str) and ex.startswith('#') else ([tagname(x) for x in ex] if isinstance(ex, list) else ([tagname(ex)] if ex else []))
+        ench_defs[k] = [v['anvil_cost'], tagname(v['supported_items']), tagname(v.get('primary_items')), [x for x in excl if x != k]]
+    # stonecutter and smithing table recipes, from the game's recipe files
+    ing = lambda i: (('#' + i['tag'].replace('minecraft:', '')) if 'tag' in i else i['item'].replace('minecraft:', '')) if isinstance(i, dict) else ing(i[0])
+    stonecut, smith, trims = [], [], []
+    for k, r in sorted(load(folder, 'recipe').items()):
+        t = r.get('type', '').replace('minecraft:', '')
+        if t == 'stonecutting':
+            stonecut.append([ing(r['ingredient']), r['result']['id'].replace('minecraft:', ''), r['result'].get('count', 1)])
+        elif t == 'smithing_transform':
+            smith.append([ing(r['template']), ing(r['base']), ing(r['addition']), r['result']['id'].replace('minecraft:', '')])
+        elif t == 'smithing_trim':
+            trims.append(ing(r['template']))
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     os.makedirs(os.path.join(root, 'src', 'data'), exist_ok=True)
@@ -181,6 +229,16 @@ def main():
         f.write('loot:' + dump(loot) + ',\n')
         f.write('// painting variants: [width, height] in blocks\n')
         f.write('paintings:' + dump(paintings) + ',\n')
+        f.write('// stonecutter recipes: [input, result, count]\n')
+        f.write('stonecutting:' + dump(stonecut) + ',\n')
+        f.write('// smithing table: upgrades [template, base, addition, result] and armour trim templates\n')
+        f.write('smithing:' + dump(smith) + ',\n')
+        f.write('trimTemplates:' + dump(trims) + ',\n')
+        f.write('// enchantments: [anvil cost, supported items tag, primary items tag (enchanting table), exclusive with]\n')
+        f.write('enchantDefs:' + dump(ench_defs) + ',\n')
+        f.write('enchantTags:' + dump(ench_tags) + ',\n')
+        f.write('// item tags (nested tags resolved)\n')
+        f.write('itemTags:' + dump(item_tags) + ',\n')
         f.write('};\n')
     print('blocks', len(out_blocks), 'items', len(out_items), 'recipes', len(out_rec))
 

@@ -160,9 +160,14 @@ const HUD = (() => {
       if (e.hidden) continue;
       const good = !['slowness', 'mining_fatigue', 'instant_damage', 'nausea', 'blindness', 'hunger', 'weakness', 'poison', 'wither', 'levitation', 'bad_omen', 'darkness', 'unluck'].includes(n);
       const x = W - (good ? (++i) : (++j)) * 25 * S, y = good ? S : 27 * S;
-      g.fillStyle = e.ambient ? 'rgba(80,140,255,0.5)' : 'rgba(0,0,0,0.5)'; g.fillRect(x, y, 24 * S, 24 * S);
-      g.strokeStyle = '#aaaaaa'; g.lineWidth = S; g.strokeRect(x + S / 2, y + S / 2, 23 * S, 23 * S);
-      if (e.dur > 200 || Math.floor(e.dur / 5) % 2) { g.fillStyle = '#' + ((typeof Potions !== 'undefined' && Potions.color(n)) || 0xffffff).toString(16).padStart(6, '0'); g.fillRect(x + 6 * S, y + 6 * S, 12 * S, 12 * S); }
+      // the game's effect frame: grey, or blue for beacon (ambient) effects; the icon fades out in the last 10 seconds
+      g.fillStyle = e.ambient ? '#5f84b4' : '#8b8b8b'; g.fillRect(x + S, y + S, 22 * S, 22 * S);
+      g.fillStyle = e.ambient ? '#a6c3e8' : '#c6c6c6'; g.fillRect(x + S, y, 22 * S, S); g.fillRect(x, y + S, S, 22 * S);
+      g.fillStyle = e.ambient ? '#2c4a74' : '#555555'; g.fillRect(x + S, y + 23 * S, 22 * S, S); g.fillRect(x + 23 * S, y + S, S, 22 * S);
+      const a = e.dur > 200 || e.infinite ? 1 : (() => { const t = e.dur / 200, f = Math.max(0, Math.min(1, t)); return f + (1 - f) * (0.5 + Math.cos(e.dur * Math.PI / 5) * 0.25); })();
+      g.globalAlpha = Math.max(0, Math.min(1, a));
+      if (!EffectIcons.draw(g, n, x + 3 * S, y + 3 * S, S)) { g.fillStyle = '#' + ((typeof Potions !== 'undefined' && Potions.color(n)) || 0xffffff).toString(16).padStart(6, '0'); g.fillRect(x + 6 * S, y + 6 * S, 12 * S, 12 * S); }
+      g.globalAlpha = 1;
     }
   }
   function debugScreen(p) {

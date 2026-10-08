@@ -136,11 +136,12 @@ const Slots = (() => {
   }
   function setHover(s) { hover = s; if (s && get(s) && !cursor) showTip(get(s)); else hideTip(); if (drag && s && canDragInto(s)) { drag.slots.add(s); Screens.render(); } }
   function showTip(st) { tip.innerHTML = tooltipHTML(st); tip.classList.remove('hidden'); place(); }
+  function showTipHTML(h) { tip.innerHTML = h; tip.classList.remove('hidden'); place(); }
   function hideTip() { tip.classList.add('hidden'); }
   // closing a screen: whatever is on the cursor goes back to the inventory (or is dropped)
   function closeCursor() { if (cursor) { const left = Game.player.inv.add(cursor, 0, 36); if (left) ItemUse.drop(Game.player, left); setCursor(null); } drag = null; hideTip(); }
   function dropCursor(button) { if (!cursor) return; const p = Game.player; if (button === 2) { ItemUse.drop(p, Object.assign({}, cursor, { count: 1 })); setCursor(cursor.count > 1 ? Object.assign({}, cursor, { count: cursor.count - 1 }) : null); } else { ItemUse.drop(p, cursor); setCursor(null); } }
-  return { mouseDown, mouseUp, click, moveInto, key, setHover, closeCursor, dropCursor, get, set, accepts, renderCursor, takeOutput, showTip, hideTip,
+  return { mouseDown, mouseUp, click, moveInto, key, setHover, closeCursor, dropCursor, get, set, accepts, renderCursor, takeOutput, showTip, showTipHTML, hideTip,
     get cursor() { return cursor; }, set cursor(v) { setCursor(v); }, get hover() { return hover; }, get drag() { return drag; } };
 })();
 
@@ -165,6 +166,7 @@ function tooltipHTML(s) {
   if (ench) for (const e in ench) h += `<div style="color:${MCDATA.enchantments[e] && MCDATA.enchantments[e].curse ? '#ff5555' : '#aaaaaa'}">${enchName(e, ench[e])}</div>`;
   if (s.tag && s.tag.stored) for (const e in s.tag.stored) h += `<div style="color:#aaaaaa">${enchName(e, s.tag.stored[e])}</div>`;
   if (s.tag && s.tag.potion && typeof Potions !== 'undefined') h += Potions.tooltip(s);
+  if (s.tag && s.tag.trim && typeof SmithingScreen !== 'undefined') h += SmithingScreen.trimTooltip(s);
   if (it.name === 'firework_rocket' && s.tag && s.tag.flight) h += `<div style="color:#aaa">Flight Duration: ${s.tag.flight}</div>`;
   if (it.name.endsWith('shulker_box') && s.tag && s.tag.items) { const list = s.tag.items.filter(x => x).slice(0, 5); for (const x of list) h += `<div style="color:#fff">${escapeHTML(itemName(x))} x${x.count}</div>`; }
   if (it.armor && it.armor.pts) h += `<br><div style="color:#aaa">When on ${['Head', 'Body', 'Legs', 'Feet'][it.armor.slot]}:</div><div style="color:#5555ff">+${it.armor.pts} Armor</div>` + (it.armor.tough ? `<div style="color:#5555ff">+${it.armor.tough} Armor Toughness</div>` : '') + (it.armor.kb ? `<div style="color:#5555ff">+${Math.round(it.armor.kb * 10)} Knockback Resistance</div>` : '');

@@ -103,15 +103,15 @@ const BlockUse = (() => {
       case 'ender_chest': Screens.open(new ChestScreen(p.enderChest, 3, 'Ender Chest')); Sound.play('chest_open', null, { x, y, z }); return true;
       case 'dispenser': case 'dropper': { let be = World.getBE(x, y, z); if (!be) { be = Blocks.newBE(n); World.setBE(x, y, z, be); } LootTables.unpackContainer(be, p); Screens.open(new ChestScreen(be.items, 3, ITEMS[IID[n]].display, { cols: 3, dispenser: true })); return true; }
       case 'hopper': { let be = World.getBE(x, y, z); if (!be) { be = Blocks.newBE(n); World.setBE(x, y, z, be); } Screens.open(new ChestScreen(be.items, 1, 'Item Hopper', { cols: 5, hopper: true })); return true; }
-      case 'enchanting_table': if (typeof EnchantScreen !== 'undefined') { Screens.open(new EnchantScreen(x, y, z)); return true; } return false;
-      case 'anvil': case 'chipped_anvil': case 'damaged_anvil': if (typeof AnvilScreen !== 'undefined') { Screens.open(new AnvilScreen(x, y, z)); return true; } return false;
-      case 'grindstone': if (typeof GrindstoneScreen !== 'undefined') { Screens.open(new GrindstoneScreen()); return true; } return false;
+      case 'enchanting_table': Screens.open(new EnchantScreen(x, y, z)); return true;
+      case 'anvil': case 'chipped_anvil': case 'damaged_anvil': Screens.open(new AnvilScreen(x, y, z)); return true;
+      case 'grindstone': Screens.open(new GrindstoneScreen(x, y, z)); return true;
       case 'brewing_stand': if (typeof BrewingScreen !== 'undefined') { let be = World.getBE(x, y, z); if (!be) { be = Blocks.newBE(n); World.setBE(x, y, z, be); } Screens.open(new BrewingScreen(be)); return true; } return false;
-      case 'stonecutter': if (typeof StonecutterScreen !== 'undefined') { Screens.open(new StonecutterScreen()); return true; } return false;
-      case 'smithing_table': if (typeof SmithingScreen !== 'undefined') { Screens.open(new SmithingScreen()); return true; } return false;
+      case 'stonecutter': Screens.open(new StonecutterScreen(x, y, z)); return true;
+      case 'smithing_table': Screens.open(new SmithingScreen(x, y, z)); return true;
       case 'loom': if (typeof LoomScreen !== 'undefined') { Screens.open(new LoomScreen()); return true; } return false;
       case 'cartography_table': if (typeof CartographyScreen !== 'undefined') { Screens.open(new CartographyScreen()); return true; } return false;
-      case 'beacon': if (typeof BeaconScreen !== 'undefined') { Screens.open(new BeaconScreen(World.getBE(x, y, z))); return true; } return false;
+      case 'beacon': { let be = World.getBE(x, y, z); if (!be) { be = Blocks.newBE('beacon'); World.setBE(x, y, z, be); } be.levels = Beacons.beam(x, y, z) ? Beacons.levelsAt(x, y, z) : 0; Screens.open(new BeaconScreen(be)); return true; }
       case 'note_block': { const s2 = (st & ~31) | (((st & 31) + 1) % 25); World.setBlock(x, y, z, id, s2); Redstone.playNote(x, y, z); return true; }
       case 'jukebox': {
         const be = World.getBE(x, y, z) || { type: 'jukebox', disc: null };
