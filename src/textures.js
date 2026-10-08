@@ -828,7 +828,7 @@ const Tex = (() => {
       texture = new THREE.DataArrayTexture(data, 16, 16, n);
       texture.format = THREE.RGBAFormat; texture.type = THREE.UnsignedByteType;
       texture.magFilter = THREE.NearestFilter; texture.minFilter = THREE.NearestMipmapLinearFilter; texture.generateMipmaps = true;
-      texture.anisotropy = 4;
+      texture.anisotropy = 1; // vanilla has no anisotropic filtering (it also blurs magnified pixels on some drivers)
     } else { texture.image = { data, width: 16, height: 16, depth: n }; }
     texture.needsUpdate = true; built = true; dirty = false;
     return texture;

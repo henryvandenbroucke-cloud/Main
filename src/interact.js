@@ -130,6 +130,7 @@ const Interact = (() => {
     if (crit) dmg *= 1.5;
     const total = dmg + ench;
     const hit = e.hurt(Math.max(0, total), 'player', p);
+    p.lastAttacked = e; p.lastAttackTime = p.age;
     if (!hit) { Sound.play('attack_nodamage', p); return; }
     if (crit) { Particles.crit(e); Sound.play('attack_crit', p); }
     else if (strong) Sound.play('attack_strong', p); else Sound.play('attack_weak', p);

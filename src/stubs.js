@@ -3,8 +3,6 @@
    method that is not listed here does nothing. */
 const NOOP = () => undefined;
 const stub = o => new Proxy(o, { get: (t, k) => (k in t ? t[k] : typeof k === 'string' ? NOOP : undefined) });
-const Sound = stub({});
-const Particles = stub({});
 const Stats = stub({ all() { return { general: {} }; } });
 const Advancements = stub({ page() { return '<div class="mtitle">Advancements</div><div class="mhint big">Coming soon</div><div class="mbottom"><div class="mbtn" data-act="pause">Done</div></div>'; } });
 const Beds = stub({ use() { return false; }, respawnPoint(p) { return { dim: 'overworld', x: Game.spawn[0], y: Game.spawn[1], z: Game.spawn[2] }; } });
@@ -18,13 +16,10 @@ const Sponge = stub({});
 const Golems = stub({});
 const Chorus = stub({});
 const DragonEgg = stub({});
-const Mobs = stub({ spawn() { return null; }, spawnEntity() { return null; } });
 const Vehicles = stub({});
 const Decor = stub({});
-const Projectiles = stub({ takeAmmo() { return null; } });
 const Fishing = stub({});
 const Maps = stub({});
 const Leads = stub({});
 const Structures = stub({ locate() { return null; } });
-const Explosions = stub({});
 const Signs = stub({});

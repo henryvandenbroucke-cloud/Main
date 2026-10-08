@@ -16,6 +16,8 @@ class Player extends Living {
     this.fovMod = 1; this.pfovMod = 1; this.hurtDir = 0; this.deathCause = '';
   }
   get eyeY() { return this.y + this.eyeH; }
+  heldItem() { return this.inv.held; }
+  animState(s) { s.holdRight = !!this.inv.held; s.holdLeft = !!this.inv.offhand; const u = this.using && ITEMS[this.using.id].name; if (u === 'bow') s.bow = true; if (u === 'shield') s.blocking = true; if (u === 'spyglass') s.spyglass = true; if (this.using && ITEMS[this.using.id].food) s.eating = true; }
   get creative() { return this.gamemode === 'creative'; }
   get spectator() { return this.gamemode === 'spectator'; }
   get noFallDamage() { return this.creative || this.spectator || this.flying; }
@@ -74,6 +76,7 @@ class Player extends Living {
     if (this.attackCooldown < 1000) this.attackCooldown++;
     if (this.xpCooldown > 0) this.xpCooldown--;
     if (!this.spectator) this.pickUp();
+    Hand && Hand.tick(this);
     // walking: exhaustion and step sounds
     const moved = Math.hypot(this.x - this.px, this.z - this.pz);
     if (this.onGround && moved > 0.001 && !this.flying) { this.stepAcc = (this.stepAcc || 0) + moved; if (this.stepAcc > 1.6 && !this.sneaking) { this.stepAcc = 0; Sound.step(this); } }

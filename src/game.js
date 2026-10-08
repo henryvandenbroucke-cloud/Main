@@ -31,7 +31,7 @@ const Game = {
     this.bonusPending = !!opts.bonus;
     UI.enterGame();
   },
-  stop() { this.running = false; for (const d in World.dims) { for (const c of World.dims[d].values()) for (const m of c.meshes) if (m) Render.disposeSection(m); World.dims[d].clear(); } Entities.list.length = 0; },
+  stop() { this.running = false; EntityRender && EntityRender.clear(); Particles.clear(); for (const d in World.dims) { for (const c of World.dims[d].values()) for (const m of c.meshes) if (m) Render.disposeSection(m); World.dims[d].clear(); } Entities.list.length = 0; },
   // like the game, the player spawns on a grass or podzol surface (never on a tree) near the world spawn
   findSpawn(x0, z0) {
     const top = (x, z) => { let y = MAXY; while (y > MINY && (World.getBlock(x, y, z) === 0 || !SOLID[World.getBlock(x, y, z)] && !FLUID[World.getBlock(x, y, z)])) y--; return y; };
@@ -88,6 +88,7 @@ const Game = {
     for (const e of Entities.list) if (!e.removed) { e.tick(); }
     for (let i = Entities.list.length - 1; i >= 0; i--) if (Entities.list[i].removed) { const e = Entities.list[i]; Entities.byId.delete(e.id); if (e.onRemove) e.onRemove(); Entities.list.splice(i, 1); }
     Ticks.tick();
+    Particles.tick();
     BlockEntities.tick();
     Mobs.tick();
     Weather.tick();

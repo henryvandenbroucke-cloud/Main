@@ -37,7 +37,8 @@ const Input = (() => {
   function releaseLock() { if (document.pointerLockElement) document.exitPointerLock(); }
   return {
     BIND, isDown, wasPressed, keys,
-    get locked() { return locked; },
+    testLock: false, // automated tests play without pointer lock
+    get locked() { return locked || this.testLock; },
     mouse: mouseBtn, clicked,
     consumeLook() { const r = [dx, dy]; dx = 0; dy = 0; return r; },
     consumeWheel() { const w = wheel; wheel = 0; return w; },
