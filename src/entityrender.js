@@ -176,6 +176,9 @@ EntityRender = (() => {
       this.inst.root.scale.setScalar(k);
       // dying: tip over onto the side over a second
       if (e.dead && e.deathTime > 0) { let f = Math.sqrt(Math.max(0, (e.deathTime + a - 1) / 20 * 1.6)); if (f > 1) f = 1; this.inst.root.rotation.z = f * Math.PI / 2; } else this.inst.root.rotation.z = 0;
+      // gliding, swimming and crawling lay the body down
+      const tl = e.tilt ? e.tilt(a) : null;
+      this.inst.root.rotation.x = tl ? tl[0] : 0; this.inst.root.rotation.y = tl ? tl[1] : 0; this.inst.root.position.set(0, tl ? tl[2] : 0, tl ? tl[3] : 0);
       const [sl, bl] = lightAt(x, y + e.h * 0.85, z);
       const flash = (e.hurtTime > 0 || (e.dead && e.deathTime > 0)) ? 1 : 0;
       for (const m of [this.mat, this.matT].concat(this.layers.map(l => l.mat))) if (m) { m.uniforms.uEnv.value.set(e.glow ? 1 : sl, e.glow ? 1 : bl); m.uniforms.uFlash.value = flash; if (e.tint && m === this.mat) m.uniforms.uTint.value.setRGB(e.tint[0], e.tint[1], e.tint[2]); }
@@ -186,7 +189,7 @@ EntityRender = (() => {
       if (e.posePart) e.posePart(this.inst, s, a);
       this.inst.apply();
       for (const l of this.layers) {
-        l.inst.root.scale.setScalar(k * (l.L.scale || 1)); l.inst.root.rotation.z = this.inst.root.rotation.z;
+        l.inst.root.scale.setScalar(k * (l.L.scale || 1)); l.inst.root.rotation.copy(this.inst.root.rotation); l.inst.root.position.copy(this.inst.root.position);
         const show = !l.L.when || l.L.when(e); l.inst.root.visible = show;
         if (show) { if (l.L.color) { const c = l.L.color(e); l.mat.uniforms.uTint.value.setRGB(c[0], c[1], c[2]); } this.anim(l.inst, s); if (e.posePart) e.posePart(l.inst, s, a); if (e.baby && d.babyHead && l.inst.parts.head) { const h = l.inst.parts.head; h.sx = h.sy = h.sz = 1.5; } l.inst.apply(); }
       }
@@ -206,6 +209,8 @@ EntityRender = (() => {
         this.armor = []; this.armorKey = key;
         const SHOW = [['head', 'hat'], ['body', 'right_arm', 'left_arm'], ['body', 'right_leg', 'left_leg'], ['right_leg', 'left_leg']];
         items.forEach((x, i) => {
+          // an elytra on the back: two wings
+          if (x && ITEMS[x.id].name === 'elytra') { const mat = entityMat(EntityModels.texture('elytra'), { side: THREE.DoubleSide, transparent: true }); const inst = EntityModels.create('elytra', mat, mat); this.obj.add(inst.root); this.armor.push({ inst, mat, elytra: true }); return; }
           const ar = x && ITEMS[x.id].armor; if (!ar) return;
           const name = (i === 2 ? 'armor2_' : 'armor1_') + ar.mat; if (!EntityModels.DEFS[name]) return;
           const mat = entityMat(EntityModels.texture(name), { side: THREE.DoubleSide, transparent: true });
@@ -216,7 +221,8 @@ EntityRender = (() => {
         });
       }
       for (const l of this.armor) {
-        l.inst.root.scale.setScalar(k); l.inst.root.rotation.copy(this.inst.root.rotation);
+        if (l.elytra) { l.inst.root.scale.setScalar(k); l.inst.root.rotation.copy(this.inst.root.rotation); l.inst.root.position.copy(this.inst.root.position); l.inst.reset(); EntityModels.A.elytra(l.inst, s); l.inst.apply(); l.mat.uniforms.uEnv.value.set(sl, bl); l.mat.uniforms.uFlash.value = this.mat.uniforms.uFlash.value; continue; }
+        l.inst.root.scale.setScalar(k); l.inst.root.rotation.copy(this.inst.root.rotation); l.inst.root.position.copy(this.inst.root.position);
         this.anim(l.inst, s); if (e.posePart) e.posePart(l.inst, s, a);
         for (const p of l.inst.list) p.show = l.show.has(p.name);
         if (e.type === 'armor_stand' && l.inst.parts.head) l.inst.parts.head.y += 1;
@@ -391,7 +397,7 @@ EntityRender = (() => {
     const s = {
       ls: (e.limbSwing || 0) - (e.limbAmount || 0) * (1 - a), la: Math.min(1, lerp(e.plimbAmount || 0, e.limbAmount || 0, a)),
       t: (e.age || 0) + a, headYaw: -angleDiff(lerpAng(e.pheadYaw !== undefined ? e.pheadYaw : e.pyaw, e.headYaw !== undefined ? e.headYaw : e.yaw, a), lerpAng(e.pbodyYaw !== undefined ? e.pbodyYaw : e.pyaw, e.bodyYaw !== undefined ? e.bodyYaw : e.yaw, a)),
-      pitch: lerp(e.ppitch || 0, e.pitch || 0, a), swing: e.swinging ? Math.max(0, (e.swingTime + a) / 6) : 0, crouch: !!e.sneaking && !e.flying, riding: !!e.vehicle,
+      pitch: lerp(e.ppitch || 0, e.pitch || 0, a), swing: e.swinging ? Math.max(0, (e.swingTime + a) / 6) : 0, crouch: e.pose ? e.pose === 'crouch' : !!e.sneaking && !e.flying, gliding: !!e.gliding && (e.glideTicks || 0) > 4, swim: e.swimAmount ? lerp(e.pswimAmount || 0, e.swimAmount, a) : 0, swimVisual: e.pose === 'swim', riding: !!e.vehicle,
       aggressive: !!e.aggressive, e,
     };
     if (e.dead) s.la = 0;

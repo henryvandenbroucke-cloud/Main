@@ -108,7 +108,9 @@ const EntityModels = (() => {
   };
   A.humanoid = (m, s) => {
     look(m, s);
-    const L = m.parts, ls = s.ls * 0.6662, la = s.la;
+    // gliding fast, the limbs barely move
+    let gk = 1; if (s.gliding && s.e) { gk = ((s.e.vx || 0) ** 2 + (s.e.vy || 0) ** 2 + (s.e.vz || 0) ** 2) / 0.2; gk = gk * gk * gk; if (gk < 1) gk = 1; }
+    const L = m.parts, ls = s.ls * 0.6662, la = s.la / gk;
     if (L.hat) { L.hat.ry = 0; L.hat.rx = 0; }
     L.right_arm.rx = Math.cos(ls + PI) * 2 * la * 0.5; L.left_arm.rx = Math.cos(ls) * 2 * la * 0.5;
     L.right_arm.rz = 0; L.left_arm.rz = 0;
@@ -130,6 +132,19 @@ const EntityModels = (() => {
     // arms bob gently
     L.right_arm.rz += Math.cos(s.t * 0.09) * 0.05 + 0.05; L.left_arm.rz -= Math.cos(s.t * 0.09) * 0.05 + 0.05;
     L.right_arm.rx += Math.sin(s.t * 0.067) * 0.05; L.left_arm.rx -= Math.sin(s.t * 0.067) * 0.05;
+    // gliding: head forward; swimming and crawling: the game's breaststroke
+    if (s.gliding) L.head.rx = -PI / 4;
+    else if (s.swim > 0) {
+      const w = s.swim, lerpA = (a, b) => a + (b - a) * w;
+      L.head.rx = lerpA(L.head.rx, s.swimVisual ? -PI / 4 : s.pitch);
+      const n = ((s.ls % 26) + 26) % 26, q = f => -65 * f + f * f;
+      let x, y = PI, zl, zr;
+      if (n < 14) { x = 0; zl = PI + 1.8707964 * q(n) / q(14); zr = PI - 1.8707964 * q(n) / q(14); }
+      else if (n < 22) { const o = (n - 14) / 8; x = PI / 2 * o; zl = 5.012389 - 1.8707964 * o; zr = 1.2707963 + 1.8707964 * o; }
+      else { const o = (n - 22) / 4; x = PI / 2 - PI / 2 * o; zl = PI; zr = PI; }
+      L.left_arm.rx = lerpA(L.left_arm.rx, x); L.right_arm.rx = lerpA(L.right_arm.rx, x); L.left_arm.ry = lerpA(L.left_arm.ry, y); L.right_arm.ry = lerpA(L.right_arm.ry, y); L.left_arm.rz = lerpA(L.left_arm.rz, zl); L.right_arm.rz = lerpA(L.right_arm.rz, zr);
+      L.left_leg.rx = lerpA(L.left_leg.rx, 0.3 * Math.cos(s.ls * 0.33333334 + PI)); L.right_leg.rx = lerpA(L.right_leg.rx, 0.3 * Math.cos(s.ls * 0.33333334));
+    }
     if (s.bow) { L.right_arm.ry = -0.1 + L.head.ry; L.left_arm.ry = 0.1 + L.head.ry + 0.4; L.right_arm.rx = -PI / 2 + L.head.rx; L.left_arm.rx = -PI / 2 + L.head.rx; }
     if (s.crossbowCharge) { L.right_arm.ry = -0.8; L.right_arm.rx = -0.97079635; L.left_arm.rx = -0.97079635; L.left_arm.ry = 0.4; }
     if (s.spyglass || s.eating) { const arm = L.right_arm; arm.rx = -PI / 2 * 0.9 + L.head.rx * 0.5; arm.ry = -0.3; }

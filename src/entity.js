@@ -126,10 +126,16 @@ class Living extends Entity {
     this.vz += strafe * s - forward * c;
   }
   travel() {
+    if (this.gliding && !this.inWater && !this.inLava) { this.glideTravel(); return; }
     const strafe = this.strafe * 0.98, forward = this.forward * 0.98;
     const flying = this.flying;
     if (this.inWater && !flying) {
       const y0 = this.y;
+      // swimming: rise and dive the way you look
+      if (this.swimming && !this.vehicle) {
+        const d = this.lookVec()[1], e = d < -0.2 ? 0.085 : 0.06, ab = BLOCKS[World.getBlock(Math.floor(this.x), Math.floor(this.y + 0.9), Math.floor(this.z))];
+        if (d <= 0 || this.jumping || ab.fluid === 'water') this.vy += (d - this.vy) * e;
+      }
       let f = this.sprinting ? 0.9 : 0.8, sp = 0.02;
       const ds = this.depthStrider || 0; if (ds > 0) { const k = Math.min(3, ds) / 3 * (this.onGround ? 1 : 0.5); f += (0.546 - f) * k; sp += (this.speedAttr - sp) * k; }
       if (this.effect('dolphins_grace')) f = 0.96;
@@ -170,6 +176,23 @@ class Living extends Entity {
       if (flying) this.vy *= 0.6; else this.vy *= 0.98;
       this.vx *= slip; this.vz *= slip;
     }
+  }
+  // gliding on an elytra (the game's fall-flying movement): pitch trades height for speed and back again
+  glideTravel() {
+    if (this.vy > -0.5) this.fallDistance = 1;
+    const lv = this.lookVec(), pitch = this.pitch;
+    const d = Math.hypot(lv[0], lv[2]), e = Math.hypot(this.vx, this.vz), g = Math.hypot(lv[0], lv[1], lv[2]);
+    let h = Math.cos(pitch); h = h * h * Math.min(1, g / 0.4);
+    const grav = this.vy <= 0 && this.effect('slow_falling') ? 0.01 : 0.08;
+    this.vy += grav * (-1 + h * 0.75);
+    if (this.vy < 0 && d > 0) { const i = this.vy * -0.1 * h; this.vx += lv[0] * i / d; this.vy += i; this.vz += lv[2] * i / d; }
+    if (pitch < 0 && d > 0) { const i = e * -Math.sin(pitch) * 0.04; this.vx += -lv[0] * i / d; this.vy += i * 3.2; this.vz += -lv[2] * i / d; }
+    if (d > 0) { this.vx += (lv[0] / d * e - this.vx) * 0.1; this.vz += (lv[2] / d * e - this.vz) * 0.1; }
+    this.vx *= 0.99; this.vy *= 0.98; this.vz *= 0.99;
+    Phys.move(this, this.vx, this.vy, this.vz);
+    // flying into a wall hurts by how much speed was lost
+    if (this.hitH) { const l = (e - Math.hypot(this.vx, this.vz)) * 10 - 3; if (l > 0) { Sound.play('fall', this); this.hurt(l, 'flyIntoWall'); } }
+    if (this.onGround) this.gliding = false;
   }
   // fall damage when landing (fall distance - 3, less with jump boost and feather falling)
   updateFall(prevY) {

@@ -351,3 +351,29 @@ const Decor = (() => {
   EntityRender.register('glow_item_frame', e => new FrameVisual(e));
   void ROT;
 })();
+
+/* ---------------------------------------------------------------- the elytra's wings (the game's ElytraModel, 2 pixels off the back) */
+(() => {
+  const { def, P, A } = EntityModels, PI = Math.PI;
+  def('elytra', 64, 32, [
+    P('left_wing', [5, 0, 2], [0.2617994, 0, -0.2617994], [[22, 0, -10, 0, 0, 10, 20, 2, 1]]),
+    P('right_wing', [-5, 0, 2], [0.2617994, 0, 0.2617994], [[22, 0, 0, 0, 0, 10, 20, 2, 1, true]]),
+  ], { anim: 'elytra', skin: s => {
+    // grey membrane with darker ribs fanning from the shoulder
+    s.fill(22, 0, 24, 22, 0x8f8fa3, 0.12);
+    for (let i = 0; i < 4; i++) for (let k = 0; k < 18; k++) { const u = 24 + Math.floor(k * (0.25 + i * 0.12)), v = 2 + k; if (u < 34) s.fill(u, v, 1, 1, 0x5d5d70, 0); }
+    s.fill(24, 2, 10, 1, 0xb4b4c6, 0); s.fill(36, 2, 10, 1, 0xb4b4c6, 0);
+  } });
+  // folded on the back, spread while gliding (closing as the dive steepens), tucked when crouching
+  A.elytra = (m, s) => {
+    const L = m.parts, e = s.e || {};
+    let f = 0.2617994, g = -0.2617994, h = 0, i = 0;
+    if (e.gliding) {
+      let j = 1; const v = Math.hypot(e.vx || 0, e.vy || 0, e.vz || 0);
+      if ((e.vy || 0) < 0 && v > 0) j = 1 - Math.pow(-e.vy / v, 1.5);
+      f = j * PI / 9 + (1 - j) * PI / 2; g = j * -PI / 2 + (1 - j) * -PI / 2;
+    } else if (s.crouch) { f = PI * 2 / 9; g = -PI / 4; h = 3; i = 0.08726646; }
+    L.left_wing.y = h; L.left_wing.rx = f; L.left_wing.rz = g; L.left_wing.ry = i;
+    L.right_wing.y = h; L.right_wing.rx = f; L.right_wing.rz = -g; L.right_wing.ry = -i;
+  };
+})();
