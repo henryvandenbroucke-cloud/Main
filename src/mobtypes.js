@@ -120,7 +120,7 @@ reg('drowned', Drowned);
 class ZombieVillager extends Zombie {
   constructor(t, x, y, z) { super('zombie_villager', x, y, z); this.curing = 0; }
   onInteract(p, s) { if (s && ITEMS[s.id].name === 'golden_apple' && this.effect('weakness') && !this.curing) { this.curing = 3600 + rnd(2400); this.curer = p; if (!p.creative) { s.count--; if (!s.count) p.inv.held = null; } this.persistent = true; Sound.play('zombie_villager_cure', this); return true; } return false; }
-  aiStep() { super.aiStep(); if (this.curing > 0 && --this.curing === 0) { const v = Mobs.spawnEntity('villager', this.x, this.y, this.z); if (v) { v.addEffect('nausea', 200, 0); v.profession = this.profession || null; if (this.curer && this.curer.isPlayer) Advancements.fire('cured_zombie_villager', { zombie: this, villager: v }); } this.removed = true; } }
+  aiStep() { super.aiStep(); if (this.curing > 0 && --this.curing === 0) { const v = Mobs.spawnEntity('villager', this.x, this.y, this.z); if (v) { v.addEffect('nausea', 200, 0); v.profession = this.profession || null; if (this.curer && this.curer.isPlayer) { Trading.gossip(v, 'major_positive', 20); Trading.gossip(v, 'minor_positive', 25); Advancements.fire('cured_zombie_villager', { zombie: this, villager: v }); } } this.removed = true; } }
 }
 reg('zombie_villager', ZombieVillager);
 class AbstractSkeleton extends Monster {
@@ -339,14 +339,18 @@ class Villager extends Mob {
   }
   onInteract(p, s) { if (this.baby) { this.shake = 40; Sound.play('villager_no', this); return true; } if (typeof Trading !== 'undefined') { Trading.open(p, this); return true; } this.shake = 40; Sound.play('villager_no', this); return true; }
   aiStep() {
+    if (Game.gameTime - (this.lastDecay || 0) >= 24000) { this.lastDecay = Game.gameTime; Trading.decayGossip(this); }
     if (this.shake > 0) this.shake--;
     if (this.tradingWith) { const p = this.tradingWith; this.nav.stop && this.nav.stop(); this.lookAt(p.x, p.eyeY, p.z); if (this.distTo(p) > 8 || p.dead) this.tradingWith = null; }
     Trading.jobTick(this);
   }
   animState(s) { s.unhappy = this.shake > 0; }
   onLightning() { const w = Mobs.spawnEntity('witch', this.x, this.y, this.z); if (w) w.persistent = true; this.removed = true; }
-  saveExtra(d) { d.profession = this.profession; d.level = this.level; d.trades = this.trades; d.xp = this.xp || 0; d.job = this.job; d.vtype = this.vtype; d.restocks = this.restocks; d.lastRestock = this.lastRestock; }
-  loadExtra(d) { this.profession = d.profession; this.level = d.level || 1; this.trades = d.trades; this.xp = d.xp || 0; this.job = d.job || null; this.vtype = d.vtype; this.restocks = d.restocks || 0; this.lastRestock = d.lastRestock; if (this.profession && this.type === 'villager') this.model = 'villager_' + this.profession; }
+  // hurting a villager is remembered; killing one is remembered by those who saw it; gossip fades a little each day
+  hurt(n, s, a) { const ok = super.hurt(n, s, a); const pl = a && (a.isPlayer ? a : a.owner && a.owner.isPlayer ? a.owner : null); if (ok && pl && !this.dead) Trading.gossip(this, 'minor_negative', 25); return ok; }
+  onDeath(s, a) { const pl = a && (a.isPlayer ? a : a.owner && a.owner.isPlayer ? a.owner : null); if (pl) for (const e of Entities.list) if (e !== this && e.type === 'villager' && !e.dead && e.dist2(this.x, this.y, this.z) < 256) Trading.gossip(e, 'major_negative', 25); }
+  saveExtra(d) { d.gossip = this.gossip; d.profession = this.profession; d.level = this.level; d.trades = this.trades; d.xp = this.xp || 0; d.job = this.job; d.vtype = this.vtype; d.restocks = this.restocks; d.lastRestock = this.lastRestock; }
+  loadExtra(d) { this.gossip = d.gossip || null; this.profession = d.profession; this.level = d.level || 1; this.trades = d.trades; this.xp = d.xp || 0; this.job = d.job || null; this.vtype = d.vtype; this.restocks = d.restocks || 0; this.lastRestock = d.lastRestock; if (this.profession && this.type === 'villager') this.model = 'villager_' + this.profession; }
 }
 reg('villager', Villager);
 class WanderingTrader extends Villager { constructor(t, x, y, z) { super('wandering_trader', x, y, z); this.persistent = false; this.despawnTime = 48000; } aiStep() { super.aiStep(); if (--this.despawnTime <= 0) this.removed = true; } }
@@ -356,6 +360,7 @@ class IronGolem extends Mob {
   registerGoals() {
     const g = this.goals, t = this.targets;
     g.add(1, new G.MeleeAttack(this, 1, true)); g.add(6, new G.RandomStroll(this, 0.6, 240)); g.add(7, new G.LookAtPlayer(this, 6)); g.add(8, new G.RandomLookAround(this));
+    t.add(1, new G.NearestAttackableTarget(this, e => e.isPlayer && !e.dead && !e.creative && !e.spectator && !this.playerMade && Entities.list.some(v => v.type === 'villager' && !v.dead && Math.abs(v.x - this.x) <= 10.5 && Math.abs(v.y - this.y) <= 8.5 && Math.abs(v.z - this.z) <= 10.5 && Trading.reputation(v) <= -100), 16, false, 10));
     t.add(2, new G.HurtByTarget(this)); t.add(3, new G.NearestAttackableTarget(this, e => e.hostile && e.type !== 'creeper' && !e.dead, 16, false, 1));
   }
   get noFallDamage() { return true; }

@@ -167,11 +167,16 @@ const Trading = (() => {
     }
     if (!v.trades) { v.trades = []; v.level = v.level || 1; for (let l = 1; l <= v.level; l++) addLevel(v, l); }
   }
+  // gossip about the player (the game's GossipType: weight, most it holds, decay a day); reputation is their weighted sum
+  const GOSSIP = { major_negative: [-5, 100, 10], minor_negative: [-1, 200, 20], minor_positive: [1, 25, 1], major_positive: [5, 20, 0], trading: [1, 25, 2] };
+  function gossip(v, type, n) { if (!v) return; v.gossip = v.gossip || {}; v.gossip[type] = Math.min(GOSSIP[type][1], (v.gossip[type] || 0) + n); }
+  function reputation(v) { let r = 0; if (v && v.gossip) for (const k in v.gossip) r += v.gossip[k] * GOSSIP[k][0]; return r; }
+  function decayGossip(v) { if (!v.gossip) return; for (const k in v.gossip) { v.gossip[k] = Math.max(0, v.gossip[k] - GOSSIP[k][2]); if (!v.gossip[k]) delete v.gossip[k]; } }
   // the price after demand, reputation and the Hero of the Village discount
-  function costA(o, p) {
+  function costA(o, p, v) {
     const base = o.a.count;
     const dem = Math.max(0, Math.floor(base * o.demand * o.mult));
-    let special = o.special;
+    let special = o.special - Math.floor(reputation(v) * o.mult);
     const hero = p && p.effect && p.effect('hero_of_the_village');
     if (hero) special -= Math.max(Math.floor((0.3 + 0.0625 * hero.amp) * base), 1);
     return Math.max(1, Math.min(maxStack(o.a), base + dem + special));
@@ -180,6 +185,7 @@ const Trading = (() => {
   // ---------------------------------------------------------------- the villager's side
   function trade(v, o, p) {
     o.uses++;
+    gossip(v, 'trading', 2);
     if (p && p.isPlayer) Advancements.fire('villager_trade', { villager: v, item: o.out });
     if (v.type !== 'wandering_trader') {
       v.xp = (v.xp || 0) + o.xp;
@@ -257,7 +263,7 @@ const Trading = (() => {
     Sound.play('villager_trade', v);
     Screens.open(new MerchantScreen(v));
   }
-  return { open, ensureTrades, costA, trade, outOfStock, jobTick, restock, LEVELS, XP_AT, T, isJobSite, professionFor };
+  return { open, ensureTrades, costA, trade, outOfStock, jobTick, restock, LEVELS, XP_AT, T, isJobSite, professionFor, gossip, reputation, decayGossip, GOSSIP };
 })();
 
 // ---------------------------------------------------------------- the trading screen
@@ -285,7 +291,7 @@ class MerchantScreen extends Screens.Screen {
     const v = this.villager, S = GUI.S, p = Game.player;
     let h = '';
     v.trades.slice(this.scroll, this.scroll + 7).forEach((o, k) => {
-      const i = k + this.scroll, a = Trading.costA(o, p), out = Trading.outOfStock(o);
+      const i = k + this.scroll, a = Trading.costA(o, p, this.villager), out = Trading.outOfStock(o);
       const aStack = Object.assign({}, o.a, { count: a });
       h += `<div class="tradebtn${i === this.sel ? ' sel' : ''}${out ? ' out' : ''}" data-i="${i}" style="top:${k * 20 * S}px">`;
       h += `<span class="ta">${iconHTML(aStack)}${a !== o.a.count ? `<s>${o.a.count}</s>` : ''}</span>`;
@@ -317,7 +323,7 @@ class MerchantScreen extends Screens.Screen {
   // does the payment cover offer o? (the selected one first, then any other)
   covers(o) {
     if (Trading.outOfStock(o)) return false;
-    const p = Game.player, a = Trading.costA(o, p);
+    const p = Game.player, a = Trading.costA(o, p, this.villager);
     const okA = s => s && s.id === o.a.id && s.count >= a, okB = s => (!o.b && !s) || (o.b && s && s.id === o.b.id && s.count >= o.b.count);
     if (okA(this.pay[0]) && okB(this.pay[1])) return 'ab';
     if (!o.b && okA(this.pay[1]) && !this.pay[0]) return 'ba';
@@ -331,7 +337,7 @@ class MerchantScreen extends Screens.Screen {
   }
   take() {
     const v = this.villager, o = v.trades[this.match], p = Game.player; if (!o) return;
-    const how = this.covers(o), a = Trading.costA(o, p);
+    const how = this.covers(o), a = Trading.costA(o, p, this.villager);
     const use = (k, n) => { const s = this.pay[k]; s.count -= n; if (s.count <= 0) this.pay[k] = null; };
     if (how === 'ab') { use(0, a); if (o.b) use(1, o.b.count); }
     else if (how === 'ba') use(1, a);
