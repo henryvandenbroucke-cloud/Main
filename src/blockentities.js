@@ -157,7 +157,7 @@ const BlockUse = (() => {
         return false;
       }
       case 'lectern': return Books.lectern(p, x, y, z, st, held);
-      case 'bell': Sound.play('bell', null, { x, y, z }); return true;
+      case 'bell': Sound.play('bell', null, { x, y, z }); Raids.bellRung(x, y, z); return true;
       case 'end_portal_frame': if (hn === 'ender_eye' && !(st & 8)) { World.setBlock(x, y, z, id, st | 8); consume(p); Sound.play('eye_place', null, { x, y, z }); Portals.checkEndPortal(x, y, z); return true; } return false;
       case 'redstone_ore': case 'deepslate_redstone_ore': World.setBlock(x, y, z, id, 1); return false;
       case 'dragon_egg': DragonEgg.teleport(x, y, z); return true;

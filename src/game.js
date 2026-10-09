@@ -32,7 +32,7 @@ const Game = {
     if (!opts.player) { Weather.reset(); Stats.reset(); }
     UI.enterGame();
   },
-  stop() { this.running = false; EntityRender && EntityRender.clear(); Particles.clear(); BeaconBeams.clear(); Signs.clear(); Banners.clear(); Leads.clear(); Spawners.clear(); Pots.clear(); GameEvents.clear(); Trials.clear(); for (const d in World.dims) { for (const c of World.dims[d].values()) for (const m of c.meshes) if (m) Render.disposeSection(m); World.dims[d].clear(); } Entities.list.length = 0; },
+  stop() { this.running = false; EntityRender && EntityRender.clear(); Particles.clear(); BeaconBeams.clear(); Signs.clear(); Banners.clear(); Leads.clear(); Spawners.clear(); Pots.clear(); GameEvents.clear(); Trials.clear(); Raids.clear(); for (const d in World.dims) { for (const c of World.dims[d].values()) for (const m of c.meshes) if (m) Render.disposeSection(m); World.dims[d].clear(); } Entities.list.length = 0; },
   // like the game, the player spawns on a grass or podzol surface (never on a tree) near the world spawn
   findSpawn(x0, z0) {
     const top = (x, z) => { let y = MAXY; while (y > MINY && (World.getBlock(x, y, z) === 0 || !SOLID[World.getBlock(x, y, z)] && !FLUID[World.getBlock(x, y, z)])) y--; return y; };
@@ -100,7 +100,7 @@ const Game = {
     Portals.tick(p);
     Maps.tick(p);
     Leads.tick();
-    GameEvents.tick(); Sculk.tickPlayer(p);
+    GameEvents.tick(); Sculk.tickPlayer(p); Raids.tick();
     if (World.dim === 'end') EndFight.afterArrival(p);
     EndFight.tick();
     Sound.tick(p);

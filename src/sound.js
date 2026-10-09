@@ -274,7 +274,7 @@ const Sound = (() => {
       return;
     }
     const fn = N[name]; if (!fn) return;
-    const range = name === 'explode' || name === 'firework_blast' ? 64 : name === 'bell' ? 32 : name === 'goat_horn' ? 256 : name === 'thunder' ? 1e6 : /^warden_(roar|sonic|emerge|dig|nearby|listening|heartbeat|tendril|attack)/.test(name) || name === 'sculk_shrieker_shriek' ? 48 : 16;
+    const range = name === 'explode' || name === 'firework_blast' ? 64 : name === 'bell' ? 32 : name === 'goat_horn' || name === 'raid_horn' ? 256 : name === 'thunder' ? 1e6 : /^warden_(roar|sonic|emerge|dig|nearby|listening|heartbeat|tendril|attack)/.test(name) || name === 'sculk_shrieker_shriek' ? 48 : 16;
     const d = out(name === 'click' || name === 'ui' ? 'ui' : 'sfx', x, y, z, 1, range);
     fn(d, o);
     subtitle(name, x, y, z);
@@ -289,6 +289,8 @@ const Sound = (() => {
   }
   // subtitles (accessibility): a short list in the corner
   function subtitle(name, x, y, z) { if (!Settings.subtitles) return; const t = name.replace(/_/g, ' '); const now = performance.now(); const f = SUBS.find(s => s.t === t); if (f) { f.time = now; f.x = x; f.z = z; } else { SUBS.push({ t, time: now, x, z }); if (SUBS.length > 8) SUBS.shift(); } }
+  // raids
+  N.raid_horn = d => { tone(d, T(), 'sawtooth', 110, 3.2, 0.25, { lp: 600, attack: 0.4, vib: [4, 2] }); tone(d, T(), 'sawtooth', 165, 3.2, 0.12, { lp: 600, attack: 0.5 }); };
   // bees
   N.bee_loop = d => tone(d, T(), 'sawtooth', rp(190, 230), 0.8, 0.025, { lp: 900, vib: [28, 12], attack: 0.1 });
   N.bee_loop_aggressive = d => tone(d, T(), 'sawtooth', rp(260, 310), 0.8, 0.04, { lp: 1400, vib: [34, 18], attack: 0.05 });

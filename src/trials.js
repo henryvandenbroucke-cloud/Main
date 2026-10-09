@@ -93,7 +93,7 @@ const Trials = (() => {
   function equipSlot(m, s) {
     const it = ITEMS[s.id];
     const slot = it.armor ? ['head', 'chest', 'legs', 'feet'][it.armor.slot] : 'main';
-    m.equip[slot] = s; m.noDrop = m.noDrop || {}; m.noDrop[slot] = true;
+    m.equip[slot] = s; m.dropChance = Object.assign({ head: 0.085, chest: 0.085, legs: 0.085, feet: 0.085, main: 0.085, off: 0.085 }, m.dropChance || {}, { [slot]: 0 });
     if (it.armor) { let pts = 0; for (const k of ['head', 'chest', 'legs', 'feet']) { const e = m.equip[k]; if (e && ITEMS[e.id].armor) pts += ITEMS[e.id].armor.pts; } m.armorPts = pts; }
   }
   function burst(x, y, z, om) { for (let i = 0; i < 12; i++) Particles.flameAt(x + (Math.random() - 0.5), y + Math.random(), z + (Math.random() - 0.5), (Math.random() - 0.5) * 0.05, 0.03, (Math.random() - 0.5) * 0.05, om); Particles.smoke && Particles.smoke({ x, y: y + 0.5, z, w: 0.6, h: 0.6 }, 6); }
