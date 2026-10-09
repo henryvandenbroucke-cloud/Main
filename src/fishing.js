@@ -118,7 +118,7 @@ class FishingHook extends Entity {
       dmg = e.type === 'item' ? 3 : 5;
     } else if (this.nibble > 0) {
       const luck = this.luck + (p.effect('luck') ? p.effect('luck').amp + 1 : 0) - (p.effect('unluck') ? p.effect('unluck').amp + 1 : 0);
-      const loot = LootTables.roll('gameplay/fishing', { luck, openWater: this.openWater, entity: this, biome: BIOMES[World.biomeAt(Math.floor(this.x), Math.floor(this.z))].name });
+      const loot = LootTables.roll('gameplay/fishing', { luck, openWater: this.openWater, entity: this, biome: BIOMES[World.biomeAt3(this.x, this.y, this.z)].name });
       for (const s of loot) {
         const e = Drops.spawnItem(this.x, this.y, this.z, s);
         if (e) { const d0 = p.x - this.x, d1 = p.y - this.y, d2 = p.z - this.z; e.vx = d0 * 0.1; e.vy = d1 * 0.1 + Math.sqrt(Math.sqrt(d0 * d0 + d1 * d1 + d2 * d2)) * 0.08; e.vz = d2 * 0.1; }

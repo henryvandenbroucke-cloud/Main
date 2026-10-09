@@ -165,6 +165,7 @@ SHARED.push(function worldgenModule(G) {
         HH[(dx + 1) + (dz + 1) * 18] = c.h;
         if (dx >= 0 && dx < 16 && dz >= 0 && dz < 16) { cols[dx + dz * 16] = c; out.biomes[dx + dz * 16] = c.biome; out.heights[dx + dz * 16] = c.h; }
       }
+      if (G.Caves) out.cave = G.Caves.encode(cols);
       const cf = this.caveFields(cx, cz), NY = 65;
       const rnd = new Rand(hashInt(this.seed, cx, cz, 101));
       for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
@@ -211,6 +212,8 @@ SHARED.push(function worldgenModule(G) {
       // ores and features of this chunk and its neighbours (clipped to this chunk)
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) this.ores(w, cx + dx, cz + dz);
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) this.decorate(w, cx + dx, cz + dz);
+      // cave biomes, glow lichen, geodes and fossils
+      if (G.Caves) G.Caves.decorate(this, w, cx, cz, cols, out);
       if (this.structures && G.Structures) G.Structures.place(this, w, cx, cz);
       this.freeze(out, cols);
       return out;

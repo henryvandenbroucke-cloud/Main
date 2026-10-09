@@ -119,9 +119,14 @@ const Mesher = (() => {
   const lTmp = [[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]];
   let smoothOn = true;
 
+  let caveTints = null, tintY = 0; // the section's chunk cave biome ranges, and the height of the block being meshed
   function tintOf(d, st, tintArr, lx, lz) {
     const t = d.tint;
     if (!t) return null;
+    if (caveTints && (t === 'grass' || t === 'foliage' || t === 'water')) {
+      const cb = Caves.at(caveTints, lx + lz * 16, tintY);
+      if (cb >= 0) { const b = BIOMES[cb], v = t === 'grass' ? b.grass : t === 'foliage' ? b.foliage : b.water; return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; }
+    }
     const o = (lx + lz * 16) * 9;
     if (t === 'grass') return [tintArr[o], tintArr[o + 1], tintArr[o + 2]];
     if (t === 'foliage') return [tintArr[o + 3], tintArr[o + 4], tintArr[o + 5]];
@@ -137,6 +142,7 @@ const Mesher = (() => {
     for (const b of BUFS) { b.n = 0; b.ni = 0; }
     if (fill(c, sy)) return null;
     const tintArr = tints(c);
+    caveTints = c.dim === 'overworld' ? World.caveOf(c) : null;
     smoothOn = Settings.smooth;
     const bx = c.cx * 16, by = sy * 16 - 64, bz = c.cz * 16;
     const ctx = (x, y, z) => PB[P(x - bx, y - by, z - bz)];
@@ -150,6 +156,7 @@ const Mesher = (() => {
   function block(x, y, z, id, tintArr, ctx, bx, by, bz) {
     const p = P(x, y, z);
     const d = BLOCKS[id], st = PS[p];
+    tintY = by + y;
     const model = d.model;
     if (model === 'none') return;
     if (model === 'liquid') { liquid(d, st, x, y, z, tintArr); return; }
@@ -169,10 +176,10 @@ const Mesher = (() => {
     for (const b of BUFS) { b.n = 0; b.ni = 0; }
     PB.fill(0); PS.fill(0); PL.fill(0xf0);
     PB[P(0, 0, 0)] = id; PS[P(0, 0, 0)] = st || 0;
-    const prev = smoothOn; smoothOn = false;
+    const prev = smoothOn, prevCave = caveTints; smoothOn = false; caveTints = null;
     const ctx = (x, y, z) => (x === 0 && y === 0 && z === 0 ? id : 0); ctx.state = () => st || 0; ctx.conn = conn || 0;
     block(0, 0, 0, id, ICON_TINT, ctx, 0, 0, 0);
-    smoothOn = prev;
+    smoothOn = prev; caveTints = prevCave;
     return BUFS;
   }
   // a plain full cube (the fast path)

@@ -8,7 +8,7 @@ const LIDX = (x, y, z) => ((y + 64) << 8) | (z << 4) | x;
 class Chunk {
   constructor(dim, cx, cz, d) {
     this.dim = dim; this.cx = cx; this.cz = cz;
-    this.blocks = d.blocks; this.states = d.states; this.biomes = d.biomes;
+    this.blocks = d.blocks; this.states = d.states; this.biomes = d.biomes; this.cave = d.cave || null; // cave biome ranges (Caves.encode)
     this.light = new Uint8Array(65536); // high nibble sky, low nibble block
     this.height = new Int16Array(256);  // highest block that blocks or dims sky light (rain and snow stop there)
     this.be = new Map();                 // block entities by local index
@@ -133,6 +133,22 @@ const World = {
   lightLevel(x, y, z) { const l = this.getLight(x, y, z); return Math.max((l >> 4) - Sky.skyDarken, l & 15); },
   heightAt(x, z) { const c = this.chunkAt(x, z); return c ? c.height[(x & 15) + (z & 15) * 16] : MINY; },
   biomeAt(x, z) { const c = this.chunkAt(x, z); return c ? c.biomes[(x & 15) + (z & 15) * 16] : 0; },
+  // the biome at a block, cave biomes included (lush caves, dripstone caves, the deep dark)
+  biomeAt3(x, y, z) {
+    x = Math.floor(x); z = Math.floor(z); const c = this.chunkAt(x, z); if (!c) return 0;
+    const i = (x & 15) + (z & 15) * 16, o = c.dim === 'overworld' ? this.caveOf(c) : null;
+    if (o) { const b = Caves.at(o, i, Math.floor(y)); if (b >= 0) return b; }
+    return c.biomes[i];
+  },
+  // a chunk's cave biome ranges; chunks from older saves get them from the generator
+  caveOf(c) {
+    if (c.cave === null) {
+      c.cave = false;
+      const g = typeof Structures !== 'undefined' && self.Caves ? Structures.gen('overworld') : null;
+      if (g && !g.flat) { const cols = []; for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) cols.push(g.column(c.cx * 16 + x, c.cz * 16 + z, {})); c.cave = Caves.encode(cols); }
+    }
+    return c.cave || null;
+  },
   getBE(x, y, z) { const c = this.chunkAt(x, z); return c ? c.be.get(LIDX(x & 15, y, z & 15)) : undefined; },
   setBE(x, y, z, be) { const c = this.chunkAt(x, z); if (!c) return; const i = LIDX(x & 15, y, z & 15); if (be) { be.x = x; be.y = y; be.z = z; c.be.set(i, be); } else c.be.delete(i); c.modified = true; },
   // change a block: lighting, meshes, neighbours and block entities follow
@@ -174,8 +190,8 @@ function workerMain() {
     if (m.type === 'init') { gens = { overworld: new self.Overworld(m.seed, m.opts), nether: new self.Nether(m.seed), end: new self.End(m.seed) }; return; }
     if (m.type === 'gen') {
       const o = gens[m.dim].generate(m.cx, m.cz);
-      self.postMessage({ type: 'chunk', gen: m.gen, dim: m.dim, cx: m.cx, cz: m.cz, blocks: o.blocks, states: o.states, biomes: o.biomes, heights: o.heights, be: o.be, ents: o.ents, ticks: o.ticks },
-        [o.blocks.buffer, o.states.buffer, o.biomes.buffer, o.heights.buffer]);
+      const tr = [o.blocks.buffer, o.states.buffer, o.biomes.buffer, o.heights.buffer]; if (o.cave) tr.push(o.cave.buffer);
+      self.postMessage({ type: 'chunk', gen: m.gen, dim: m.dim, cx: m.cx, cz: m.cz, blocks: o.blocks, states: o.states, biomes: o.biomes, heights: o.heights, cave: o.cave || null, be: o.be, ents: o.ents, ticks: o.ticks }, tr);
     }
   };
 }

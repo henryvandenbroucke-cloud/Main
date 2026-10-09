@@ -181,8 +181,8 @@ SHARED.push(function blocksModule(G) {
   reg('spore_blossom', plant({ place: 'ceiling' }));
   reg('hanging_roots', plant({ place: 'ceiling' }));
   reg('cave_vines', plant({ climb: true, light: 0, item: false, tex: 'cave_vines', ticks: true })); reg('cave_vines_plant', plant({ climb: true, item: false }));
-  reg('big_dripleaf', { model: 'dripleaf', layer: 1, opacity: 0, place: 'facing_h', sound: 'big_dripleaf', tex: { top: 'big_dripleaf_top', side: 'big_dripleaf_stem' } });
-  reg('small_dripleaf', plant({ model: 'tall', place: 'tall_plant', tex: 'small_dripleaf_top' }));
+  reg('big_dripleaf', { model: 'dripleaf', layer: 1, opacity: 0, place: 'facing_h', sound: 'big_dripleaf', waterlog: true, tex: { top: 'big_dripleaf_top', side: 'big_dripleaf_stem' } });
+  reg('small_dripleaf', plant({ model: 'tall', place: 'tall_plant', tex: 'small_dripleaf_top', waterlog: true }));
   reg('cobweb', plant({ solid: false, opacity: 1, sound: 'stone' }));
   reg('chorus_plant', { model: 'chorus', layer: 1, opacity: 0, sound: 'wood', tex: 'chorus_plant' });
   reg('chorus_flower', { model: 'chorus', layer: 1, opacity: 0, sound: 'wood', ticks: true, place: 'chorus_flower' });
@@ -419,7 +419,7 @@ SHARED.push(function blocksModule(G) {
   reg('pitcher_crop', plant({ model: 'crop', ticks: true, item: false, tex: 'pitcher_crop_top_stage_4' }));
   reg('pitcher_plant', plant({ model: 'tall', place: 'tall_plant', tex: 'pitcher_plant_top' }));
   reg('bamboo_sapling', plant({ item: false, ticks: true, tex: 'bamboo_stage0', place: 'bamboo' }));
-  reg('big_dripleaf_stem', plant({ item: false, tex: 'big_dripleaf_stem' }));
+  reg('big_dripleaf_stem', plant({ item: false, tex: 'big_dripleaf_stem', waterlog: true }));
   reg('frosted_ice', { layer: 2, opacity: 2, slip: 0.98, ticks: true, item: false, sound: 'glass', tex: 'frosted_ice_0' });
   // eggs: turtle eggs (bits 0-1 count-1, bits 2-3 hatch stage), sniffer eggs (bits 0-1 hatch stage)
   reg('turtle_egg', { model: 'turtle_egg', layer: 1, opacity: 0, sound: 'stone', ticks: true });

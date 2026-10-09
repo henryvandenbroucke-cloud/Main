@@ -174,8 +174,8 @@ void main(){
     const uo = Math.floor(rand() * 4) / 4, vo = Math.floor(rand() * 4) / 4;
     p.u0 = uo; p.v0 = vo; p.u1 = uo + 0.25; p.v1 = vo + 0.25;
     let tint = null;
-    if (d.tint === 'grass' && (texName.includes('top') || d.name !== 'grass_block')) tint = BIOMES[World.biomeAt(Math.floor(x), Math.floor(z))].grass;
-    else if (d.tint === 'foliage') tint = BIOMES[World.biomeAt(Math.floor(x), Math.floor(z))].foliage;
+    if (d.tint === 'grass' && (texName.includes('top') || d.name !== 'grass_block')) tint = BIOMES[World.biomeAt3(x, y, z)].grass;
+    else if (d.tint === 'foliage') tint = BIOMES[World.biomeAt3(x, y, z)].foliage;
     else if (typeof d.tint === 'number') tint = d.tint;
     const k = 0.6;
     p.r = k * (tint ? (tint >> 16 & 255) / 255 : 1); p.g = k * (tint ? (tint >> 8 & 255) / 255 : 1); p.b = k * (tint ? (tint & 255) / 255 : 1);

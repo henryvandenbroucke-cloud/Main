@@ -58,7 +58,7 @@ const Save = (() => {
     return {
       v: 1, cx: c.cx, cz: c.cz,
       pal: pal.map(k => BLOCKS[Math.floor(k / 256)].name + ':' + (k & 255)),
-      runs: Uint16Array.from(runs), biomes: c.biomes.slice(),
+      runs: Uint16Array.from(runs), biomes: c.biomes.slice(), cave: c.cave ? c.cave.slice() : null,
       be: [...c.be.values()].map(pack), ents: ents || c.pendingEntities || [],
       ticks: Ticks.inChunk ? Ticks.inChunk(c) : [],
     };
@@ -68,7 +68,7 @@ const Save = (() => {
     const pal = r.pal.map(p => { const i = p.lastIndexOf(':'); const id = BID[p.slice(0, i)]; return id === undefined ? [0, 0] : [id, +p.slice(i + 1)]; });
     let o = 0;
     for (let i = 0; i < r.runs.length; i += 2) { const [id, st] = pal[r.runs[i + 1]], n = r.runs[i]; blocks.fill(id, o, o + n); states.fill(st, o, o + n); o += n; }
-    return { cx: r.cx, cz: r.cz, blocks, states, biomes: r.biomes, be: r.be.map(unpack), ents: r.ents || [], ticks: r.ticks || [] };
+    return { cx: r.cx, cz: r.cz, blocks, states, biomes: r.biomes, cave: r.cave || null, be: r.be.map(unpack), ents: r.ents || [], ticks: r.ticks || [] };
   }
   // entities standing in a chunk that should be kept with it (items, mobs, vehicles...)
   function entitiesIn(c) {

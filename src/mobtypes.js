@@ -585,8 +585,10 @@ const Mobs = (() => {
   // /summon, spawn eggs
   function spawn(type, x, y, z, o) { o = o || {}; const m = spawnEntity(type, x, y, z, Object.assign({ persistent: !!o.force }, o)); if (m && o.force) m.persistent = true; return m; }
   // ---------------------------------------------------------------- natural spawning
-  const CAPS = { monster: 70, creature: 10, ambient: 15, water: 5 };
-  function counts() { const c = { monster: 0, creature: 0, ambient: 0, water: 0 }; for (const e of Entities.list) if (e instanceof Mob && !e.dead) { const g = e.group === 'misc' ? null : e.group; if (g && c[g] !== undefined) c[g]++; } return c; }
+  const CAPS = { monster: 70, creature: 10, ambient: 15, water: 5, underground_water: 5, axolotls: 5 };
+  // glow squid and axolotls have their own spawn categories (and caps) in the game
+  const CAT_OF = { glow_squid: 'underground_water', axolotl: 'axolotls' };
+  function counts() { const c = { monster: 0, creature: 0, ambient: 0, water: 0, underground_water: 0, axolotls: 0 }; for (const e of Entities.list) if (e instanceof Mob && !e.dead) { const g = CAT_OF[e.type] || (e.group === 'misc' ? null : e.group); if (g && c[g] !== undefined) c[g]++; } return c; }
   function pickWeighted(list) { let t = 0; for (const s of list) t += s[1]; let k = Math.random() * t; for (const s of list) { k -= s[1]; if (k < 0) return s; } return list[0]; }
   // may a monster spawn here? (light 0 for block light, darkness from the sky with a random allowance)
   function darkEnough(x, y, z) {
@@ -597,10 +599,24 @@ const Mobs = (() => {
     if (bl > 0) return false;
     return Math.max(0, sky - Sky.skyDarken) <= rnd(8);
   }
+  const OPAQUE_SOLID = id => SOLID[id] && BLOCKS[id].opaque;
   function spawnable(type, x, y, z) {
     const below = World.getBlock(x, y - 1, z), bd = BLOCKS[below];
     const st = MOB_STATS[type], group = st ? st[4] : 'monster';
-    if (group === 'water' || type === 'guardian') return BLOCKS[World.getBlock(x, y, z)].fluid === 'water' && BLOCKS[World.getBlock(x, y + 1, z)].fluid === 'water';
+    // drowned rise from dark water: often in rivers, otherwise one try in 40 and more than 5 below sea level
+    if (type === 'drowned') {
+      if (BLOCKS[World.getBlock(x, y - 1, z)].fluid !== 'water' || BLOCKS[World.getBlock(x, y, z)].fluid !== 'water' || !darkEnough(x, y, z)) return false;
+      const bn = BIOMES[World.biomeAt3(x, y, z)].name; return bn === 'river' || bn === 'frozen_river' ? rnd(15) === 0 : rnd(40) === 0 && y < 58;
+    }
+    if (group === 'water' || type === 'guardian') {
+      if (BLOCKS[World.getBlock(x, y, z)].fluid !== 'water' || OPAQUE_SOLID(World.getBlock(x, y + 1, z))) return false;
+      // glow squid: dark water at least 33 below sea level; axolotls: water over clay; others near the surface (lush caves' fish anywhere)
+      if (type === 'glow_squid') return y <= 30 && World.getLight(x, y, z) === 0;
+      if (type === 'axolotl') return below === BID.clay;
+      if (type === 'guardian') return true;
+      if (type === 'tropical_fish' && BIOMES[World.biomeAt3(x, y, z)].name === 'lush_caves') return true;
+      return y >= 50 && y <= 63;
+    }
     if (group === 'ambient') return World.getBlock(x, y, z) === 0 && y < 63 && World.lightLevel(x, y, z) <= rnd(4);
     if (!SOLID[below] || !bd.opaque && bd.model !== 'slab' && !bd.name.endsWith('_leaves') || below === BID.bedrock || below === BID.barrier || bd.name.endsWith('glass')) return false;
     if (bd.model === 'slab' && !((World.getState(x, y - 1, z) >> 3) & 2) && ((World.getState(x, y - 1, z) >> 3) & 3) === 0) return false;
@@ -622,6 +638,7 @@ const Mobs = (() => {
     if (Game.gameTime % 400 === 0 && c.creature < CAPS.creature) cats.push('creature');
     if (c.ambient < CAPS.ambient && World.dim === 'overworld') cats.push('ambient');
     if (c.water < CAPS.water && World.dim === 'overworld') cats.push('water');
+    if (World.dim === 'overworld') for (const k of ['underground_water', 'axolotls']) if (c[k] < CAPS[k]) cats.push(k);
     if (!cats.length) return;
     const pcx = Math.floor(p.x / 16), pcz = Math.floor(p.z / 16), R = Math.min(8, Settings.renderDist);
     // try a handful of random chunks each tick (the game tries every chunk; this keeps the cost down)
@@ -631,12 +648,16 @@ const Mobs = (() => {
       for (const cat of cats) spawnCluster(cat, ch, p);
     }
   }
+  function listFor(cat, b) {
+    return cat === 'monster' ? b.hostile : cat === 'creature' ? b.passive : cat === 'water' ? b.waterMobs : cat === 'ambient' ? b.ambient
+      : cat === 'underground_water' ? (b.name === 'deep_dark' ? [] : [['glow_squid', 10, 4, 6]]) : b.name === 'lush_caves' ? [['axolotl', 10, 4, 6]] : [];
+  }
   function spawnCluster(cat, ch, p) {
     const x0 = ch.cx * 16 + rnd(16), z0 = ch.cz * 16 + rnd(16);
     const top = ch.height[(x0 & 15) + (z0 & 15) * 16] + 1;
     const y0 = MINY + rnd(Math.max(1, top - MINY + 1));
-    const bi = World.biomeAt(x0, z0), b = BIOMES[bi];
-    let list = cat === 'monster' ? b.hostile : cat === 'creature' ? b.passive : cat === 'water' ? b.waterMobs : [['bat', 10, 8, 8]];
+    const b = BIOMES[World.biomeAt3(x0, y0, z0)];
+    let list = listFor(cat, b), own = false;
     // structures with their own spawns (the game's structure spawn overrides)
     if (cat === 'monster' || (cat === 'creature' && World.dim === 'overworld')) {
       const here = Structures.at(x0, y0, z0, World.dim === 'nether' ? ['fortress'] : ['ocean_monument', 'swamp_hut', 'pillager_outpost']);
@@ -644,9 +665,9 @@ const Mobs = (() => {
       else if (here.includes('ocean_monument') && cat === 'monster') list = [['guardian', 1, 2, 4]];
       else if (here.includes('swamp_hut')) list = cat === 'monster' ? [['witch', 1, 1, 1]] : [['cat', 1, 1, 1]];
       else if (here.includes('pillager_outpost') && cat === 'monster') list = [['pillager', 1, 1, 1]];
+      own = here.length > 0;
     }
     if (cat === 'monster' && World.dim === 'overworld' && b.name === 'mushroom_fields') return;
-    if (cat === 'monster' && World.dim === 'overworld' && y0 < 0 && b.name === 'deep_dark') return;
     if (!list || !list.length) return;
     let x = x0, y = y0, z = z0, type = null, n = 0;
     for (let pack = 0; pack < 3; pack++) {
@@ -656,6 +677,8 @@ const Mobs = (() => {
       for (let i = 0; i < size; i++) {
         x += rnd(6) - rnd(6); z += rnd(6) - rnd(6);
         if (!World.loaded(x, z)) continue;
+        // each spot's own biome must allow the mob (so nothing wanders in from the edge of the deep dark)
+        if (!own && !listFor(cat, BIOMES[World.biomeAt3(x, y, z)]).some(m => m[0] === g[0])) continue;
         const d2 = (x + 0.5 - p.x) ** 2 + (y - p.y) ** 2 + (z + 0.5 - p.z) ** 2;
         if (d2 < 24 * 24 || d2 > 128 * 128) continue;
         if (!spawnable(g[0], x, y, z)) continue;

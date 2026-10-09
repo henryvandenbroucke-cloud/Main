@@ -187,7 +187,7 @@ const HUD = (() => {
       `XYZ: ${p.x.toFixed(3)} / ${p.y.toFixed(5)} / ${p.z.toFixed(3)}`, `Block: ${bx} ${by} ${bz}`, `Chunk: ${bx & 15} ${by & 15} ${bz & 15} in ${bx >> 4} ${by >> 4} ${bz >> 4}`,
       `Facing: ${f} (${(((-p.yaw * 180 / Math.PI) % 360 + 540) % 360 - 180).toFixed(1)} / ${(p.pitch * 180 / Math.PI).toFixed(1)})`,
       `Client Light: ${Math.max((l >> 4) - Sky.skyDarken, l & 15)} (${l >> 4} sky, ${l & 15} block)`,
-      `Biome: minecraft:${BIOMES[World.biomeAt(bx, bz)].name}`, `Dimension: minecraft:${World.dim === 'overworld' ? 'overworld' : World.dim === 'nether' ? 'the_nether' : 'the_end'}`,
+      `Biome: minecraft:${BIOMES[World.biomeAt3(bx, by, bz)].name}`, `Dimension: minecraft:${World.dim === 'overworld' ? 'overworld' : World.dim === 'nether' ? 'the_nether' : 'the_end'}`,
       `Local Difficulty: ${Game.difficulty}  Day ${Math.floor(Game.dayTime / 24000)}`, `Time: ${Game.dayTime % 24000}`,
     ];
     const t = Interact.target, right = [`Seed: ${Game.seed}`, `Render distance: ${Settings.renderDist}`];
