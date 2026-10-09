@@ -19,7 +19,11 @@ SHARED.push(function worldgenModule(G) {
     inside(x, z) { x -= this.x0; z -= this.z0; return x >= 0 && x < 16 && z >= 0 && z < 16; }
     get(x, y, z) { x -= this.x0; z -= this.z0; if (x < 0 || x > 15 || z < 0 || z > 15 || y < MINY || y > MAXY) return 0; return this.b[I(x, y, z)]; }
     getState(x, y, z) { x -= this.x0; z -= this.z0; if (x < 0 || x > 15 || z < 0 || z > 15 || y < MINY || y > MAXY) return 0; return this.s[I(x, y, z)]; }
-    set(x, y, z, id, st) { x -= this.x0; z -= this.z0; if (x < 0 || x > 15 || z < 0 || z > 15 || y < MINY || y > MAXY) return; const i = I(x, y, z); this.b[i] = id; this.s[i] = st || 0; }
+    set(x, y, z, id, st) {
+      const wx = x, wz = z; x -= this.x0; z -= this.z0; if (x < 0 || x > 15 || z < 0 || z > 15 || y < MINY || y > MAXY) return; const i = I(x, y, z); this.b[i] = id; this.s[i] = st || 0;
+      // a block entity whose block is replaced goes with it (structures carving through sculk, chests...)
+      const be = this.o.be; for (let k = be.length - 1; k >= 0; k--) { const e = be[k]; if (e.x === wx && e.y === y && e.z === wz) be.splice(k, 1); }
+    }
     blockEntity(x, y, z, data) { if (this.inside(x, z)) this.o.be.push(Object.assign({ x, y, z }, data)); }
     entity(type, x, y, z, data) { if (this.inside(Math.floor(x), Math.floor(z))) this.o.ents.push(Object.assign({ type, x, y, z }, data || {})); }
   }

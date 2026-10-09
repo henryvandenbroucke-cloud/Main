@@ -659,8 +659,10 @@ const Mobs = (() => {
     const b = BIOMES[World.biomeAt3(x0, y0, z0)];
     let list = listFor(cat, b), own = false;
     // structures with their own spawns (the game's structure spawn overrides)
-    if (cat === 'monster' || (cat === 'creature' && World.dim === 'overworld')) {
-      const here = Structures.at(x0, y0, z0, World.dim === 'nether' ? ['fortress'] : ['ocean_monument', 'swamp_hut', 'pillager_outpost']);
+    if (cat === 'monster' || World.dim === 'overworld') {
+      const here = Structures.at(x0, y0, z0, World.dim === 'nether' ? ['fortress'] : ['ocean_monument', 'swamp_hut', 'pillager_outpost', 'ancient_city', 'trial_chambers']);
+      // nothing at all spawns in ancient cities or trial chambers
+      if (here.includes('ancient_city') || here.includes('trial_chambers')) return;
       if (here.includes('fortress') && cat === 'monster') list = [['blaze', 10, 2, 3], ['zombified_piglin', 5, 4, 4], ['wither_skeleton', 8, 5, 5], ['skeleton', 2, 5, 5], ['magma_cube', 3, 4, 4]];
       else if (here.includes('ocean_monument') && cat === 'monster') list = [['guardian', 1, 2, 4]];
       else if (here.includes('swamp_hut')) list = cat === 'monster' ? [['witch', 1, 1, 1]] : [['cat', 1, 1, 1]];

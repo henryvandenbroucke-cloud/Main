@@ -230,8 +230,10 @@ const Pots = (() => {
     else Drops.spawnItem(x + 0.5, y + 0.5, z + 0.5, stack('decorated_pot', 1, be && be.sherds ? { tag: { sherds: be.sherds.slice() } } : {}));
   }
   // hit by an arrow, trident or other projectile: it breaks into pieces, spilling what it held
+  // a pot from a structure holds a loot table, rolled the first time it is touched
+  function unpack(be) { if (!be || !be.loot) return; const r = be.seed ? new Rand(be.seed) : null; const list = LootTables.roll(be.loot, { r: r ? () => r.next() : Math.random }); be.items = [list[0] || null]; be.loot = null; }
   function hitByProjectile(x, y, z) {
-    const be = World.getBE(x, y, z);
+    const be = World.getBE(x, y, z); unpack(be);
     if (be && be.items) for (const s of be.items) if (s) Drops.spawnItem(x + 0.5, y + 0.5, z + 0.5, s, true);
     Particles.blockBreak(x, y, z, BID.decorated_pot, World.getState(x, y, z));
     Blocks.remove(x, y, z, null, true);
@@ -241,7 +243,7 @@ const Pots = (() => {
     if (ITEMS[s.id].name !== 'decorated_pot' || !s.tag || !s.tag.sherds) return '';
     return s.tag.sherds.map(n => `<div style="color:#aaa">${escapeHTML(ITEMS[IID[n || 'brick']].display)}</div>`).join('');
   }
-  return { DESIGNS, design, sideTex, wobble, frame, clear, recipe, placed, shatters, drops, hitByProjectile, tooltip };
+  return { DESIGNS, design, sideTex, wobble, frame, clear, recipe, placed, shatters, drops, hitByProjectile, tooltip, unpack };
 })();
 
 /* ---------------------------------------------------------------- chiseled bookshelves */
@@ -289,6 +291,7 @@ const Shelves = (() => {
   // with nothing to put in it shakes the other way
   function pot(p, x, y, z, held) {
     let be = World.getBE(x, y, z); if (!be) { be = Blocks.newBE('decorated_pot'); World.setBE(x, y, z, be); }
+    Pots.unpack(be);
     const cur = be.items[0];
     if (held && (!cur || (sameItem(cur, held) && cur.count < maxStack(cur)))) {
       if (cur) cur.count++; else be.items[0] = Object.assign({}, held, { count: 1 });

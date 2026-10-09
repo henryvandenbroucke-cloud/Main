@@ -62,6 +62,7 @@ const Interact = (() => {
     // containers spill their contents
     const be = World.getBE(x, y, z);
     if (be && be.loot) LootTables.unpackContainer(be, p);
+    if (d.name === 'decorated_pot') Pots.unpack(be);
     if (be && be.items && !(d.name.endsWith('shulker_box'))) for (const s of be.items) if (s) Drops.spawnItem(x + 0.5, y + 0.5, z + 0.5, s, true);
     if (be && be.type === 'jukebox' && be.disc) Drops.spawnItem(x + 0.5, y + 1, z + 0.5, be.disc);
     if (be && be.type === 'lectern' && be.book) Drops.spawnItem(x + 0.5, y + 1, z + 0.5, be.book);

@@ -20,10 +20,20 @@ SHARED.push(function structuresModule(G) {
   }
   const replaceable = id => id === 0 || BLOCKS[id].replaceable || BLOCKS[id].fluid || BLOCKS[id].model === 'cross' || BLOCKS[id].name.endsWith('_leaves') || BLOCKS[id].model === 'tall';
   // ---------------------------------------------------------------- a structure plan
-  // modes: 0 set, 1 only into air/plants/fluid, 2 foundation (set and continue down to the ground), 3 only into solid (carving)
+  // modes: 0 set, 1 only into air/plants/fluid, 2 foundation (set and continue down to the ground), 3 only into solid (carving),
+  // 4 only into solid but not cave air, 5 anything but bedrock, 6 only into fluids
   class Plan {
     constructor(x, y, z, k) { this.ox = x; this.oy = y; this.oz = z; this.k = k || 0; this.buckets = new Map(); this.bb = [1e9, 1e9, 1e9, -1e9, -1e9, -1e9]; this.boxes = []; this.n = 0; }
-    bucket(x, z) { const k = (x >> 4) + ',' + (z >> 4); let b = this.buckets.get(k); if (!b) { b = { blocks: [], ents: [], bes: [] }; this.buckets.set(k, b); } return b; }
+    bucket(x, z) { const k = (x >> 4) + ',' + (z >> 4); let b = this.buckets.get(k); if (!b) { b = { blocks: [], ents: [], bes: [], regions: [] }; this.buckets.set(k, b); } return b; }
+    // a big world-space box of one block, kept as one entry per chunk (written before the single blocks)
+    region(x0, y0, z0, x1, y1, z1, id, st, mode) {
+      if (x0 > x1) [x0, x1] = [x1, x0]; if (y0 > y1) [y0, y1] = [y1, y0]; if (z0 > z1) [z0, z1] = [z1, z0];
+      y0 = Math.max(y0, MINY); y1 = Math.min(y1, MAXY); if (y0 > y1) return;
+      for (let cx = x0 >> 4; cx <= x1 >> 4; cx++) for (let cz = z0 >> 4; cz <= z1 >> 4; cz++) this.bucket(cx * 16, cz * 16).regions.push(Math.max(x0, cx * 16), y0, Math.max(z0, cz * 16), Math.min(x1, cx * 16 + 15), y1, Math.min(z1, cz * 16 + 15), id, st || 0, mode || 0);
+      const b = this.bb; b[0] = Math.min(b[0], x0); b[1] = Math.min(b[1], y0); b[2] = Math.min(b[2], z0); b[3] = Math.max(b[3], x1); b[4] = Math.max(b[4], y1); b[5] = Math.max(b[5], z1);
+    }
+    // the same in local coordinates
+    lregion(x0, y0, z0, x1, y1, z1, id, st, mode) { const [ax, az] = this.tx(x0, z0), [bx, bz] = this.tx(x1, z1); this.region(ax, this.oy + y0, az, bx, this.oy + y1, bz, id, rotState(id, st || 0, this.k), mode); }
     // local (x right, z forward) to world, turned k times clockwise about the origin
     tx(lx, lz) { let x = lx, z = lz; for (let i = 0; i < this.k; i++) { const t = x; x = -z; z = t; } return [this.ox + x, this.oz + z]; }
     put(x, y, z, id, st, mode) {
@@ -55,6 +65,18 @@ SHARED.push(function structuresModule(G) {
   // write one chunk's part of a plan
   function apply(plan, w, cx, cz) {
     const b = plan.buckets.get(cx + ',' + cz); if (!b) return;
+    const R = b.regions || [];
+    for (let i = 0; i < R.length; i += 9) {
+      const id = R[i + 6], st = R[i + 7], mode = R[i + 8];
+      for (let y = R[i + 1]; y <= R[i + 4]; y++) for (let z = R[i + 2]; z <= R[i + 5]; z++) for (let x = R[i]; x <= R[i + 3]; x++) {
+        if (mode === 0) w.set(x, y, z, id, st);
+        else if (mode === 1) { if (replaceable(w.get(x, y, z))) w.set(x, y, z, id, st); }
+        else if (mode === 3) { const c = w.get(x, y, z); if (c !== 0 && !BLOCKS[c].fluid) w.set(x, y, z, id, st); }
+        else if (mode === 4) { const c = w.get(x, y, z); if (c !== 0 && c !== B.cave_air) w.set(x, y, z, id, st); }
+        else if (mode === 5) { const c = w.get(x, y, z); if (c !== B.bedrock) w.set(x, y, z, id, st); } // anything but bedrock
+        else if (mode === 6) { const c = w.get(x, y, z); if (c && BLOCKS[c].fluid) w.set(x, y, z, id, st); } // only fluids (sealing aquifers off)
+      }
+    }
     const L = b.blocks;
     for (let i = 0; i < L.length; i += 6) {
       const x = L[i], y = L[i + 1], z = L[i + 2], id = L[i + 3], st = L[i + 4], mode = L[i + 5];
@@ -63,6 +85,7 @@ SHARED.push(function structuresModule(G) {
       else if (mode === 2) { w.set(x, y, z, id, st); for (let yy = y - 1, n = 0; yy > MINY && n < 40 && replaceable(w.get(x, yy, z)); yy--, n++) w.set(x, yy, z, id, st); }
       else if (mode === 3) { const c = w.get(x, y, z); if (c !== 0 && !BLOCKS[c].fluid) w.set(x, y, z, id, st); }
       else if (mode === 4) { const c = w.get(x, y, z); if (c !== 0 && c !== B.cave_air) w.set(x, y, z, id, st); } // keep caves open
+      else if (mode === 5) { if (w.get(x, y, z) !== B.bedrock) w.set(x, y, z, id, st); }
     }
     for (const e of b.ents) w.o.ents.push(e);
     for (const e of b.bes) w.blockEntity(e.x, e.y, e.z, e);
@@ -142,6 +165,8 @@ SHARED.push(function structuresModule(G) {
     const plans = names ? names.flatMap(n => plansNear(dim, gen, x >> 4, z >> 4, n)) : plansNear(dim, gen, x >> 4, z >> 4);
     for (const p of plans) {
       const b = p.bb; if (x < b[0] || x > b[3] || y < b[1] - 1 || y > b[4] + 1 || z < b[2] || z > b[5]) continue;
+      // some structures only count inside their pieces (trial chambers), not their whole bounding box
+      if (p.pieceOnly && !p.boxes.some(q => x >= q[0] && x <= q[3] && y >= q[1] && y <= q[4] && z >= q[2] && z <= q[5])) continue;
       out.push(p);
     }
     return out;
