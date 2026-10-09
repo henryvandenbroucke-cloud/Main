@@ -140,7 +140,7 @@ const Place = (() => {
         }
         break;
       }
-      case 'dripstone': st = face === 0 ? 8 : 0; break;
+      case 'dripstone': { const s2 = Dripstone.placeState(p, x, y, z); if (s2 < 0) return false; st = s2; break; }
       case 'water_plant': case 'water_plant_any':
         if (d.place === 'water_plant' && !waterHere) return false;
         if (face === 0) return false;

@@ -82,6 +82,7 @@ const Blocks = (() => {
     const d = BLOCKS[id], st = World.getState(x, y, z);
     if (d.fluid) { Ticks.schedule(x, y, z, Fluids.delay(id)); return; }
     BlockExtras.neighborChanged(x, y, z, id);
+    if (id === B.pointed_dripstone) { if (st & 128) Ticks.schedule(x, y, z, 5, B.water); Dripstone.neighbor(x, y, z, st); return; }
     if ((d.waterlog && (st & 128)) || d.fluidLog) Ticks.schedule(x, y, z, 5, B.water);
     if (d.gravity) Ticks.schedule(x, y, z, 2);
     if (d.name === 'redstone_wire' || d.model === 'repeater' || d.model === 'comparator' || d.model === 'piston' || d.name === 'redstone_lamp' || d.model === 'door' || d.model === 'trapdoor' || d.model === 'gate' || d.name === 'tnt' || d.name === 'note_block' || d.name === 'dispenser' || d.name === 'dropper' || d.name === 'observer' || d.name === 'hopper' || d.model === 'rail' || d.name.startsWith('redstone_') && d.model.includes('torch')) Redstone.neighbor(x, y, z, id, st, fx, fy, fz);
@@ -103,6 +104,7 @@ const Blocks = (() => {
     const d = BLOCKS[id];
     if (d.fluid) return Fluids.tick(x, y, z, id, st);
     if (!water && typeof Sculk !== 'undefined' && Sculk.scheduledTick(x, y, z, id, st)) return;
+    if (!water && id === B.pointed_dripstone) return Dripstone.scheduled(x, y, z, st);
     if (water || (((d.waterlog && (st & 128)) || d.fluidLog) && !Redstone.isComponent(id))) { Fluids.tick(x, y, z, B.water, 0); return; }
     if (d.gravity) return Falling.check(x, y, z, id, st);
     if (BlockExtras.scheduledTick(x, y, z, id, st)) return;
@@ -115,6 +117,7 @@ const Blocks = (() => {
   // ---------------------------------------------------------------- random ticks
   function randomTick(x, y, z, id, st) {
     if (BlockExtras.randomTick(x, y, z, id, st)) return;
+    if (id === B.pointed_dripstone) return Dripstone.randomTick(x, y, z, st);
     const d = BLOCKS[id], n = d.name;
     const light = World.lightLevel(x, y + 1, z);
     switch (n) {
@@ -292,6 +295,7 @@ class FallingBlock extends Entity {
     if (this.onGround) {
       this.removed = true;
       // suspicious sand and gravel break when they land, with whatever they held
+      if (d.name === 'pointed_dripstone') { Dripstone.landed(this, bx, by, bz); return; }
       if (d.name.startsWith('suspicious_')) { Particles.blockBreak(bx, by, bz, this.block, 0); Sound.blockBreak(this.block, bx, by, bz); return; }
       const cur = World.getBlock(bx, by, bz);
       if (cur === 0 || BLOCKS[cur].replaceable || BLOCKS[cur].fluid) {

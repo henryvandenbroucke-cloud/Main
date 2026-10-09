@@ -68,6 +68,11 @@ const DeathMessages = {
       case 'hotFloor': return `${n} discovered the floor was lava`;
       case 'sweetBerryBush': return `${n} was poked to death by a sweet berry bush`;
       case 'anvil': return `${n} was squashed by a falling anvil`;
+      case 'fallingBlock': return `${n} was squashed by a falling block`;
+      case 'fallingStalactite': return `${n} was skewered by a falling stalactite`;
+      case 'stalagmite': return `${n} was impaled on a stalagmite`;
+      case 'sting': return by ? `${n} was stung to death by ${k}` : `${n} was stung to death`;
+      case 'sonic_boom': return by ? `${n} was obliterated by a sonically-charged shriek whilst trying to escape ${k}` : `${n} was obliterated by a sonically-charged shriek`;
       case 'lightning': return `${n} was struck by lightning`;
       case 'freeze': return `${n} froze to death`;
       case 'arrow': return `${n} was shot by ${k || 'an arrow'}`;

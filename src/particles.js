@@ -315,6 +315,7 @@ void main(){
             if (rnd(30) === 0) Sound.play('candle_ambient', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 });
             break;
           }
+          case 'dripstone': Dripstone.animate(x, y, z, World.getState(x, y, z)); break;
           case 'ench': {
             for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) for (let dy = 0; dy <= 1; dy++) {
               if ((Math.abs(dx) !== 2 && Math.abs(dz) !== 2) || rnd(16) !== 0) continue;

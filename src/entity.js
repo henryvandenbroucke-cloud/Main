@@ -205,12 +205,14 @@ class Living extends Entity {
         if (this.living || this.isPlayer) GameEvents.emit('hit_ground', this.x, this.y, this.z, this, land);
         this.onLand && this.onLand(this.fallDistance, land);
         let dmg = Math.ceil(this.fallDistance - 3 - (this.effect('jump_boost') ? this.effect('jump_boost').amp + 1 : 0));
+        const spike = Dripstone.fallMultiplier(land, Math.floor(this.x), Math.floor(this.y - 0.2), Math.floor(this.z));
+        if (spike) dmg = Math.ceil((this.fallDistance + spike.extra - 3 - (this.effect('jump_boost') ? this.effect('jump_boost').amp + 1 : 0)) * spike.mult);
         if (land === BID.hay_block) dmg = Math.ceil(dmg * 0.2);
         if (land === BID.slime_block && !this.sneaking) dmg = 0;
         if (BLOCKS[land].fluid === 'water' || this.inWater) dmg = 0;
         if (land === BID.powder_snow) dmg = 0;
         if (BLOCKS[land].name.endsWith('_bed')) dmg = Math.ceil(dmg * 0.5);
-        if (dmg > 0 && !this.noFallDamage) this.hurt(dmg, 'fall');
+        if (dmg > 0 && !this.noFallDamage) this.hurt(dmg, spike ? 'stalagmite' : 'fall');
         this.fallDistance = 0;
         // slime blocks bounce you back up
         if (land === BID.slime_block && !this.sneaking && this.vyBeforeMove < -0.1) { this.vy = -this.vyBeforeMove; this.onGround = false; }

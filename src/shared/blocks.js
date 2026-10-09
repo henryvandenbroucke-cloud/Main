@@ -88,7 +88,7 @@ SHARED.push(function blocksModule(G) {
   reg('amethyst_block', { sound: 'amethyst' }); reg('budding_amethyst', { sound: 'amethyst', ticks: true });
   for (const n of ['small_amethyst_bud', 'medium_amethyst_bud', 'large_amethyst_bud', 'amethyst_cluster']) reg(n, plant({ model: 'cross', place: 'facing6', light: n === 'amethyst_cluster' ? 5 : n === 'large_amethyst_bud' ? 4 : n === 'medium_amethyst_bud' ? 2 : 1, sound: 'amethyst' }));
   // pointed dripstone: bits 0-2 thickness, bit 3 hanging down
-  reg('pointed_dripstone', plant({ model: 'cross', tex: 'pointed_dripstone_down_tip', place: 'dripstone', sound: 'stone' }));
+  reg('pointed_dripstone', { model: 'dripstone', layer: 1, opacity: 0, noAO: true, tex: 'pointed_dripstone', place: 'dripstone', sound: 'pointed_dripstone', waterlog: true, ticks: true });
 
   // ------------------------------------------------------------------ ores and storage blocks
   for (const o of ['coal', 'iron', 'copper', 'gold', 'redstone', 'emerald', 'lapis', 'diamond']) {

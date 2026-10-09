@@ -85,7 +85,7 @@ class Chicken extends Animal {
     this.flap += this.flapSpeed * 2;
     if (!this.baby && !this.jockey && --this.eggTime <= 0) { Sound.play('chicken_egg', this); Drops.spawnItem(this.x, this.y, this.z, stack('egg')); this.eggTime = 6000 + rnd(6000); }
   }
-  hurt(n, s, a) { if (s === 'fall') return false; return super.hurt(n, s, a); }
+  hurt(n, s, a) { if (s === 'fall' || s === 'stalagmite') return false; return super.hurt(n, s, a); }
   animState(s, a) { const f = this.oFlap + (this.flap - this.oFlap) * a; s.flap = (Math.sin(f) + 1) * this.flapSpeed; }
 }
 reg('chicken', Chicken);

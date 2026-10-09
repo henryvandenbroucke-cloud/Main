@@ -179,12 +179,17 @@ SHARED.push(function cavesModule(G) {
     for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { const hy = y - d + 1; if (r.chance(0.5) && air(w.get(x + dx, hy - 1, z + dz)) && w.get(x + dx, hy, z + dz) !== 0) w.set(x + dx, hy - 1, z + dz, B.hanging_roots, 0); }
   }
   // ---------------------------------------------------------------- dripstone caves
+  // a stalagmite (dy 1) or stalactite (dy -1) of up to n pieces with the game's thicknesses: base, middle..., frustum, tip
+  function column(w, x, y, z, dy, n) {
+    let m = 0; while (m < n && air(w.get(x, y + dy * m, z))) m++;
+    for (let i = 0; i < m; i++) { const t = i === m - 1 ? 0 : i === m - 2 ? 2 : i === 0 ? 4 : 3; w.set(x, y + dy * i, z, B.pointed_dripstone, t | (dy < 0 ? 8 : 0)); }
+  }
   function dripstone(w, r, x, y, z, below, above, noise) {
     if (STONY.has(below) && noise(x, y, z, 6) > -0.2) w.set(x, y - 1, z, B.dripstone_block, 0);
     if (STONY.has(above) && noise(x, y + 11, z, 6) > -0.2) w.set(x, y + 1, z, B.dripstone_block, 0);
     const k = r.next();
-    if (w.get(x, y - 1, z) === B.dripstone_block && k < 0.08) { const n = 1 + r.int(3); for (let i = 0; i < n && air(w.get(x, y + i, z)); i++) w.set(x, y + i, z, B.pointed_dripstone, 0); return; }
-    if (w.get(x, y + 1, z) === B.dripstone_block && k < 0.2) { const n = 1 + r.int(4); for (let i = 0; i < n && air(w.get(x, y - i, z)); i++) w.set(x, y - i, z, B.pointed_dripstone, 8); return; }
+    if (w.get(x, y - 1, z) === B.dripstone_block && k < 0.08) { column(w, x, y, z, 1, 1 + r.int(3)); return; }
+    if (w.get(x, y + 1, z) === B.dripstone_block && k < 0.2) { column(w, x, y, z, -1, 1 + r.int(4)); return; }
     // the odd great column from floor to ceiling
     if (k > 0.9994 && STONY.has(below)) { let top = y; while (top < y + 30 && air(w.get(x, top + 1, z))) top++; if (top < y + 30) for (let yy = y; yy <= top; yy++) { const rad = 1 + (Math.abs(yy - (y + top) / 2) > (top - y) * 0.3 ? 1 : 0); for (let dx = -rad; dx <= rad; dx++) for (let dz = -rad; dz <= rad; dz++) if (dx * dx + dz * dz <= rad * rad + 1 && air(w.get(x + dx, yy, z + dz))) w.set(x + dx, yy, z + dz, B.dripstone_block, 0); } }
   }

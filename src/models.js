@@ -347,6 +347,8 @@ const Models = (() => {
       const rot = shape === 1 ? 1 : shape === 7 ? 1 : shape === 8 ? 2 : shape === 9 ? 3 : 0;
       return rotY([box(0, 1, 0, 16, 1, 16, { up: tex, down: tex }, { noCull: true })], rot);
     },
+    // pointed dripstone: up or down, five thicknesses
+    dripstone: (d, s) => crossEls('pointed_dripstone_' + (s & 8 ? 'down' : 'up') + '_' + ['tip', 'tip_merge', 'frustum', 'middle', 'base'][Math.min(4, s & 7)], false),
     cross: (d, s) => {
       let t = d.tex.side;
       if (d.name === 'sweet_berry_bush') t = 'sweet_berry_bush_stage' + Math.min(3, s & 3);
@@ -655,6 +657,7 @@ const Models = (() => {
     // thin selection boxes for non-solid things
     switch (d.model) {
       case 'cross': case 'tall': return [[2 / 16, 0, 2 / 16, 14 / 16, 13 / 16, 14 / 16]];
+      case 'dripstone': { const t = st & 7, dn = st & 8; if (t === 0) return [dn ? [5 / 16, 5 / 16, 5 / 16, 11 / 16, 1, 11 / 16] : [5 / 16, 0, 5 / 16, 11 / 16, 11 / 16, 11 / 16]]; const r = [5, 5, 4, 3, 2][Math.min(4, t)] / 16; return [[r, 0, r, 1 - r, 1, 1 - r]]; }
       case 'crop': return [[0, 0, 0, 1, Math.max(2, ((st & 7) + 1) * 2) / 16, 1]];
       case 'torch': return [[6 / 16, 0, 6 / 16, 10 / 16, 10 / 16, 10 / 16]];
       case 'wall_torch': { const b = { 5: [0, 3 / 16, 5.5 / 16, 5 / 16, 13 / 16, 10.5 / 16], 4: [11 / 16, 3 / 16, 5.5 / 16, 1, 13 / 16, 10.5 / 16], 3: [5.5 / 16, 3 / 16, 0, 10.5 / 16, 13 / 16, 5 / 16], 2: [5.5 / 16, 3 / 16, 11 / 16, 10.5 / 16, 13 / 16, 1] }[f]; return [b || [0.4, 0, 0.4, 0.6, 0.6, 0.6]]; }

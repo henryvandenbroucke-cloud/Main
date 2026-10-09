@@ -208,6 +208,8 @@ class Player extends Living {
     const dealer = attacker && !attacker.living && attacker.owner ? attacker.owner : attacker;
     if (source === 'explosion' || source === 'sonic_boom' || (dealer && dealer.living && !dealer.isPlayer)) amount = Game.scaleDamage(amount);
     if (this.sleeping) Beds.wake(this);
+    // falling anvils, blocks and stalactites: a helmet takes a quarter off (and wears for it)
+    if ((source === 'anvil' || source === 'fallingBlock' || source === 'fallingStalactite') && this.inv.armor(0)) { damageItem(this.inv.armor(0), Math.max(1, Math.floor(amount / 4)), this, () => { this.inv.set(36, null); Sound.play('break_item', this); }); this.inv.changed(); amount *= 0.75; }
     // shield blocks attacks from the front
     if (this.using && ITEMS[this.using.id].name === 'shield' && this.useTicks >= 5 && attacker && ['mob', 'arrow', 'explosion', 'fireball'].includes(sourceKind(source))) {
       const ax = attacker.x - this.x, az = attacker.z - this.z, lv = this.lookVec();
@@ -229,7 +231,7 @@ class Player extends Living {
       if (['inFire', 'onFire', 'lava', 'hotFloor', 'fireball'].includes(source)) epf += 2 * this.armorEnchSum('fire_protection');
       if (source === 'explosion') epf += 2 * this.armorEnchSum('blast_protection');
       if (source === 'arrow' || source === 'projectile' || source === 'trident') epf += 2 * this.armorEnchSum('projectile_protection');
-      if (source === 'fall') epf += 3 * this.armorEnchSum('feather_falling');
+      if (source === 'fall' || source === 'stalagmite') epf += 3 * this.armorEnchSum('feather_falling');
       amount *= 1 - Math.min(20, epf) / 25;
     }
     // absorption hearts take damage first
