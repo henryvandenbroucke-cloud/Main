@@ -392,15 +392,21 @@ const Explosions = (() => {
   }
   function spawnTnt(x, y, z, fuse) { return Entities.add(new PrimedTnt(x, y, z, fuse || 80)); }
   // wind charges: a burst that pushes entities and toggles doors, no block damage
-  function wind(x, y, z, owner) {
+  // a wind charge's burst (radius 1.2, knockback 1.22) and the mace's wind burst: the game's explosion
+  // knockback without the damage, toward each entity's eyes, scaled by how close and how exposed it is
+  function wind(x, y, z, owner, r, mult) {
+    r = r || 1.2; mult = mult || 1.22;
     Particles.gust && Particles.gust(x, y, z);
     Sound.play('wind_burst', null, { x, y, z });
+    const q = r * 2;
     for (const e of Entities.list.concat([Game.player])) {
-      if (!e || e.removed) continue;
-      const d2 = e.dist2(x, y, z); if (d2 > 1.2 * 1.2 * 4) continue;
-      const dx = e.x - x, dy = e.y + e.h / 2 - y, dz = e.z - z, l = Math.hypot(dx, dy, dz) || 1, k = 1.1 * (1 - Math.sqrt(d2) / 2.4);
-      e.vx += dx / l * k; e.vy += Math.max(0.3, dy / l * k); e.vz += dz / l * k;
-      if (e.isPlayer) e.fallDistance = 0;
+      if (!e || e.removed || e.spectator || (e.isPlayer && e.creative && e.flying)) continue;
+      const w = Math.sqrt(e.dist2(x, y, z)) / q; if (w > 1) continue;
+      let dx = e.x - x, dy = (e.eyeY !== undefined && (e.living || e.isPlayer) ? e.eyeY : e.y) - y, dz = e.z - z; const l = Math.hypot(dx, dy, dz); if (l === 0) continue;
+      const k = (1 - w) * exposure(x, y, z, e) * mult;
+      e.vx += dx / l * k; e.vy += dy / l * k; e.vz += dz / l * k;
+      // launched by wind: falling only counts from here
+      if (e.isPlayer || e.living) e.fallDistance = 0;
     }
   }
   return { explode, primeTnt, spawnTnt, wind, PrimedTnt, exposure };

@@ -218,7 +218,8 @@ class Player extends Living {
     const bypassArmor = ['fall', 'drown', 'starve', 'magic', 'wither', 'outOfWorld', 'inWall', 'kill', 'flyIntoWall', 'freeze', 'sonic_boom'].includes(source);
     if (!bypassArmor) {
       const a = this.armorPts, t = this.toughness;
-      amount = amount * (1 - Math.min(20, Math.max(a / 5, a - 4 * amount / (t + 8))) / 25);
+      // (breach on the attacker's mace makes armour 15% less effective a level)
+      amount = amount * (1 - Math.min(20, Math.max(a / 5, a - 4 * amount / (t + 8))) / 25 * (1 - 0.15 * ((attacker && attacker.breach) || 0)));
       // armour wears out
       for (let i = 0; i < 4; i++) { const s = this.inv.armor(i); if (s && ITEMS[s.id].dur) damageItem(s, Math.max(1, Math.floor(this.lastDamage / 4)), this, () => { this.inv.set(36 + i, null); Sound.play('break_item', this); this.updateArmor(); }); }
     }

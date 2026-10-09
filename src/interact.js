@@ -111,6 +111,23 @@ const Interact = (() => {
     Cracks.show(t.x, t.y, t.z, Math.floor(mining.prog * 10), Models.shape(t.id, t.state, t.x, t.y, t.z, false));
   }
   // ---------------------------------------------------------------- attacking
+  // a smash: the fall stops (and does no damage), everything around the target is thrown back, and wind burst
+  // launches the attacker up again
+  function maceSmash(p, e, held, fell) {
+    p.vy = 0.01; p.fallDistance = 0;
+    Sound.play(e.onGround ? (fell > 5 ? 'mace_smash_ground_heavy' : 'mace_smash_ground') : 'mace_smash_air', p);
+    const bx = Math.floor(e.x), by = Math.floor(e.y - 0.2), bz = Math.floor(e.z), below = World.getBlock(bx, by, bz);
+    if (e.onGround && below) for (let i = 0; i < 3; i++) Particles.blockBreak(bx, by, bz, below, World.getState(bx, by, bz));
+    for (const o of Entities.list.concat([p])) {
+      if (o === p || o === e || o.removed || o.dead || !(o.living || o.isPlayer) || o.spectator || (o.isPlayer && o.creative && o.flying) || o.type === 'armor_stand') continue;
+      if (o.tamed && o.owner === p) continue;
+      const dx = o.x - e.x, dy = o.y - e.y, dz = o.z - e.z, l = Math.hypot(dx, dy, dz); if (l > 3.5 || l === 0) continue;
+      const k = (3.5 - l) * 0.7 * (fell > 5 ? 2 : 1) * (1 - (o.kbResist || 0));
+      if (k > 0) { o.vx += dx / l * k; o.vy += 0.7; o.vz += dz / l * k; }
+    }
+    const wb = enchLevel(held, 'wind_burst');
+    if (wb > 0) Explosions.wind(p.x, p.y, p.z, p, 3.5, [1.2, 1.75, 2.2][Math.min(3, wb) - 1]);
+  }
   function attack(p, e) {
     if (p.spectator) { return; }
     const held = p.inv.held, it = held ? ITEMS[held.id] : null;
@@ -120,6 +137,8 @@ const Interact = (() => {
     p.swingArm();
     if (!e.hurt || e.invulnerableTo && e.invulnerableTo(p)) return;
     let dmg = it ? it.dmg : 1;
+    // the mace: falling more than 1.5 blocks makes a smash attack
+    const smash = it && it.name === 'mace' && p.fallDistance > 1.5 && !p.gliding, fell = p.fallDistance;
     const str = p.effect('strength'), weak = p.effect('weakness');
     if (str) dmg += 3 * (str.amp + 1); if (weak) dmg -= 4 * (weak.amp + 1);
     let ench = 0;
@@ -127,14 +146,19 @@ const Interact = (() => {
     const sm = enchLevel(held, 'smite'); if (sm && e.undead) ench += 2.5 * sm;
     const ba = enchLevel(held, 'bane_of_arthropods'); if (ba && e.arthropod) { ench += 2.5 * ba; e.addEffect && e.addEffect('slowness', 20 + Math.floor(Math.random() * 10 * ba), 3); }
     dmg *= 0.2 + cd * cd * 0.8; ench *= cd;
+    // 4 damage a block for the first 3 blocks fallen, 2 for the next 5, then 1; density adds half a point a block a level
+    if (smash) dmg += (fell <= 3 ? 4 * fell : fell <= 8 ? 12 + 2 * (fell - 3) : 22 + fell - 8) + 0.5 * enchLevel(held, 'density') * fell;
     const strong = cd > 0.9;
     let kb = (p.sprinting && strong ? 1 : 0) + enchLevel(held, 'knockback');
     const crit = strong && p.fallDistance > 0 && !p.onGround && !p.onClimbable() && !p.inWater && !p.effect('blindness') && !p.vehicle && !p.sprinting;
     if (crit) dmg *= 1.5;
     const total = dmg + ench;
+    p.breach = enchLevel(held, 'breach');
     const hit = e.hurt(Math.max(0, total), 'player', p);
+    p.breach = 0;
     p.lastAttacked = e; p.lastAttackTime = p.age; if (hit) Stats.add('custom', 'damage_dealt', total);
     if (!hit) { Sound.play('attack_nodamage', p); return; }
+    if (smash) maceSmash(p, e, held, fell);
     if (crit) { Particles.crit(e); Sound.play('attack_crit', p); }
     else if (strong) Sound.play('attack_strong', p); else Sound.play('attack_weak', p);
     if (ench > 0) Particles.magicCrit(e);

@@ -289,6 +289,10 @@ const Sound = (() => {
   }
   // subtitles (accessibility): a short list in the corner
   function subtitle(name, x, y, z) { if (!Settings.subtitles) return; const t = name.replace(/_/g, ' '); const now = performance.now(); const f = SUBS.find(s => s.t === t); if (f) { f.time = now; f.x = x; f.z = z; } else { SUBS.push({ t, time: now, x, z }); if (SUBS.length > 8) SUBS.shift(); } }
+  // the mace
+  N.mace_smash_air = d => { noise(d, T(), 0.3, 'lowpass', 1200, 1, 0.5, 0.005); tone(d, T(), 'sine', 140, 0.25, 0.4, { to: 60 }); };
+  N.mace_smash_ground = d => { tone(d, T(), 'sine', 90, 0.4, 0.7, { to: 35 }); noise(d, T(), 0.45, 'lowpass', 900, 1, 0.6, 0.003); };
+  N.mace_smash_ground_heavy = d => { tone(d, T(), 'sine', 70, 0.7, 0.9, { to: 25 }); noise(d, T(), 0.7, 'lowpass', 700, 1, 0.8, 0.003); for (let i = 0; i < 5; i++) noise(d, T() + 0.05 + i * 0.05, 0.08, 'bandpass', rp(800, 2000), 3, 0.25); };
   // the deep dark
   N.sculk_clicking = d => { for (let i = 0; i < 7; i++) noise(d, T() + i * 0.045 + Math.random() * 0.02, 0.02, 'bandpass', rp(1800, 3200), 6, 0.3); };
   N.sculk_clicking_stop = d => { for (let i = 0; i < 3; i++) noise(d, T() + i * 0.07, 0.02, 'bandpass', rp(1500, 2500), 6, 0.2); };

@@ -395,7 +395,7 @@ class Mob extends Living {
     // inside the invulnerability window only a bigger hit counts, and only by the difference
     if (this.invul > 10) { if (amount <= this.lastDamage) return false; const extra = amount - this.lastDamage; this.lastDamage = amount; amount = extra; }
     else { this.lastDamage = amount; this.invul = 20; this.hurtTime = 10; }
-    if (this.armorPts && !['outOfWorld', 'starve', 'magic', 'wither', 'drown', 'fall', 'kill', 'sonic_boom'].includes(source)) amount *= 1 - Math.min(20, Math.max(this.armorPts / 5, this.armorPts - 4 * amount / 8)) / 25;
+    if (this.armorPts && !['outOfWorld', 'starve', 'magic', 'wither', 'drown', 'fall', 'kill', 'sonic_boom'].includes(source)) amount *= 1 - Math.min(20, Math.max(this.armorPts / 5, this.armorPts - 4 * amount / 8)) / 25 * (1 - 0.15 * ((attacker && attacker.breach) || 0));
     const res = this.effect('resistance'); if (res) amount *= Math.max(0, 1 - 0.2 * (res.amp + 1));
     if (attacker) { this.lastHurtBy = attacker.owner || attacker; this.lastHurtTime = this.age; if (attacker.isPlayer || (attacker.owner && attacker.owner.isPlayer)) this.lastHurtByPlayer = 100; }
     this.health -= amount;
