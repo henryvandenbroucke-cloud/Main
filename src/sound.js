@@ -162,6 +162,16 @@ const Sound = (() => {
   N.honeycomb_wax = d => { noise(d, T(), 0.12, 'bandpass', 3000, 3, 0.2); tone(d, T(), 'sine', 900, 0.1, 0.08, { to: 1200 }); };
   N.waxed_sign_fail = d => tone(d, T(), 'square', 220, 0.06, 0.08, { lp: 1200 });
   N.dye_use = d => { noise(d, T(), 0.1, 'bandpass', 2000, 2, 0.18); };
+  // books, bookshelves and pots
+  N.book_put = d => { noise(d, T(), 0.08, 'lowpass', 900, 1, 0.35); tone(d, T(), 'sine', 160, 0.08, 0.15, { to: 90 }); };
+  N.book_page_turn = d => { noise(d, T(), 0.16, 'bandpass', 3500, 0.8, 0.14, 0.03); };
+  N.chiseled_bookshelf_insert = d => { noise(d, T(), 0.1, 'lowpass', 1100, 1, 0.3); tone(d, T(), 'triangle', 220, 0.07, 0.12, { to: 140 }); };
+  N.chiseled_bookshelf_pickup = d => { noise(d, T(), 0.1, 'lowpass', 1400, 1, 0.28); tone(d, T(), 'triangle', 180, 0.07, 0.1, { to: 260 }); };
+  N.chiseled_bookshelf_insert_enchanted = d => { N.chiseled_bookshelf_insert(d); tone(d, T() + 0.02, 'sine', 1400, 0.3, 0.05, { to: 1900 }); };
+  N.chiseled_bookshelf_pickup_enchanted = d => { N.chiseled_bookshelf_pickup(d); tone(d, T() + 0.02, 'sine', 1900, 0.3, 0.05, { to: 1400 }); };
+  N.decorated_pot_insert = (d, o) => { const k = (o && o.pitch) || 1; tone(d, T(), 'sine', 420 * k, 0.18, 0.18, { to: 300 * k }); noise(d, T(), 0.08, 'bandpass', 1800 * k, 2, 0.12); };
+  N.decorated_pot_shatter = d => { noise(d, T(), 0.25, 'bandpass', 2400, 1.2, 0.45); for (let k = 0; k < 4; k++) tone(d, T() + k * 0.03, 'triangle', 900 + Math.random() * 900, 0.06, 0.08); };
+  N.decorated_pot_insert_fail = d => { tone(d, T(), 'sine', 260, 0.14, 0.14, { to: 220 }); noise(d, T(), 0.06, 'bandpass', 900, 2, 0.1); };
   N.glow_ink_use = d => { tone(d, T(), 'sine', 1200, 0.2, 0.1, { to: 1800 }); noise(d, T(), 0.1, 'bandpass', 2500, 2, 0.12); };
   N.ink_use = d => { noise(d, T(), 0.12, 'lowpass', 900, 1, 0.2); };
   // fishing and leads

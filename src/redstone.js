@@ -14,7 +14,7 @@
 const Redstone = (() => {
   const B = BID, N = BLOCKS.length;
   // ---------------------------------------------------------------- what each block is
-  const S = { WIRE: 1, TORCH: 2, WALL_TORCH: 3, REPEATER: 4, COMPARATOR: 5, LEVER: 6, BUTTON: 7, PLATE: 8, BLOCK: 9, OBSERVER: 10, DAYLIGHT: 11, TARGET: 12, TRAPPED: 13, HOOK: 14, DETECTOR: 15, ROD: 16, SENSOR: 17, JUKEBOX: 18 };
+  const S = { WIRE: 1, TORCH: 2, WALL_TORCH: 3, REPEATER: 4, COMPARATOR: 5, LEVER: 6, BUTTON: 7, PLATE: 8, BLOCK: 9, OBSERVER: 10, DAYLIGHT: 11, TARGET: 12, TRAPPED: 13, HOOK: 14, DETECTOR: 15, ROD: 16, SENSOR: 17, JUKEBOX: 18, LECTERN: 19 };
   const R = { LAMP: 1, PISTON: 2, DOOR: 3, TRAPDOOR: 4, GATE: 5, TNT: 6, NOTE: 7, DISPENSER: 8, HOPPER: 9, RAIL: 10, BULB: 11, CRAFTER: 12, BELL: 13, TORCH: 14, REPEATER: 15, COMPARATOR: 16 };
   const SRC = new Uint8Array(N), REACT = new Uint8Array(N), COND = new Uint8Array(N), ANALOG = new Uint8Array(N);
   for (const d of BLOCKS) {
@@ -37,6 +37,7 @@ const Redstone = (() => {
     else if (n === 'lightning_rod') SRC[i] = S.ROD;
     else if (d.model === 'sensor') SRC[i] = S.SENSOR;
     else if (n === 'jukebox') SRC[i] = S.JUKEBOX;
+    else if (n === 'lectern') SRC[i] = S.LECTERN;
     if (n === 'redstone_lamp') REACT[i] = R.LAMP;
     else if (n === 'piston' || n === 'sticky_piston') REACT[i] = R.PISTON;
     else if (d.model === 'door') REACT[i] = R.DOOR;
@@ -112,6 +113,7 @@ const Redstone = (() => {
       case S.ROD: if (!(st & 8)) return 0; return !strong || f === OPP[st & 7] ? 15 : 0;
       case S.SENSOR: { const be = World.getBE(x, y, z), p = be && be.power || 0; return !strong || f === 0 ? p : 0; }
       case S.JUKEBOX: return !strong && (st & 1) ? 15 : 0;
+      case S.LECTERN: if (!(st & 16)) return 0; return !strong || f === 0 ? 15 : 0;
     }
     return 0;
   }
@@ -515,7 +517,8 @@ const Redstone = (() => {
       else if (d.model === 'button') { if (st & 32) continue; World.setBlock(x, y, z, id, st | 32); Ticks.schedule(x, y, z, n.includes('stone') ? 20 : 30); Sound.play('click', null, { x, y, z, on: true }); region(x, y, z); }
       else if (n === 'bell') Sound.play('bell', null, { x, y, z });
       else if ((d.model === 'candle' || d.model === 'candle_cake') && (st & 4)) { World.setBlock(x, y, z, id, st & ~4); Sound.play('extinguish', null, { x, y, z }); }
-      else if (n === 'chorus_flower' || n === 'decorated_pot') { Drops.dropBlock(id, st, null, x, y, z); Blocks.remove(x, y, z, null, true); }
+      else if (n === 'decorated_pot') Pots.hitByProjectile(x, y, z);
+      else if (n === 'chorus_flower') { Drops.dropBlock(id, st, null, x, y, z); Blocks.remove(x, y, z, null, true); }
     }
     flush();
   }
@@ -531,7 +534,7 @@ const Redstone = (() => {
     if ((st & 15) !== i) { World.setBlock(x, y, z, id, (st & ~15) | i); region(x, y, z); flush(); }
   }
   // ---------------------------------------------------------------- scheduled ticks
-  function isComponent(id) { const k = SRC[id]; return REACT[id] === R.TORCH || REACT[id] === R.REPEATER || REACT[id] === R.COMPARATOR || REACT[id] === R.LAMP || REACT[id] === R.DISPENSER || REACT[id] === R.CRAFTER || k === S.OBSERVER || k === S.TARGET || k === S.ROD || k === S.HOOK || id === B.tripwire || k === S.DETECTOR || k === S.SENSOR; }
+  function isComponent(id) { const k = SRC[id]; return REACT[id] === R.TORCH || REACT[id] === R.REPEATER || REACT[id] === R.COMPARATOR || REACT[id] === R.LAMP || REACT[id] === R.DISPENSER || REACT[id] === R.CRAFTER || k === S.OBSERVER || k === S.TARGET || k === S.ROD || k === S.HOOK || id === B.tripwire || k === S.DETECTOR || k === S.SENSOR || k === S.LECTERN; }
   function scheduled(x, y, z, id, st) {
     switch (REACT[id]) {
       case R.TORCH: torchTick(x, y, z, id, st); break;
@@ -545,6 +548,7 @@ const Redstone = (() => {
           case S.OBSERVER: observerTick(x, y, z, id, st); break;
           case S.TARGET: if (st & 15) { World.setBlock(x, y, z, id, 0); region(x, y, z); } break;
           case S.ROD: if (st & 8) { World.setBlock(x, y, z, id, st & ~8); region(x, y, z); } break;
+          case S.LECTERN: if (st & 16) { World.setBlock(x, y, z, id, st & ~16, 4); region(x, y, z); } break;
           case S.HOOK: if (typeof Tripwire !== 'undefined') Tripwire.hookTick(x, y, z, id, st); break;
           case S.DETECTOR: if (typeof Rails !== 'undefined' && Rails.detectorTick) Rails.detectorTick(x, y, z, id, st); break;
           case S.SENSOR: if (typeof GameEvents !== 'undefined') GameEvents.sensorTick(x, y, z, id, st); break;

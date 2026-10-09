@@ -56,6 +56,8 @@ const Models = (() => {
     fence: (d, s, c, x, y, z) => { let m = 0; for (let f = 2; f < 6; f++) { const n = c(x + DX[f], y, z + DZ[f]); const nd = D[n]; if (isFull(n) || (nd.model === 'fence' && (d.name === 'nether_brick_fence') === (nd.name === 'nether_brick_fence')) || nd.model === 'gate') m |= 1 << f; } return m; },
     pane: (d, s, c, x, y, z) => { let m = 0; for (let f = 2; f < 6; f++) { const n = c(x + DX[f], y, z + DZ[f]); const nd = D[n]; if (isFull(n) || nd.model === 'pane' || nd.model === 'wall') m |= 1 << f; } return m; },
     wall: (d, s, c, x, y, z) => { let m = 0; for (let f = 2; f < 6; f++) { const n = c(x + DX[f], y, z + DZ[f]); const nd = D[n]; if (isFull(n) || nd.model === 'wall' || nd.model === 'pane' || nd.model === 'gate') m |= 1 << f; } const up = c(x, y + 1, z); if (up && D[up].model !== 'none' && !D[up].replaceable) m |= 64; if (D[up].model === 'wall') m |= 64; return m; },
+    // a decorated pot's sides (see Pots)
+    decorated_pot: (d, s, c, x, y, z) => c.conn !== undefined ? c.conn : typeof Pots !== 'undefined' ? Pots.design(x, y, z) : 0,
     stairs: (d, s, c, x, y, z) => {
       // vanilla stair shapes: straight, inner or outer corner, from the stairs in front and behind
       const f = s & 7, top = s & 8;
@@ -109,6 +111,8 @@ const Models = (() => {
       if (n === 'redstone_lamp' && (s & 1)) return [box(0, 0, 0, 16, 16, 16, 'redstone_lamp_on')];
       if (n === 'respawn_anchor') return [box(0, 0, 0, 16, 16, 16, { up: (s & 7) ? 'respawn_anchor_top' : 'respawn_anchor_top_off', down: 'respawn_anchor_bottom', side: 'respawn_anchor_side' + Math.min(4, s & 7) })];
       if (n === 'jukebox' && (s & 1)) return [box(0, 0, 0, 16, 16, 16, t)];
+      // the chiseled bookshelf: facing in the low two bits, the six filled slots above them
+      if (n === 'chiseled_bookshelf') { const m = s >> 2, side = 'chiseled_bookshelf_side'; return rotY([box(0, 0, 0, 16, 16, 16, { up: 'chiseled_bookshelf_top', down: 'chiseled_bookshelf_top', north: m ? 'chiseled_bookshelf_' + m : 'chiseled_bookshelf_empty', south: side, west: side, east: side })], TURNS[(s & 3) + 2]); }
       if (d.place === 'facing_h' || d.place === 'facing_h_opp' || d.place === 'facing6' || d.place === 'facing6_opp') {
         const f = s & 7;
         let front = d.tex.front;
@@ -419,7 +423,9 @@ const Models = (() => {
       return els;
     },
     lectern: (d, s) => rotY([box(0, 0, 0, 16, 2, 16, { up: 'lectern_base', down: 'oak_planks', side: 'lectern_base' }), box(4, 2, 4, 12, 15, 12, { side: d.tex.side, north: d.tex.front, up: 'oak_planks', down: 'oak_planks' }),
-      box(0, 12, 3, 16, 16, 16, { up: d.tex.up, down: 'oak_planks', side: d.tex.side }, { r: { axis: 'x', angle: -22.5, origin: [8, 12, 16] } })], turnsOf(s)),
+      box(0, 12, 3, 16, 16, 16, { up: d.tex.up, down: 'oak_planks', side: d.tex.side }, { r: { axis: 'x', angle: -22.5, origin: [8, 12, 16] } }),
+      // the open book lying on it
+      ...(s & 8 ? [box(1, 16, 4, 15, 17, 15, { up: 'lectern_book', down: 'lectern_book_cover', side: 'lectern_book_edge' }, { r: { axis: 'x', angle: -22.5, origin: [8, 12, 16] } })] : [])], turnsOf(s)),
     stonecutter: (d, s) => rotY([box(0, 0, 0, 16, 9, 16, { up: d.tex.up, down: d.tex.down, side: d.tex.side }), box(1, 9, 8, 15, 16, 8, { north: d.tex.front, south: d.tex.front }, { noCull: true, uv: [null, null, [1, 9, 15, 16], [1, 9, 15, 16], null, null] })], turnsOf(s)),
     bell: (d, s) => rotY([box(5, 6, 5, 11, 13, 11, 'bell_body'), box(4, 4, 4, 12, 6, 12, 'bell_body'), box(2, 13, 7, 14, 15, 9, 'dark_oak_planks'), box(0, 0, 6, 2, 16, 10, 'stone'), box(14, 0, 6, 16, 16, 10, 'stone')], turnsOf(s)),
     skull: (d, s) => [box(4, 0, 4, 12, 8, 12, d.tex.side)],
@@ -513,7 +519,7 @@ const Models = (() => {
       }
       return els;
     },
-    decorated_pot: (d, s) => rotY([box(1, 0, 1, 15, 16, 15, { up: 'decorated_pot_base', down: 'decorated_pot_base', side: d.tex.side }),
+    decorated_pot: (d, s, conn) => conn === 0xffff ? [] : rotY([box(1, 0, 1, 15, 16, 15, (() => { const sh = (conn && Pots.DESIGNS[conn]) || [], t = Pots.sideTex; return { up: 'decorated_pot_base', down: 'decorated_pot_base', north: t(sh[0]), west: t(sh[1]), east: t(sh[2]), south: t(sh[3]) }; })()),
       box(5, 16, 5, 11, 17, 11, d.tex.side, { uv: [[5, 5, 11, 11], [5, 5, 11, 11], [5, 2, 11, 3], [5, 2, 11, 3], [5, 2, 11, 3], [5, 2, 11, 3]] }),
       box(4, 17, 4, 12, 20, 12, d.tex.side, { uv: [[4, 4, 12, 12], [4, 4, 12, 12], [4, 0, 12, 3], [4, 0, 12, 3], [4, 0, 12, 3], [4, 0, 12, 3]] })], turnsOf(s)),
     heavy_core: d => [box(4, 0, 4, 12, 8, 12, { up: d.tex.up, down: d.tex.down, side: d.tex.side }, { uv: [[4, 4, 12, 12], [4, 4, 12, 12], [4, 4, 12, 12], [4, 4, 12, 12], [4, 4, 12, 12], [4, 4, 12, 12]] })],

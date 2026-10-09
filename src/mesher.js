@@ -165,12 +165,12 @@ const Mesher = (() => {
   // one block on its own (for inventory icons and held blocks), lit fully, with default biome colours
   const ICON_TINT = new Uint8Array(256 * 9);
   for (let i = 0; i < 256; i++) ICON_TINT.set([0x91, 0xbd, 0x59, 0x77, 0xab, 0x2f, 0x3f, 0x76, 0xe4], i * 9);
-  function meshSingle(id, st) {
+  function meshSingle(id, st, conn) {
     for (const b of BUFS) { b.n = 0; b.ni = 0; }
     PB.fill(0); PS.fill(0); PL.fill(0xf0);
     PB[P(0, 0, 0)] = id; PS[P(0, 0, 0)] = st || 0;
     const prev = smoothOn; smoothOn = false;
-    const ctx = (x, y, z) => (x === 0 && y === 0 && z === 0 ? id : 0); ctx.state = () => st || 0;
+    const ctx = (x, y, z) => (x === 0 && y === 0 && z === 0 ? id : 0); ctx.state = () => st || 0; ctx.conn = conn || 0;
     block(0, 0, 0, id, ICON_TINT, ctx, 0, 0, 0);
     smoothOn = prev;
     return BUFS;

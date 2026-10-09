@@ -25,6 +25,8 @@ const Containers = (() => {
     else if (n === 'furnace' || n === 'blast_furnace' || n === 'smoker') kind = 'furnace';
     else if (n === 'brewing_stand') kind = 'brewing';
     else if (n === 'crafter') kind = 'crafter';
+    else if (n === 'decorated_pot') kind = 'pot';
+    else if (n === 'chiseled_bookshelf') kind = 'bookshelf';
     else if (n === 'composter') return composter(x, y, z, id, st);
     else if (n === 'jukebox') return jukebox(x, y, z, id, st);
     else return null;
@@ -64,6 +66,8 @@ const Containers = (() => {
         for (let k = i + 1; k < 9; k++) { if (be.disabled && be.disabled[k]) continue; const o = get(k); if (!o || (o.count < cur.count && sameItem(o, cur))) return false; }
         return true;
       }
+      if (kind === 'pot') { const cur = get(0); return !cur || (sameItem(cur, s) && cur.count < maxStack(cur)); }
+      if (kind === 'bookshelf') return Shelves.BOOKS.has(nm) && !get(i);
       return true;
     }
     function canTake(i, s, face) {
@@ -71,8 +75,12 @@ const Containers = (() => {
       if (kind === 'brewing' && i === 3) return nameOf(s) === 'glass_bottle';
       return true;
     }
-    const max = (i, s) => kind === 'brewing' && i < 3 ? 1 : maxStack(s);
-    function changed() { for (const p of positions) { const c = World.chunkAt(p[0], p[2]); if (c) c.modified = true; Redstone.analogChanged(p[0], p[1], p[2]); } }
+    const max = (i, s) => (kind === 'brewing' && i < 3) || kind === 'bookshelf' ? 1 : maxStack(s);
+    function changed() {
+      if (kind === 'bookshelf') Shelves.sync(x, y, z, be);
+      if (kind === 'pot') be.wobble = Game.gameTime;
+      for (const p of positions) { const c = World.chunkAt(p[0], p[2]); if (c) c.modified = true; Redstone.analogChanged(p[0], p[1], p[2]); }
+    }
     return { n, kind, be, x, y, z, size, get, set, slots, canPlace, canTake, max, changed, isHopper: n === 'hopper' };
   }
   // the composter takes compostable items from above and gives bone meal from below

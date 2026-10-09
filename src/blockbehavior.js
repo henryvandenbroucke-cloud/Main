@@ -31,6 +31,7 @@ const Blocks = (() => {
     // block entities for containers and machines
     const be = newBE(d.name);
     if (be) { if (s && s.tag && s.tag.items) be.items = s.tag.items.slice(); if (s && s.tag && s.tag.name) be.customName = s.tag.name; World.setBE(x, y, z, be); }
+    if (d.name === 'decorated_pot') Pots.placed(x, y, z, s);
     if (d.name === 'redstone_wire' || d.model === 'repeater' || d.model === 'comparator' || d.name.includes('redstone') || d.model === 'lever' || d.model === 'door' || d.model === 'trapdoor' || d.model === 'piston' || d.name === 'observer' || d.name === 'tnt' || d.name === 'redstone_lamp' || d.name === 'note_block' || d.model === 'gate' || d.name === 'dispenser' || d.name === 'dropper' || d.name === 'hopper' || d.model === 'rail') Redstone.onPlaced(x, y, z, id, st);
     if (d.fluid) Ticks.schedule(x, y, z, Fluids.delay(id));
     if (d.gravity) Ticks.schedule(x, y, z, 2);
@@ -50,6 +51,8 @@ const Blocks = (() => {
     if (name === 'hopper') return { type: 'hopper', items: new Array(5).fill(null), cooldown: 0 };
     if (name === 'brewing_stand') return { type: 'brewing', items: [null, null, null, null, null], fuel: 0, time: 0 };
     if (name === 'jukebox') return { type: 'jukebox', disc: null };
+    if (name === 'decorated_pot') return { type: 'pot', items: [null] };
+    if (name === 'chiseled_bookshelf') return { type: 'bookshelf', items: new Array(6).fill(null) };
     if (name === 'campfire' || name === 'soul_campfire') return { type: 'campfire', items: [null, null, null, null], times: [0, 0, 0, 0] };
     if (name === 'beacon') return { type: 'beacon', levels: 0, primary: null, secondary: null };
     if (name === 'lectern') return { type: 'lectern', book: null };

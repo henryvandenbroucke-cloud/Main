@@ -73,6 +73,9 @@ class Arrow extends Projectile {
     Sound.play('arrow_hit', this);
     if (hit.id === BID.target) Redstone.target && Redstone.target(hit, this);
     if (this.fireTicks > 0 && hit.id === BID.tnt) Explosions.primeTnt(hit.x, hit.y, hit.z, this.owner);
+    // projectiles break decorated pots and chorus flowers
+    if (hit.id === BID.decorated_pot) Pots.hitByProjectile(hit.x, hit.y, hit.z);
+    else if (hit.id === BID.chorus_flower) { Drops.dropBlock(hit.id, hit.state, null, hit.x, hit.y, hit.z); Particles.blockBreak(hit.x, hit.y, hit.z, hit.id, hit.state); Blocks.remove(hit.x, hit.y, hit.z, null, true); }
   }
   groundTick() {
     if (this.shake > 0) this.shake--;

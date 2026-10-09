@@ -32,7 +32,7 @@ const Game = {
     if (!opts.player) { Weather.reset(); Stats.reset(); }
     UI.enterGame();
   },
-  stop() { this.running = false; EntityRender && EntityRender.clear(); Particles.clear(); BeaconBeams.clear(); Signs.clear(); Banners.clear(); Leads.clear(); for (const d in World.dims) { for (const c of World.dims[d].values()) for (const m of c.meshes) if (m) Render.disposeSection(m); World.dims[d].clear(); } Entities.list.length = 0; },
+  stop() { this.running = false; EntityRender && EntityRender.clear(); Particles.clear(); BeaconBeams.clear(); Signs.clear(); Banners.clear(); Leads.clear(); Spawners.clear(); Pots.clear(); for (const d in World.dims) { for (const c of World.dims[d].values()) for (const m of c.meshes) if (m) Render.disposeSection(m); World.dims[d].clear(); } Entities.list.length = 0; },
   // like the game, the player spawns on a grass or podzol surface (never on a tree) near the world spawn
   findSpawn(x0, z0) {
     const top = (x, z) => { let y = MAXY; while (y > MINY && (World.getBlock(x, y, z) === 0 || !SOLID[World.getBlock(x, y, z)] && !FLUID[World.getBlock(x, y, z)])) y--; return y; };
@@ -166,7 +166,7 @@ const Loop = (() => {
     Clouds.update(dt / 1000, camera.position, World.dim);
     EntityRender && EntityRender.update(a);
     WeatherRender.update(a, p);
-    BeaconBeams.update(); Signs.frame(); Banners.frame(a); Leads.draw(a);
+    BeaconBeams.update(); Signs.frame(); Banners.frame(a); Leads.draw(a); Spawners.frame(a); Pots.frame(a);
     const flash = WeatherRender.updateBolts(); if (flash > 0 && World.dim === 'overworld') U.uSkyLight.value = Math.min(1, U.uSkyLight.value + flash * 0.7);
     Hand && Hand.update(a, p);
     Particles.tick && Particles.render && Particles.render(a);

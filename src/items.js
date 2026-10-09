@@ -162,7 +162,7 @@ ITEM_OF_BLOCK[BID.piston_head] = IID.piston; ITEM_OF_BLOCK[BID.fire] = IID.flint
 function stack(name, count, o) { const id = typeof name === 'number' ? name : IID[name]; if (id === undefined) throw new Error('unknown item ' + name); return Object.assign({ id, count: count === undefined ? 1 : count, dmg: 0 }, o || {}); }
 const sameItem = (a, b) => a && b && a.id === b.id && a.dmg === b.dmg && JSON.stringify(a.tag || null) === JSON.stringify(b.tag || null);
 const maxStack = s => ITEMS[s.id].stack;
-const itemName = s => (s.tag && s.tag.name) || potionName(s) || ITEMS[s.id].display;
+const itemName = s => (s.tag && s.tag.name) || (s.tag && s.tag.title) || potionName(s) || ITEMS[s.id].display;
 function potionName(s) { if (!s.tag || !s.tag.potion) return null; const it = ITEMS[s.id]; if (!/potion|tipped_arrow/.test(it.name)) return null; return typeof Potions !== 'undefined' ? Potions.displayName(s) : null; }
 const enchOf = s => (s && s.tag && s.tag.ench) || null;
 const enchLevel = (s, e) => (s && s.tag && s.tag.ench && s.tag.ench[e]) || 0;
@@ -244,6 +244,8 @@ const Recipes = (() => {
     }
     // tipped arrows: 8 arrows around a lingering potion
     if (w === 3 && grid.length === 9 && grid[4] && ITEMS[grid[4].id].name === 'lingering_potion' && grid.every((s, i) => i === 4 || (s && ITEMS[s.id].name === 'arrow'))) return { result: stack('tipped_arrow', 8, { tag: { potion: grid[4].tag && grid[4].tag.potion } }), recipe: { special: 'tipped' } };
+    // copying a written book, and decorated pots from bricks and sherds
+    if (typeof Books !== 'undefined') { const r = Books.copyRecipe(items, grid) || Pots.recipe(grid, w); if (r) return r; }
     return null;
   }
   // every recipe that makes an item (for the recipe book)

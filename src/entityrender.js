@@ -44,8 +44,8 @@ const ItemMesh = (() => {
   let atlasTex = null;
   function atlas() { if (!atlasTex) { atlasTex = new THREE.CanvasTexture(Icons.canvas); atlasTex.magFilter = atlasTex.minFilter = THREE.NearestFilter; atlasTex.generateMipmaps = false; atlasTex.flipY = false; } return atlasTex; }
   // a block from the block mesher (0..1 cube)
-  function blockGeo(id, st) {
-    const bufs = Mesher.meshSingle(id, st);
+  function blockGeo(id, st, conn) {
+    const bufs = Mesher.meshSingle(id, st, conn);
     const geos = [];
     for (let L = 0; L < 3; L++) {
       const b = bufs[L]; if (!b.n) continue;
@@ -109,7 +109,7 @@ const ItemMesh = (() => {
     const m = new THREE.Mesh(r.geo, mat); m.frustumCulled = false; m.userData.block = r.block; m.userData.handheld = r.handheld;
     return m;
   }
-  function blockMesh(id, st) { const key = 'b' + id + ':' + st; let g = cache.get(key); if (!g) { g = blockGeo(id, st); cache.set(key, g); } if (!g) return null; const m = new THREE.Mesh(g, voxEntMat()); m.frustumCulled = false; return m; }
+  function blockMesh(id, st, conn) { const key = 'b' + id + ':' + st + (conn ? ':' + conn : ''); let g = cache.get(key); if (!g) { g = blockGeo(id, st, conn); cache.set(key, g); } if (!g) return null; const m = new THREE.Mesh(g, voxEntMat()); m.frustumCulled = false; return m; }
   return { get, mesh, blockMesh, atlas };
 })();
 

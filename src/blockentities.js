@@ -12,7 +12,7 @@ const BlockEntities = (() => {
           case 'hopper': if (typeof Hoppers !== 'undefined') Hoppers.tick(be); break;
           case 'campfire': campfire(be); break;
           case 'beacon': if (typeof Beacons !== 'undefined') Beacons.tick(be); break;
-          case 'spawner': if (typeof Spawners !== 'undefined') Spawners.tick(be); break;
+          case 'spawner': Spawners.tick(be); break;
           case 'comparator': Redstone.comparatorPoll(be); break;
           case 'daylight': Redstone.daylightTick(be); break;
           case 'crafter': Crafter.tick(be); break;
@@ -152,7 +152,7 @@ const BlockUse = (() => {
         if ((st & 7) > 0) { if (World.dim !== 'nether') { Explosions.explode(x + 0.5, y + 0.5, z + 0.5, 5, true, null); return true; } p.spawn = { dim: 'nether', x: x + 0.5, y: y + 1, z: z + 0.5, anchor: true }; Chat.system('Respawn point set'); Sound.play('anchor_set', null, { x, y, z }); return true; }
         return false;
       }
-      case 'lectern': if (typeof Books !== 'undefined') return Books.lectern(p, x, y, z, st, held); return false;
+      case 'lectern': return Books.lectern(p, x, y, z, st, held);
       case 'bell': Sound.play('bell', null, { x, y, z }); return true;
       case 'end_portal_frame': if (hn === 'ender_eye' && !(st & 8)) { World.setBlock(x, y, z, id, st | 8); consume(p); Sound.play('eye_place', null, { x, y, z }); Portals.checkEndPortal(x, y, z); return true; } return false;
       case 'redstone_ore': case 'deepslate_redstone_ore': World.setBlock(x, y, z, id, 1); return false;
@@ -160,7 +160,8 @@ const BlockUse = (() => {
       case 'pumpkin': if (hn === 'shears') { World.setBlock(x, y, z, B.carved_pumpkin, hit.face > 1 ? hit.face : OPP[Place.lookDir(p)]); Drops.spawnItem(x + 0.5, y + 0.5, z + 0.5, stack('pumpkin_seeds', 4)); p.inv.damageHeld(1, p); Sound.play('pumpkin_carve', null, { x, y, z }); return true; } return false;
       case 'bee_nest': case 'beehive': if ((st >> 3 & 7) >= 5 && (hn === 'shears' || hn === 'glass_bottle')) { if (hn === 'shears') { Drops.spawnItem(x + 0.5, y + 1, z + 0.5, stack('honeycomb', 3)); p.inv.damageHeld(1, p); } else { consume(p); give(p, stack('honey_bottle')); } World.setBlock(x, y, z, id, st & 7); return true; } return false;
       case 'cake': return false;
-      case 'chiseled_bookshelf': return false;
+      case 'chiseled_bookshelf': return Shelves.use(p, hit, held);
+      case 'decorated_pot': return Shelves.pot(p, x, y, z, held);
       case 'tnt': if (hn === 'flint_and_steel' || hn === 'fire_charge') { Explosions.primeTnt(x, y, z, p); if (hn === 'flint_and_steel') p.inv.damageHeld(1, p); else consume(p); return true; } return false;
       case 'sign': case 'oak_sign': default:
         if (Signs.isSign(id)) return Signs.use(p, x, y, z, held);

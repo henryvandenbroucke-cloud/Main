@@ -211,3 +211,22 @@ input { font-family: inherit; }
 #mapHand { position: fixed; left: 50%; bottom: 3vh; width: min(46vh, 46vw); height: auto; transform: translateX(-50%) rotate(-1.5deg); image-rendering: pixelated; pointer-events: none; z-index: 4; box-shadow: 0 0 0.6vh rgba(0,0,0,0.5); }
 #mapHand.hidden { display: none; }
 .gpart.cartoview { background: #6b5a3a; }
+
+/* books: the game's 192 wide book screen, text in a 114 x 128 box, buttons under it */
+.book { position: absolute; left: 0; top: 0; width: calc(var(--s) * 192); height: calc(var(--s) * 216); font-size: var(--fs); line-height: var(--lh); color: #000; }
+.book::before { content: ''; position: absolute; left: calc(var(--s) * 20); top: calc(var(--s) * 2); width: calc(var(--s) * 146); height: calc(var(--s) * 180); background: #f3ead0; border: calc(var(--s) * 3) solid #7a4e24; box-sizing: border-box; box-shadow: inset calc(var(--s) * 4) 0 0 #e2d4ae, calc(var(--s) * 2) calc(var(--s) * 2) 0 rgba(0,0,0,0.35); }
+.bookhead { position: absolute; right: calc(var(--s) * 44); top: calc(var(--s) * 16); white-space: nowrap; }
+.bookpage { position: absolute; left: calc(var(--s) * 36); top: calc(var(--s) * 32); width: calc(var(--s) * 114); height: calc(var(--s) * 128); margin: 0; padding: 0; border: none; outline: none; resize: none; background: transparent; font: inherit; color: #000; white-space: pre-wrap; word-wrap: break-word; overflow: hidden; }
+.booknav { position: absolute; left: 0; top: calc(var(--s) * 159); width: 100%; }
+.bookarrow { position: absolute; width: calc(var(--s) * 23); height: calc(var(--s) * 13); color: #8a5a2a; cursor: pointer; text-align: center; line-height: calc(var(--s) * 13); }
+.bookarrow:hover { color: #c0392b; }
+.bookarrow.prev { left: calc(var(--s) * 43); }
+.bookarrow.next { left: calc(var(--s) * 116); }
+.mbtn.bookbtn { position: absolute; top: calc(var(--s) * 196); width: calc(var(--s) * 98); font-size: var(--fs); text-shadow: var(--s) var(--s) 0 #3f3f3f; }
+.mbtn.bookbtn.left { left: calc(var(--s) * -4); }
+.mbtn.bookbtn.right { left: calc(var(--s) * 98); }
+.mbtn.bookbtn.full { left: calc(var(--s) * -4); width: calc(var(--s) * 200); }
+.bookhead.center { left: calc(var(--s) * 36); right: auto; width: calc(var(--s) * 114); text-align: center; top: calc(var(--s) * 50); }
+.booktitle { position: absolute; left: calc(var(--s) * 36); top: calc(var(--s) * 66); width: calc(var(--s) * 114); text-align: center; border: none; outline: none; background: transparent; font: inherit; color: #000; }
+.bookby { position: absolute; left: calc(var(--s) * 36); top: calc(var(--s) * 78); width: calc(var(--s) * 114); text-align: center; color: #555; }
+.bookwarn { position: absolute; left: calc(var(--s) * 36); top: calc(var(--s) * 98); width: calc(var(--s) * 114); text-align: center; color: #000; }

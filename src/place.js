@@ -91,7 +91,7 @@ const Place = (() => {
     const waterHere = cd.fluid === 'water' && (World.getState(x, y, z) & 7) === 0;
     switch (d.place) {
       case 'axis': st = face < 2 ? 0 : face < 4 ? 2 : 1; break;
-      case 'facing_h': st = d.model === 'glazed' ? OPP[L] : L; if (d.model === 'repeater' || d.model === 'comparator') st = L; if (d.name === 'campfire' || d.name === 'soul_campfire' || d.name === 'bell') st = OPP[L]; if (d.name === 'calibrated_sculk_sensor') st = OPP[L] << 2; break;
+      case 'facing_h': st = d.model === 'glazed' ? OPP[L] : L; if (d.name === 'chiseled_bookshelf') st = L - 2; if (d.model === 'repeater' || d.model === 'comparator') st = L; if (d.name === 'campfire' || d.name === 'soul_campfire' || d.name === 'bell') st = OPP[L]; if (d.name === 'calibrated_sculk_sensor') st = OPP[L] << 2; break;
       case 'facing_h_opp': st = OPP[L]; if (d.model === 'repeater' || d.model === 'comparator') st = L; break;
       case 'facing_h_rot': st = { 2: 5, 5: 3, 3: 4, 4: 2 }[L]; if (d.name === 'grindstone') st = OPP[L]; break;
       case 'facing6': st = face; if (d.name === 'observer') st = look6(p); break;
