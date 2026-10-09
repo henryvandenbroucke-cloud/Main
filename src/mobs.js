@@ -362,8 +362,9 @@ class Mob extends Living {
       if (this.inLove > 0) { this.inLove--; if (this.inLove % 10 === 0) Particles.heart && Particles.heart(this); }
       if (this.target && (this.target.dead || this.target.removed)) this.target = null;
       this.forward = 0; this.strafe = 0; this.jumping = false; this.speedMod = 1;
-      this.targets.tick(this.age); this.goals.tick(this.age); this.nav.tick();
-      this.aiStep && this.aiStep();
+      // a player riding it in control steers instead of its own AI
+      const rider = this.passengers[0];
+      if (!(rider && rider.isPlayer && Vehicles.control(this, rider))) { this.targets.tick(this.age); this.goals.tick(this.age); this.nav.tick(); this.aiStep && this.aiStep(); }
       this.tickLook();
     }
     this.tickLiving();

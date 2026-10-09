@@ -89,6 +89,7 @@ const Game = {
     p.tick();
     Interact.tick(p);
     for (const e of Entities.list) if (!e.removed) { e.tick(); }
+    Vehicles.afterTick();
     for (let i = Entities.list.length - 1; i >= 0; i--) if (Entities.list[i].removed) { const e = Entities.list[i]; Entities.byId.delete(e.id); if (e.onRemove) e.onRemove(); Entities.list.splice(i, 1); }
     Ticks.tick();
     Redstone.tick();

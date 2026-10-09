@@ -100,7 +100,7 @@ const ItemUse = (() => {
       if (m) { consumeFrom(p, offhand); return true; }
       return false;
     }
-    if (n.endsWith('_boat') || n.endsWith('_raft')) { Vehicles.spawnBoat(n, hit.px, hit.py + (hit.face === 1 ? 0 : 0), hit.pz, p.yaw); consumeFrom(p, offhand); return true; }
+    if (n.endsWith('_boat') || n.endsWith('_raft')) { if (Vehicles.spawnBoat(n, hit.px, hit.py, hit.pz, p.yaw)) { consumeFrom(p, offhand); return true; } return false; }
     if (it.block >= 0) return Place.tryPlace(p, s, hit, offhand);
     return false;
   }
@@ -145,6 +145,12 @@ const ItemUse = (() => {
   // ---------------------------------------------------------------- in the air
   function inAir(p, s, offhand) {
     const it = ITEMS[s.id], n = it.name;
+    // a boat used while looking at water goes on the water's surface
+    if (n.endsWith('_boat') || n.endsWith('_raft')) {
+      const lv = p.lookVec(), h = Phys.raycast(p.x, p.eyeY, p.z, lv[0], lv[1], lv[2], 5, id => BLOCKS[id].fluid === 'water' || SOLID[id]);
+      if (h && BLOCKS[h.id].fluid === 'water' && Vehicles.spawnBoat(n, h.px, h.y + 0.5, h.pz, p.yaw)) { consumeFrom(p, offhand); return true; }
+      return false;
+    }
     if (p.useCooldown && p.useCooldown[n] > Game.gameTime) return false;
     if (it.food) {
       if (p.food >= 20 && !it.alwaysEat && !p.creative) return false;
@@ -189,7 +195,7 @@ const ItemUse = (() => {
       case 'firework_rocket': if (p.gliding) { Projectiles.firework(p.x, p.y, p.z, s.tag, p); consumeFrom(p, offhand); return true; } return false;
       case 'map': { const m = stack('filled_map', 1, { tag: { map: Maps.create(p) } }); exchange(p, offhand, m); return true; }
       case 'writable_book': case 'written_book': if (typeof Books !== 'undefined') { Books.open(p, s); return true; } return false;
-      case 'carrot_on_a_stick': case 'warped_fungus_on_a_stick': if (p.vehicle && p.vehicle.boost) { p.vehicle.boost(); damageItem(s, 7, p, () => swapHeld(p, stack('fishing_rod'), offhand)); p.inv.changed(); return true; } return false;
+      case 'carrot_on_a_stick': case 'warped_fungus_on_a_stick': if (Vehicles.useStick(p, s)) { p.inv.changed(); return true; } return false;
     }
     // right click with armour puts it on
     if (it.armor) {

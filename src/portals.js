@@ -139,6 +139,7 @@ const Portals = (() => {
     const p = Game.player;
     opts = typeof opts === 'object' && opts ? opts : { kind: 'exact' };
     if (typeof Pistons !== 'undefined') Pistons.finishAll();
+    if (p.vehicle) Vehicles.dismount(p);
     for (const c of [...World.chunks.values()]) { Save.storeChunk(c, true); World.unload(c); }
     World.pending.clear(); World.genQueue.length = 0; World.arrived.length = 0;
     for (const e of Entities.list) if (!e.isPlayer) e.removed = true;

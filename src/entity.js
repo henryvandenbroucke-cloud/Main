@@ -204,7 +204,7 @@ class Living extends Entity {
     if (Math.abs(this.vx) < 0.003) this.vx = 0; if (Math.abs(this.vy) < 0.003) this.vy = 0; if (Math.abs(this.vz) < 0.003) this.vz = 0;
     const py = this.y;
     this.vyBeforeMove = this.vy;
-    if (!this.dead) this.travel(); else { this.vx *= 0.8; this.vz *= 0.8; this.vy -= 0.08; Phys.move(this, this.vx, this.vy, this.vz); this.vy *= 0.98; }
+    if (!this.dead) { if (!this.vehicle) this.travel(); } else { this.vx *= 0.8; this.vz *= 0.8; this.vy -= 0.08; Phys.move(this, this.vx, this.vy, this.vz); this.vy *= 0.98; }
     this.updateFall(py);
     // limb animation
     this.plimbAmount = this.limbAmount; this.pwalkDist = this.walkDist;

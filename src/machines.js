@@ -182,6 +182,7 @@ const Hoppers = (() => {
       }
       return false;
     }
+    if (Vehicles.hopperFrom(self, x, y + 1, z)) return true;
     if (OPAQUE[World.getBlock(x, y + 1, z)]) return false;
     const box = [x, y + 11 / 16, z, x + 1, y + 2, z + 1];
     for (const e of Entities.list) {

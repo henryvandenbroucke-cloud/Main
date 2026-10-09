@@ -46,7 +46,7 @@ const Redstone = (() => {
     else if (n === 'note_block') REACT[i] = R.NOTE;
     else if (n === 'dispenser' || n === 'dropper') REACT[i] = R.DISPENSER;
     else if (n === 'hopper') REACT[i] = R.HOPPER;
-    else if (n === 'powered_rail' || n === 'activator_rail') REACT[i] = R.RAIL;
+    else if (n === 'powered_rail' || n === 'activator_rail' || n === 'rail') REACT[i] = R.RAIL;
     else if (n.endsWith('copper_bulb')) REACT[i] = R.BULB;
     else if (n === 'crafter') REACT[i] = R.CRAFTER;
     else if (n === 'bell') REACT[i] = R.BELL;
@@ -54,7 +54,7 @@ const Redstone = (() => {
     if (d.opaque && d.solid && n !== 'redstone_block' && n !== 'observer') COND[i] = 1;
     else if (d.model === 'slab') COND[i] = 2;
     // blocks a comparator can read
-    if (/chest$|^barrel$|shulker_box$|^dispenser$|^dropper$|^hopper$|^furnace$|^blast_furnace$|^smoker$|^brewing_stand$|^jukebox$|^cake$|candle_cake$|^cauldron$|^composter$|^end_portal_frame$|^respawn_anchor$|^beehive$|^bee_nest$|copper_bulb$|^crafter$|^chiseled_bookshelf$|^decorated_pot$|^lectern$/.test(n) && n !== 'ender_chest') ANALOG[i] = 1;
+    if (/chest$|^barrel$|shulker_box$|^dispenser$|^dropper$|^hopper$|^furnace$|^blast_furnace$|^smoker$|^brewing_stand$|^jukebox$|^cake$|candle_cake$|^cauldron$|^composter$|^end_portal_frame$|^respawn_anchor$|^beehive$|^bee_nest$|copper_bulb$|^crafter$|^chiseled_bookshelf$|^decorated_pot$|^lectern$|^detector_rail$/.test(n) && n !== 'ender_chest') ANALOG[i] = 1;
   }
   const SIDES = { 2: [4, 5], 3: [4, 5], 4: [2, 3], 5: [2, 3] };
   const getB = (x, y, z) => World.getBlock(x, y, z), getS = (x, y, z) => World.getState(x, y, z);
@@ -374,6 +374,7 @@ const Redstone = (() => {
       case 'beehive': case 'bee_nest': return (st >> 3) & 7;
       case 'jukebox': { const be = World.getBE(x, y, z); return be && be.disc ? discSignal(ITEMS[be.disc.id].name) : 0; }
       case 'chiseled_bookshelf': { const be = World.getBE(x, y, z); return be && be.last !== undefined ? be.last + 1 : 0; }
+      case 'detector_rail': return Math.max(0, Rails.detectorSignal(x, y, z));
       case 'lectern': { const be = World.getBE(x, y, z); if (!be || !be.book) return 0; const pages = Math.max(1, be.pages || 1); return pages > 1 ? Math.floor((be.page || 0) / (pages - 1) * 14) + 1 : 15; }
     }
     if (n.endsWith('candle_cake')) return 14;
@@ -558,6 +559,7 @@ const Redstone = (() => {
   function onPlaced(x, y, z, id) {
     if (id === B.comparator && !World.getBE(x, y, z)) World.setBE(x, y, z, { type: 'comparator', out: 0 });
     if (id === B.daylight_detector && !World.getBE(x, y, z)) World.setBE(x, y, z, { type: 'daylight' });
+    if (BLOCKS[id].model === 'rail') Rails.placed(x, y, z);
   }
   // right-clicking dust that has no connections switches it between a cross and a dot
   function useWire(x, y, z, st) {

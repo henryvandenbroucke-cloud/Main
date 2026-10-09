@@ -237,7 +237,6 @@ class Player extends Living {
     const eh = this.peyeH + (this.eyeH - this.peyeH) * a;
     let cx = x, cy = y + eh, cz = z;
     let yaw = this.yaw, pitch = this.pitch, roll = 0;
-    if (this.vehicle && this.vehicle.seatY !== undefined) { cy = this.vehicle.renderY(a) + this.vehicle.seatY + 0.5; }
     if (this.sleeping) { cy = this.sleeping.y + 0.7; pitch = -0.5; }
     // bobbing and hurt tilt
     const bob = this.pbob + (this.bob - this.pbob) * a, wd = this.pwalkDist + (this.walkDist - this.pwalkDist) * a;
