@@ -194,3 +194,8 @@ input { font-family: inherit; }
 .gpart.tradexp { width: calc(var(--s) * 102); height: calc(var(--s) * 5); background: #2a2a2a; box-shadow: 0 0 0 var(--s) #000; }
 .gpart.tradexp i, .gpart.tradexp b { position: absolute; top: 0; height: 100%; left: 0; }
 .gpart.tradexp i { background: #80ff20; } .gpart.tradexp b { background: #c8ffa0; }
+
+/* the crafter: switched-off grid slots and the redstone indicator */
+.gslot.disabled { background: repeating-linear-gradient(45deg, #8b8b8b 0 calc(var(--s) * 2), #6b6b6b calc(var(--s) * 2) calc(var(--s) * 4)); box-shadow: inset 0 0 0 calc(var(--s)) #555; }
+.gpart.crafterpower { width: calc(var(--s) * 16); height: calc(var(--s) * 4); background: #4a1010; border: calc(var(--s) * 0.5) solid #222; }
+.gpart.crafterpower.on { background: #ff2020; box-shadow: 0 0 calc(var(--s) * 3) #f22; }

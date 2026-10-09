@@ -349,6 +349,6 @@ void main(){
     const f = rand() * 0.2 + 0.8; p.r = 0.7 * f; p.g = 0.1 * f; p.b = 0.9 * f;
   }
   function clear() { for (const k in SYS) SYS[k].list.length = 0; }
-  const api = { dragonBreath, enchantGlyph, tick, render, blockBreak, blockHit, itemBreak, crit, magicCrit, sweep, smoke, poof, heart, happy, boneMeal, angry, totem, portal, bubble, splash, explosion, furnace, campfireSmoke, eat, slime, potionSplash, effects, note, firework, fireworkTrail, dust, drip, lavaPop, snow, damage, flameAt, smokeAt, clear, gust: (x, y, z) => explosion(x, y, z, false), sheet };
+  const api = { dragonBreath, enchantGlyph, tick, render, blockBreak, blockHit, itemBreak, crit, magicCrit, sweep, smoke, poof, heart, happy, boneMeal, angry, totem, portal, bubble, splash, explosion, furnace, campfireSmoke, eat, slime, potionSplash, effects, note, firework, fireworkTrail, dust, drip, lavaPop, snow, damage, flameAt, smokeAt, generic, clear, gust: (x, y, z) => explosion(x, y, z, false), sheet };
   return new Proxy(api, { get: (t, k) => (k in t ? t[k] : () => {}) });
 })();

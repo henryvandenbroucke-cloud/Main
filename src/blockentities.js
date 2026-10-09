@@ -15,6 +15,7 @@ const BlockEntities = (() => {
           case 'spawner': if (typeof Spawners !== 'undefined') Spawners.tick(be); break;
           case 'comparator': Redstone.comparatorPoll(be); break;
           case 'daylight': Redstone.daylightTick(be); break;
+          case 'crafter': Crafter.tick(be); break;
         }
       }
     }
@@ -104,6 +105,7 @@ const BlockUse = (() => {
       case 'barrel': { let be = World.getBE(x, y, z); if (!be) { be = Blocks.newBE(n); World.setBE(x, y, z, be); } LootTables.unpackContainer(be, p); World.setBlock(x, y, z, id, st | 8, 4); Screens.open(new ChestScreen(be.items, 3, 'Barrel', { onClose: () => World.setBlock(x, y, z, id, World.getState(x, y, z) & ~8, 4) })); Sound.play('barrel_open', null, { x, y, z }); return true; }
       case 'ender_chest': Screens.open(new ChestScreen(p.enderChest, 3, 'Ender Chest')); Sound.play('chest_open', null, { x, y, z }); return true;
       case 'dispenser': case 'dropper': { let be = World.getBE(x, y, z); if (!be) { be = Blocks.newBE(n); World.setBE(x, y, z, be); } LootTables.unpackContainer(be, p); Screens.open(new ChestScreen(be.items, 3, ITEMS[IID[n]].display, { cols: 3, dispenser: true })); return true; }
+      case 'crafter': Screens.open(new CrafterScreen(x, y, z)); return true;
       case 'hopper': { let be = World.getBE(x, y, z); if (!be) { be = Blocks.newBE(n); World.setBE(x, y, z, be); } Screens.open(new ChestScreen(be.items, 1, 'Item Hopper', { cols: 5, hopper: true })); return true; }
       case 'enchanting_table': Screens.open(new EnchantScreen(x, y, z)); return true;
       case 'anvil': case 'chipped_anvil': case 'damaged_anvil': Screens.open(new AnvilScreen(x, y, z)); return true;

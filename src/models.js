@@ -316,7 +316,8 @@ const Models = (() => {
         else if ((w || e) && !(n || so)) { els.push(box(0, 0.25, 0, 16, 0.25, 16, { up: line }, { tint: true, noCull: true, rot: [0, 90, 0, 0, 0, 0] })); }
         else {
           flat(5, 5, 11, 11, dot);
-          if (n) flat(5, 0, 11, 5, dot); if (so) flat(5, 11, 11, 16, dot); if (w) flat(0, 5, 5, 11, dot); if (e) flat(11, 5, 16, 11, dot);
+          const l0 = 'redstone_dust_line0', l1 = 'redstone_dust_line1';
+          if (n) flat(5, 0, 11, 5, l0); if (so) flat(5, 11, 11, 16, l0); if (w) flat(0, 5, 5, 11, l1); if (e) flat(11, 5, 16, 11, l1);
         }
       }
       // climbing up the side of a block

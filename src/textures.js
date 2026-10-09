@@ -749,6 +749,7 @@ const Tex = (() => {
   // redstone
   def('redstone_dust_dot', c => { c.clear(); for (let y = 5; y < 11; y++) for (let x = 5; x < 11; x++) if (Math.hypot(x - 7.5, y - 7.5) < 3.2) c.px(x, y, [220, 220, 220]); c.px(7, 7, [255, 255, 255]); });
   def('redstone_dust_line0', c => { c.clear(); for (let y = 0; y < 16; y++) for (let x = 6; x < 10; x++) if (c.n(x, y, 291) > 0.1) c.px(x, y, [200 + c.n(x, y, 292) * 55, 200 + c.n(x, y, 292) * 55, 200 + c.n(x, y, 292) * 55]); });
+  def('redstone_dust_line1', c => { c.clear(); for (let y = 6; y < 10; y++) for (let x = 0; x < 16; x++) if (c.n(y, x, 291) > 0.1) c.px(x, y, [200 + c.n(y, x, 292) * 55, 200 + c.n(y, x, 292) * 55, 200 + c.n(y, x, 292) * 55]); });
   def('repeater', c => { c.copy('smooth_stone'); c.rect(7, 3, 8, 13, H(0x6a1a1a)); c.rect(6, 12, 9, 12, H(0x6a1a1a)); });
   def('repeater_on', c => { c.copy('smooth_stone'); c.rect(7, 3, 8, 13, H(0xff2a1a)); c.rect(6, 12, 9, 12, H(0xff2a1a)); });
   def('comparator', c => { c.copy('smooth_stone'); c.rect(4, 3, 11, 4, H(0x6a1a1a)); c.rect(7, 4, 8, 12, H(0x6a1a1a)); });

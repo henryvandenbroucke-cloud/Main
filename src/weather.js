@@ -43,7 +43,8 @@ const Weather = (() => {
     const x = c.cx * 16 + rnd(16), z = c.cz * 16 + rnd(16); const y = World.heightAt(x, z) + 1;
     if (!rainingAt(x + 0.5, y, z + 0.5) && precipAt(x, z) !== 's') return;
     // lightning rods within 128 blocks attract the strike
-    lightning(x + 0.5, y, z + 0.5);
+    const rod = LightningRods.redirect(x, y, z);
+    if (rod) lightning(rod[0], rod[1], rod[2]); else lightning(x + 0.5, y, z + 0.5);
   }
   function lightning(x, y, z, o) {
     o = o || {};
@@ -53,6 +54,7 @@ const Weather = (() => {
     Sound.thunder(x, y, z, d < 50);
     if (o.visualOnly) return bolt;
     BlockExtras.lightning(Math.floor(x), Math.floor(y - 0.5), Math.floor(z));
+    LightningRods.struck(Math.floor(x), Math.floor(y - 0.5), Math.floor(z));
     // fire where it lands (normal and hard)
     if (Game.rules.doFireTick && Game.difficulty !== 'peaceful' && Game.difficulty !== 'easy') {
       const bx = Math.floor(x), by = Math.floor(y), bz = Math.floor(z);

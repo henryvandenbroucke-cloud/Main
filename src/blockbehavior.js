@@ -19,6 +19,8 @@ const Blocks = (() => {
     if (id === B.ice && !quiet && !(p && p.creative)) { const below = World.getBlock(x, y - 1, z); if (SOLID[below] || isFluid(below)) { World.setBlock(x, y, z, B.water, 0); Ticks.schedule(x, y, z, 5); } }
     if (d.name === 'nether_portal' || d.name === 'obsidian') Portals.onBreak(x, y, z);
     if (d.name === 'end_portal_frame') Portals.onEndFrameBreak(x, y, z);
+    // string cut with shears is disarmed first and does not set off its hooks
+    if (id === B.tripwire || id === B.tripwire_hook) Tripwire.removed(x, y, z, id, id === B.tripwire && p && p.inv && p.inv.held && ITEMS[p.inv.held.id].name === 'shears' ? st | 4 : st);
     World.setBE(x, y, z, null);
     updateAround(x, y, z);
     Redstone.update(x, y, z);
@@ -32,6 +34,7 @@ const Blocks = (() => {
     if (d.name === 'redstone_wire' || d.model === 'repeater' || d.model === 'comparator' || d.name.includes('redstone') || d.model === 'lever' || d.model === 'door' || d.model === 'trapdoor' || d.model === 'piston' || d.name === 'observer' || d.name === 'tnt' || d.name === 'redstone_lamp' || d.name === 'note_block' || d.model === 'gate' || d.name === 'dispenser' || d.name === 'dropper' || d.name === 'hopper' || d.model === 'rail') Redstone.onPlaced(x, y, z, id, st);
     if (d.fluid) Ticks.schedule(x, y, z, Fluids.delay(id));
     if (d.gravity) Ticks.schedule(x, y, z, 2);
+    if (id === B.tripwire || id === B.tripwire_hook) Tripwire.placed(x, y, z, id, st);
     if (d.name === 'carved_pumpkin' || d.name === 'wither_skeleton_skull') Golems.check(x, y, z, p);
     if (d.name === 'fire') Portals.tryLight(x, y, z);
     if (d.name === 'sponge') Sponge.absorb(x, y, z);
@@ -53,6 +56,7 @@ const Blocks = (() => {
     if (name === 'enchanting_table') return { type: 'enchanting' };
     if (name === 'end_gateway') return { type: 'gateway' };
     if (name === 'comparator') return { type: 'comparator', out: 0 };
+    if (name === 'crafter') return { type: 'crafter', items: new Array(9).fill(null), disabled: new Array(9).fill(false), craftTicks: 0 };
     if (name === 'daylight_detector') return { type: 'daylight' };
     return null;
   }
