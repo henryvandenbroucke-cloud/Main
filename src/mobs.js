@@ -473,7 +473,8 @@ class Mob extends Living {
   interact(p, s) {
     if (this.dead) return false;
     if (s && ITEMS[s.id].name === 'name_tag' && s.tag && s.tag.name) { this.customName = s.tag.name; this.persistent = true; if (!p.creative) { s.count--; if (!s.count) p.inv.held = null; } return true; }
-    if (s && ITEMS[s.id].name === 'lead' && this.leashable && !this.leashed) { Leads.attach && Leads.attach(this, p); return true; }
+    if (this.leashed === p) { this.leashed = null; if (!p.creative && Game.rules.doEntityDrops) Drops.spawnItem(this.x, this.y + 0.5, this.z, stack('lead')); Sound.play('leash_untie', this); return true; }
+    if (s && ITEMS[s.id].name === 'lead' && Leads.can(this) && !this.leashed) { Leads.attach(this, p); return true; }
     if (this.isFood(s) && this.food) {
       if (this.baby) { this.ageTicks = Math.min(0, this.ageTicks + Math.floor(-this.ageTicks / 10)); this.useFood(p, s); Particles.happy && Particles.happy(this); return true; }
       if (this.ageTicks === 0 && !this.inLove) { this.inLove = 600; this.useFood(p, s); Sound.play(this.type + '_eat', this); return true; }
@@ -485,12 +486,14 @@ class Mob extends Living {
   // ---------------------------------------------------------------- saving
   save() {
     const d = { type: this.type, x: this.x, y: this.y, z: this.z, yaw: this.yaw, health: this.health, baby: this.baby, ageTicks: this.ageTicks, persistent: this.persistent, customName: this.customName || null, fire: this.fireTicks, equip: this.equip, effects: [...this.effects] };
+    if (this.leashed) d.leash = this.leashed.isPlayer ? 'player' : this.leashed.bx !== undefined ? [this.leashed.bx, this.leashed.by, this.leashed.bz] : null;
     if (this.saveExtra) this.saveExtra(d);
     return d;
   }
   load(d) {
     this.yaw = this.bodyYaw = this.lookYaw = d.yaw || 0; this.health = d.health || this.maxHealth; if (d.baby) { this.setBaby(); this.ageTicks = d.ageTicks; } else this.ageTicks = d.ageTicks || 0;
     this.persistent = !!d.persistent; this.customName = d.customName; this.fireTicks = d.fire || 0; if (d.equip) Object.assign(this.equip, d.equip); this.effects = new Map(d.effects || []);
+    if (d.leash) this.leashPending = d.leash;
     if (this.loadExtra) this.loadExtra(d);
   }
 }

@@ -133,7 +133,7 @@ const Save = (() => {
   function worldState() {
     return {
       player: playerData(Game.player), dayTime: Game.dayTime, gameTime: Game.gameTime, rules: Object.assign({}, Game.rules), spawn: Game.spawn,
-      difficulty: Game.difficulty, weather: typeof Weather.save === 'function' ? Weather.save() : null,
+      difficulty: Game.difficulty, weather: typeof Weather.save === 'function' ? Weather.save() : null, maps: Maps.save(),
       dragon: typeof EndFight !== 'undefined' && EndFight.save ? EndFight.save() : null, portals: Portals.save(), extra: Game.extra || null,
     };
   }
@@ -185,6 +185,7 @@ const Save = (() => {
     if (state && state.weather && typeof Weather.load === 'function') Weather.pending = state.weather;
     if (typeof EndFight !== 'undefined' && EndFight.load) EndFight.load(state && state.dragon);
     Portals.load(state && state.portals);
+    Maps.load(state && state.maps);
     Game.extra = state && state.extra ? state.extra : null;
   }
   async function saveGame() {

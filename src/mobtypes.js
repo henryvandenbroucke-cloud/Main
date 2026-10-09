@@ -702,6 +702,7 @@ Entities.restore = (d, dim) => {
   if (Projectiles.restore && Projectiles.restore(d)) return;
   if (Vehicles.restore && Vehicles.restore(d)) return;
   if (Decor.restore(d)) return;
+  if (Leads.restore(d)) return;
   const m = Mobs.create(d.type, d.x, d.y, d.z); if (!m) return;
   m.load(d); m.dim = dim; Entities.add(m);
 };

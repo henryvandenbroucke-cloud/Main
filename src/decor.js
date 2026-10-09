@@ -96,6 +96,7 @@ class ItemFrame extends HangingEntity {
   centre() { const f = this.face; return [this.bx + 0.5 - DX[f] * 0.46875, this.by + 0.5 - DY[f] * 0.46875, this.bz + 0.5 - DZ[f] * 0.46875]; }
   size() { const f = this.face; return f < 2 ? [0.75, 0.0625, 0.75] : f < 4 ? [0.75, 0.75, 0.0625] : [0.0625, 0.75, 0.75]; }
   get isMap() { return this.item && ITEMS[this.item.id].name === 'filled_map'; }
+  get isMapFrame() { return this.isMap; }
   interact(p, s) {
     if (!this.item) {
       if (!s) return false;
@@ -315,6 +316,9 @@ const Decor = (() => {
       const [sl, bl] = EntityRender.lightAt(cx + DX[f] * 0.5, cy + DY[f] * 0.5, cz + DZ[f] * 0.5);
       this.mat.uniforms.uEnv.value.set(e.glow ? 1 : sl, e.glow ? 1 : bl);
       const id = e.item ? e.item.id : -1;
+      // a map in a frame is redrawn when the map changes
+      const md = e.isMap && e.item.tag && Maps.get(e.item.tag.map); if (md && md.dirty) Maps.canvasFor(md); const ver = md ? md.ver || 0 : -1;
+      if (e.isMap && (ver !== this.mapVer || (e.item.tag && e.item.tag.map) !== this.mapId)) { this.itemId = -2; this.mapVer = ver; this.mapId = e.item.tag && e.item.tag.map; }
       if (id !== this.itemId) {
         if (this.item) { this.obj.remove(this.item); this.item.material.dispose(); this.item = null; }
         this.itemId = id;

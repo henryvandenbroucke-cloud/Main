@@ -8,7 +8,7 @@ const ItemUse = (() => {
   const swapHeld = (p, s, offhand) => { if (offhand) p.inv.set(40, s); else p.inv.held = s; };
   // replace one of the held stack with another item (filling buckets and bottles)
   function exchange(p, offhand, newStack) {
-    if (p.creative) { if (!p.inv.find(s => sameItem(s, newStack))) p.inv.addItem(newStack); return; }
+    if (p.creative) { if (p.inv.find(s => sameItem(s, newStack)) < 0) p.inv.addItem(newStack); return; }
     const s = offhand ? p.inv.offhand : p.inv.held;
     if (s.count === 1) { swapHeld(p, newStack, offhand); return; }
     s.count--; p.inv.changed();

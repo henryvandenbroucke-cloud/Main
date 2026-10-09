@@ -206,3 +206,8 @@ input { font-family: inherit; }
 .loomcell.sel { background: #6a8aaa; }
 .loomcell:hover { background: #a0a0c0; }
 .gpart.loompreview { width: calc(var(--s) * 20); height: calc(var(--s) * 40); }
+
+/* a map held in the hand, and the cartography table's view */
+#mapHand { position: fixed; left: 50%; bottom: 3vh; width: min(46vh, 46vw); height: auto; transform: translateX(-50%) rotate(-1.5deg); image-rendering: pixelated; pointer-events: none; z-index: 4; box-shadow: 0 0 0.6vh rgba(0,0,0,0.5); }
+#mapHand.hidden { display: none; }
+.gpart.cartoview { background: #6b5a3a; }

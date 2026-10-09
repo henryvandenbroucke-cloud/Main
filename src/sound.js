@@ -164,6 +164,15 @@ const Sound = (() => {
   N.dye_use = d => { noise(d, T(), 0.1, 'bandpass', 2000, 2, 0.18); };
   N.glow_ink_use = d => { tone(d, T(), 'sine', 1200, 0.2, 0.1, { to: 1800 }); noise(d, T(), 0.1, 'bandpass', 2500, 2, 0.12); };
   N.ink_use = d => { noise(d, T(), 0.12, 'lowpass', 900, 1, 0.2); };
+  // fishing and leads
+  N.bobber_throw = d => { noise(d, T(), 0.2, 'bandpass', 1800, 2, 0.15, 0.01, (fl, t) => fl.frequency.exponentialRampToValueAtTime(600, t + 0.2)); };
+  N.bobber_splash = d => { noise(d, T(), 0.3, 'lowpass', 2000, 0.7, 0.4, 0.005, (fl, t) => fl.frequency.exponentialRampToValueAtTime(500, t + 0.3)); };
+  N.bobber_retrieve = d => { noise(d, T(), 0.12, 'bandpass', 1400, 2, 0.15); tone(d, T(), 'triangle', 500, 0.08, 0.06, { to: 900 }); };
+  N.leash_attach = d => { noise(d, T(), 0.1, 'bandpass', 600, 2, 0.25); };
+  N.leash_place = N.leash_attach; N.leash_untie = d => noise(d, T(), 0.08, 'bandpass', 800, 2, 0.2);
+  N.leash_break = d => { noise(d, T(), 0.06, 'highpass', 2500, 1, 0.3); tone(d, T(), 'sine', 300, 0.06, 0.15, { to: 120 }); };
+  N.loom_take = d => { noise(d, T(), 0.12, 'bandpass', 2400, 3, 0.2); };
+  N.cartography_take = d => { noise(d, T(), 0.15, 'bandpass', 3000, 2, 0.2); tone(d, T(), 'triangle', 700, 0.05, 0.05); };
   N.bucket_fill = d => { for (let i = 0; i < 3; i++) noise(d, T() + i * 0.05, 0.1, 'bandpass', 800 + i * 200, 2, 0.3); };
   N.bucket_empty = N.bucket_fill; N.bottle_fill = d => { tone(d, T(), 'sine', 400, 0.3, 0.15, { to: 900 }); noise(d, T(), 0.2, 'bandpass', 1500, 3, 0.15); }; N.bottle_empty = N.bottle_fill;
   N.bucket_fill_lava = d => noise(d, T(), 0.3, 'lowpass', 500, 1, 0.4); N.bucket_empty_lava = N.bucket_fill_lava;
