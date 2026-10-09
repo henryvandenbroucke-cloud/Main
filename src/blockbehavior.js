@@ -33,6 +33,7 @@ const Blocks = (() => {
     const be = newBE(d.name);
     if (be) { if (s && s.tag && s.tag.items) be.items = s.tag.items.slice(); if (s && s.tag && s.tag.name) be.customName = s.tag.name; World.setBE(x, y, z, be); }
     if (d.name === 'decorated_pot') Pots.placed(x, y, z, s);
+    if (d.name === 'bee_nest' || d.name === 'beehive') Bees.placed(x, y, z, s);
     if (d.name === 'redstone_wire' || d.model === 'repeater' || d.model === 'comparator' || d.name.includes('redstone') || d.model === 'lever' || d.model === 'door' || d.model === 'trapdoor' || d.model === 'piston' || d.name === 'observer' || d.name === 'tnt' || d.name === 'redstone_lamp' || d.name === 'note_block' || d.model === 'gate' || d.name === 'dispenser' || d.name === 'dropper' || d.name === 'hopper' || d.model === 'rail') Redstone.onPlaced(x, y, z, id, st);
     if (d.fluid) Ticks.schedule(x, y, z, Fluids.delay(id));
     if (d.gravity) Ticks.schedule(x, y, z, 2);
@@ -58,6 +59,7 @@ const Blocks = (() => {
     if (name === 'sculk_shrieker') return { type: 'shrieker', warning: 0 };
     if (name === 'sculk_catalyst') return { type: 'catalyst', cursors: [] };
     if (name === 'trial_spawner') return Trials.newBE();
+    if (name === 'bee_nest' || name === 'beehive') return Bees.newBE();
     if (name === 'vault') return Trials.newVault();
     if (name === 'campfire' || name === 'soul_campfire') return { type: 'campfire', items: [null, null, null, null], times: [0, 0, 0, 0] };
     if (name === 'beacon') return { type: 'beacon', levels: 0, primary: null, secondary: null };

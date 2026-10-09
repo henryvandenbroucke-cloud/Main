@@ -65,11 +65,14 @@ const Interact = (() => {
     if (be && be.items && !(d.name.endsWith('shulker_box'))) for (const s of be.items) if (s) Drops.spawnItem(x + 0.5, y + 0.5, z + 0.5, s, true);
     if (be && be.type === 'jukebox' && be.disc) Drops.spawnItem(x + 0.5, y + 1, z + 0.5, be.disc);
     if (be && be.type === 'lectern' && be.book) Drops.spawnItem(x + 0.5, y + 1, z + 0.5, be.book);
+    // hives: angry bees, unless broken with silk touch (which keeps the bees and honey in the item)
+    const hive = (d.name === 'bee_nest' || d.name === 'beehive') ? Bees.broken(p, x, y, z, id, st, !!enchLevel(held, 'silk_touch')) : null;
     Blocks.remove(x, y, z, p);
     GameEvents.emit('block_destroy', x + 0.5, y + 0.5, z + 0.5, p, id);
     if (!p.creative) {
       if (d.name.endsWith('shulker_box') && be) { const s = stack(d.name, 1); if (be.items && be.items.some(i => i)) s.tag = { items: be.items }; Drops.spawnItem(x + 0.5, y + 0.5, z + 0.5, s); }
       else if (d.name === 'decorated_pot') Pots.drops(be, Pots.shatters(held), x, y, z);
+      else if (hive) Drops.spawnItem(x + 0.5, y + 0.5, z + 0.5, stack(d.name, 1, { tag: hive }));
       else Drops.dropBlock(id, st, held, x, y, z);
       // tools wear by one per block (two for swords; nothing for blocks broken instantly)
       if (held && ITEMS[held.id].dur && hardness(id) > 0) p.inv.damageHeld(ITEMS[held.id].tool && ITEMS[held.id].tool.kind === 'sword' ? 2 : 1, p);

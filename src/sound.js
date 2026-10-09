@@ -289,6 +289,15 @@ const Sound = (() => {
   }
   // subtitles (accessibility): a short list in the corner
   function subtitle(name, x, y, z) { if (!Settings.subtitles) return; const t = name.replace(/_/g, ' '); const now = performance.now(); const f = SUBS.find(s => s.t === t); if (f) { f.time = now; f.x = x; f.z = z; } else { SUBS.push({ t, time: now, x, z }); if (SUBS.length > 8) SUBS.shift(); } }
+  // bees
+  N.bee_loop = d => tone(d, T(), 'sawtooth', rp(190, 230), 0.8, 0.025, { lp: 900, vib: [28, 12], attack: 0.1 });
+  N.bee_loop_aggressive = d => tone(d, T(), 'sawtooth', rp(260, 310), 0.8, 0.04, { lp: 1400, vib: [34, 18], attack: 0.05 });
+  N.bee_sting = d => { noise(d, T(), 0.06, 'highpass', 4000, 1, 0.35); tone(d, T(), 'square', 900, 0.08, 0.06, { to: 500, lp: 3000 }); };
+  N.bee_pollinate = d => { tone(d, T(), 'sawtooth', 240, 0.5, 0.03, { lp: 1000, vib: [20, 25] }); for (let i = 0; i < 3; i++) tone(d, T() + 0.1 * i, 'sine', 1400 + i * 200, 0.08, 0.03); };
+  N.beehive_enter = d => { noise(d, T(), 0.15, 'lowpass', 1200, 1, 0.2); tone(d, T(), 'sawtooth', 220, 0.3, 0.03, { lp: 800, to: 150 }); };
+  N.beehive_exit = d => { noise(d, T(), 0.15, 'lowpass', 1200, 1, 0.2); tone(d, T(), 'sawtooth', 160, 0.3, 0.03, { lp: 800, to: 230 }); };
+  N.beehive_work = d => { for (let i = 0; i < 4; i++) noise(d, T() + i * 0.07, 0.04, 'bandpass', 1800, 4, 0.1); };
+  N.beehive_shear = d => { noise(d, T(), 0.2, 'bandpass', 2600, 2, 0.25); };
   // trial spawners and vaults
   N.trial_spawner_detect_player = d => { tone(d, T(), 'square', 330, 0.12, 0.08, { lp: 1500 }); tone(d, T() + 0.1, 'square', 495, 0.15, 0.08, { lp: 1500 }); };
   N.trial_spawner_spawn_mob = d => { noise(d, T(), 0.3, 'bandpass', 1500, 1.5, 0.3, 0.01); tone(d, T(), 'sawtooth', 220, 0.2, 0.08, { to: 440, lp: 1800 }); };

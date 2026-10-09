@@ -447,8 +447,8 @@ SHARED.push(function worldgenModule(G) {
     topAt(w, x, z) { let y = MAXY; while (y > MINY && (w.get(x, y, z) === 0)) y--; return y <= MINY ? null : y; }
     tree(w, r, x, y, z, b) {
       switch (b) {
-        case 'forest': case 'flower_forest': if (r.chance(0.2)) F.oak(w, r, x, y, z, { log: B.birch_log, leaves: B.birch_leaves, base: 5 }); else if (r.chance(0.1)) F.fancyOak(w, r, x, y, z); else F.oak(w, r, x, y, z, { bees: b === 'flower_forest' }); break;
-        case 'birch_forest': F.oak(w, r, x, y, z, { log: B.birch_log, leaves: B.birch_leaves, base: 5, bees: true }); break;
+        case 'forest': case 'flower_forest': { const bc = b === 'flower_forest' ? 0.02 : 0.002; if (r.chance(0.2)) F.oak(w, r, x, y, z, { log: B.birch_log, leaves: B.birch_leaves, base: 5, bees: true, beeChance: bc }); else if (r.chance(0.1)) F.fancyOak(w, r, x, y, z); else F.oak(w, r, x, y, z, { bees: true, beeChance: bc }); break; }
+        case 'birch_forest': F.oak(w, r, x, y, z, { log: B.birch_log, leaves: B.birch_leaves, base: 5, bees: true, beeChance: 0.002 }); break;
         case 'old_growth_birch_forest': F.oak(w, r, x, y, z, { log: B.birch_log, leaves: B.birch_leaves, base: 5 + r.int(4), extra: 6 }); break;
         case 'dark_forest': if (r.chance(0.08)) F.hugeMushroom(w, r, x, y, z, r.chance(0.5)); else if (r.chance(0.12)) F.oak(w, r, x, y, z); else if (r.chance(0.05)) F.oak(w, r, x, y, z, { log: B.birch_log, leaves: B.birch_leaves, base: 5 }); else F.darkOak(w, r, x, y, z); break;
         case 'taiga': case 'snowy_taiga': case 'grove': if (r.chance(0.33)) F.pine(w, r, x, y, z); else F.spruce(w, r, x, y, z, { snow: b !== 'taiga' }); break;
@@ -459,7 +459,7 @@ SHARED.push(function worldgenModule(G) {
         case 'jungle': case 'bamboo_jungle': if (r.chance(0.1)) F.megaJungle(w, r, x, y, z); else if (r.chance(0.5)) F.jungleBush(w, r, x, y, z); else if (r.chance(0.1)) F.fancyOak(w, r, x, y, z); else F.jungle(w, r, x, y, z); break;
         case 'sparse_jungle': if (r.chance(0.5)) F.jungleBush(w, r, x, y, z); else F.jungle(w, r, x, y, z); break;
         case 'wooded_badlands': F.oak(w, r, x, y, z); break;
-        case 'meadow': if (r.chance(0.5)) F.oak(w, r, x, y, z, { log: B.birch_log, leaves: B.birch_leaves, base: 5, bees: true }); else F.oak(w, r, x, y, z, { bees: true }); break;
+        case 'meadow': if (r.chance(0.5)) F.oak(w, r, x, y, z, { log: B.birch_log, leaves: B.birch_leaves, base: 5, bees: true, beeChance: 0.002 }); else F.oak(w, r, x, y, z, { bees: true, beeChance: 1 }); break;
         case 'cherry_grove': F.cherry(w, r, x, y, z); break;
         case 'swamp': F.swampOak(w, r, x, y, z); break;
         case 'mangrove_swamp': F.mangrove(w, r, x, y, z); break;

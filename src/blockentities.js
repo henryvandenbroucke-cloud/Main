@@ -16,6 +16,7 @@ const BlockEntities = (() => {
           case 'catalyst': Sculk.catalystTick(be); break;
           case 'trial_spawner': Trials.tick(be); break;
           case 'vault': Trials.vaultTick(be); break;
+          case 'hive': Bees.tick(be); break;
           case 'comparator': Redstone.comparatorPoll(be); break;
           case 'daylight': Redstone.daylightTick(be); break;
           case 'crafter': Crafter.tick(be); break;
@@ -161,7 +162,7 @@ const BlockUse = (() => {
       case 'redstone_ore': case 'deepslate_redstone_ore': World.setBlock(x, y, z, id, 1); return false;
       case 'dragon_egg': DragonEgg.teleport(x, y, z); return true;
       case 'pumpkin': if (hn === 'shears') { World.setBlock(x, y, z, B.carved_pumpkin, hit.face > 1 ? hit.face : OPP[Place.lookDir(p)]); Drops.spawnItem(x + 0.5, y + 0.5, z + 0.5, stack('pumpkin_seeds', 4)); p.inv.damageHeld(1, p); Sound.play('pumpkin_carve', null, { x, y, z }); return true; } return false;
-      case 'bee_nest': case 'beehive': if ((st >> 3 & 7) >= 5 && (hn === 'shears' || hn === 'glass_bottle')) { if (hn === 'shears') { Drops.spawnItem(x + 0.5, y + 1, z + 0.5, stack('honeycomb', 3)); p.inv.damageHeld(1, p); } else { consume(p); give(p, stack('honey_bottle')); } World.setBlock(x, y, z, id, st & 7); return true; } return false;
+      case 'bee_nest': case 'beehive': return Bees.use(p, x, y, z, st, held);
       case 'cake': return false;
       case 'chiseled_bookshelf': return Shelves.use(p, hit, held);
       case 'decorated_pot': return Shelves.pot(p, x, y, z, held);

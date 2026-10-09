@@ -27,7 +27,15 @@ SHARED.push(function featuresModule(G) {
     }
     for (let i = 0; i < h; i++) log(w, x, y + i, z, L);
     if (o.vines) vinesAround(w, r, x, y + h - 3, z, 3, 3);
-    if (o.bees && r.chance(0.05)) { const f = [[0, -1], [0, 1], [-1, 0], [1, 0]][r.int(4)]; if (w.get(x + f[0], y + 2, z + f[1]) === 0) w.set(x + f[0], y + 2, z + f[1], BID.bee_nest || 0, 0); }
+    // a bee nest (the game's beehive decorator): facing south on the east, west or south side of the trunk, just
+    // under the leaves, with 2 or 3 bees inside
+    if (o.bees && r.chance(o.beeChance || 0.05)) {
+      const ny = Math.max(y + 1, y + h - 4), sides = [[1, 0], [-1, 0], [0, 1]];
+      for (let k = 0; k < 3; k++) { const f = sides[(k + r.int(3)) % 3], nx = x + f[0], nz = z + f[1];
+        if (w.get(nx, ny, nz) !== 0 || w.get(nx, ny, nz + 1) !== 0) continue;
+        w.set(nx, ny, nz, BID.bee_nest, 3); const n = 2 + r.int(2), bees = []; for (let i = 0; i < n; i++) bees.push({ nectar: false, ticks: r.int(599), min: 600 });
+        if (w.blockEntity) w.blockEntity(nx, ny, nz, { type: 'hive', bees }); break; }
+    }
     return h;
   }
   // fancy (large) oak: a taller trunk with branches ending in leaf balls
