@@ -47,6 +47,7 @@ const Blocks = (() => {
     Redstone.update(x, y, z);
   }
   function newBE(name) {
+    if (name === 'suspicious_sand' || name === 'suspicious_gravel') return Archaeology.newBE();
     if (name === 'chest' || name === 'trapped_chest' || name === 'barrel' || name.endsWith('shulker_box')) return { type: 'container', items: new Array(27).fill(null) };
     if (name === 'furnace' || name === 'blast_furnace' || name === 'smoker') return { type: 'furnace', items: [null, null, null], burn: 0, burnMax: 0, cook: 0, cookMax: 200, xp: 0 };
     if (name === 'dispenser' || name === 'dropper') return { type: 'container', items: new Array(9).fill(null) };
@@ -290,6 +291,8 @@ class FallingBlock extends Entity {
     this.fallDist = (this.fallDist || 0) + Math.max(0, -this.vy);
     if (this.onGround) {
       this.removed = true;
+      // suspicious sand and gravel break when they land, with whatever they held
+      if (d.name.startsWith('suspicious_')) { Particles.blockBreak(bx, by, bz, this.block, 0); Sound.blockBreak(this.block, bx, by, bz); return; }
       const cur = World.getBlock(bx, by, bz);
       if (cur === 0 || BLOCKS[cur].replaceable || BLOCKS[cur].fluid) {
         let st = this.state;

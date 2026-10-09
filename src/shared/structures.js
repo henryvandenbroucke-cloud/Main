@@ -45,6 +45,8 @@ SHARED.push(function structuresModule(G) {
     be(lx, ly, lz, data) { const [x, z] = this.tx(lx, lz); this.bucket(x, z).bes.push(Object.assign({ x, y: this.oy + ly, z }, data)); }
     chest(lx, ly, lz, facing, loot, seed) { this.set(lx, ly, lz, B.chest, facing); this.be(lx, ly, lz, { type: 'container', items: new Array(27).fill(null), loot, seed: seed || 0 }); }
     barrel(lx, ly, lz, facing, loot, seed) { this.set(lx, ly, lz, B.barrel, facing); this.be(lx, ly, lz, { type: 'container', items: new Array(27).fill(null), loot, seed: seed || 0 }); }
+    // suspicious sand or gravel holding one roll of an archaeology loot table
+    sus(lx, ly, lz, id, loot, seed) { this.set(lx, ly, lz, id, 0); this.be(lx, ly, lz, { type: 'brushable', loot: 'archaeology/' + loot, seed: seed || 1, item: null, count: 0, resetAt: 0, coolEnd: 0, dir: -1 }); }
     spawner(lx, ly, lz, mob) { this.set(lx, ly, lz, B.spawner, 0); this.be(lx, ly, lz, { type: 'spawner', mob, delay: 20 }); }
     // a named box of the structure (mob spawning rules use some of them)
     box(x0, y0, z0, x1, y1, z1, tag) { const [ax, az] = this.tx(x0, z0), [bx, bz] = this.tx(x1, z1); this.boxes.push([Math.min(ax, bx), this.oy + Math.min(y0, y1), Math.min(az, bz), Math.max(ax, bx), this.oy + Math.max(y0, y1), Math.max(az, bz), tag]); }
@@ -181,7 +183,7 @@ SHARED.push(function structuresModule(G) {
       const cf = [[10, 7, 3], [10, 13, 2], [7, 10, 5], [13, 10, 4]];
       cf.forEach(([cx, cz, f], i) => { p.set(cx, 3, cz, 0); p.fill(cx, 1, cz, cx, 2, cz, 0); p.chest(cx, 1, cz, f, 'chests/desert_pyramid', r.int(1e9) + i); });
       // suspicious sand in the floor of the hall (archaeology)
-      for (let i = 0; i < 2; i++) p.set(5 + r.int(11), 14, 5 + r.int(11), B.suspicious_sand || SS);
+      for (let i = 0, n = 5 + r.int(3); i < n; i++) p.sus(5 + r.int(11), 14, 5 + r.int(11), B.suspicious_sand, 'desert_pyramid', r.int(1e9) + 1);
       p.box(0, 0, 0, 20, 24, 20, 'desert_pyramid');
       return p;
     } });
@@ -362,7 +364,7 @@ SHARED.push(function structuresModule(G) {
           if (ly === 0) p.set(ox + lx, yy + ly, oz + lz, mat()); else if (edge && r.chance(0.75 - ly * 0.12)) p.set(ox + lx, yy + ly, oz + lz, mat());
         }
         if (k === 0 || r.chance(0.5)) p.chest(ox + 1 + r.int(w - 2), yy + 1, oz + 1 + r.int(d - 2), 2, big ? 'chests/underwater_ruin_big' : 'chests/underwater_ruin_small', r.int(1e9));
-        if (r.chance(0.4)) p.set(ox + 1 + r.int(w - 2), yy, oz + 1 + r.int(d - 2), warm ? B.suspicious_sand || B.sand : B.suspicious_gravel || B.gravel);
+        if (r.chance(0.4)) p.sus(ox + 1 + r.int(w - 2), yy, oz + 1 + r.int(d - 2), warm ? B.suspicious_sand : B.suspicious_gravel, warm ? 'ocean_ruin_warm' : 'ocean_ruin_cold', r.int(1e9) + 1);
         if (r.chance(0.6)) p.ent(ox + 2, yy + 1, oz + 2, { type: 'drowned', persistent: false });
       }
       p.box(-12, -2, -12, 12, 8, 12, 'ocean_ruin');
@@ -385,7 +387,8 @@ SHARED.push(function structuresModule(G) {
       const h = heightAt(gen, x, z); if (h < SEA) return null;
       const p = new Plan(x, h, z, 0), SS = B.sandstone;
       p.fill(-2, -1, -2, 2, 0, 2, SS, 0, 2); p.set(0, 0, 0, B.water); for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) p.set(a, 0, b, B.water);
-      p.set(0, -1, 0, B.suspicious_sand || SS); p.fill(-1, 1, -1, 1, 1, 1, 0);
+      p.fill(-1, 1, -1, 1, 1, 1, 0); p.sus(0, -1, 0, B.suspicious_sand, 'desert_well', r.int(1e9) + 1);
+      if (r.chance(0.5)) { const [a, b] = r.pick([[1, 0], [-1, 0], [0, 1], [0, -1]]); p.sus(a, -1, b, B.suspicious_sand, 'desert_well', r.int(1e9) + 1); }
       for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) p.fill(a, 1, b, a, 2, b, SS);
       p.fill(-1, 3, -1, 1, 3, 1, B.sandstone_slab); p.set(0, 3, 0, SS);
       for (const [a, b] of [[-2, 0], [2, 0], [0, -2], [0, 2]]) p.set(a, 1, b, B.sandstone_slab);

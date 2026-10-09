@@ -525,6 +525,11 @@ Hand = (() => {
         const f = Math.min(1, (ut / 20) * (ut / 20 + 2) / 3);
         if (f > 0.1) { const g = Math.sin((ut - 0.1) * 1.3) * (f - 0.1); MStack.t(m, 0, g * 0.004, 0); }
         MStack.t(m, 0, 0, f * 0.04); m.multiply(new THREE.Matrix4().makeScale(1, 1, 1 + f * 0.2)); MStack.ry(m, -45);
+      } else if (using && ITEMS[itemId].name === 'brush') {
+        // the game's brush sweep: a full back-and-forth every 10 ticks
+        MStack.t(m, 0.56, -0.52, -0.72);
+        const f1 = ((p.useMax - p.useTicks) % 10 + 10) % 10 - a + 1, f7 = -15 + 75 * Math.cos((1 - f1 / 10) * 2 * Math.PI);
+        MStack.t(m, -0.25, 0.22, 0.35); MStack.rx(m, -80); MStack.ry(m, 90); MStack.rx(m, f7);
       } else if (using && (ITEMS[itemId].name === 'shield')) {
         MStack.t(m, 0.56, -0.52, -0.72);
       } else {

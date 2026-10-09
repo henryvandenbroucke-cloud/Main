@@ -148,6 +148,7 @@ const EntityModels = (() => {
     if (s.bow) { L.right_arm.ry = -0.1 + L.head.ry; L.left_arm.ry = 0.1 + L.head.ry + 0.4; L.right_arm.rx = -PI / 2 + L.head.rx; L.left_arm.rx = -PI / 2 + L.head.rx; }
     if (s.crossbowCharge) { L.right_arm.ry = -0.8; L.right_arm.rx = -0.97079635; L.left_arm.rx = -0.97079635; L.left_arm.ry = 0.4; }
     if (s.spyglass || s.eating) { const arm = L.right_arm; arm.rx = -PI / 2 * 0.9 + L.head.rx * 0.5; arm.ry = -0.3; }
+    if (s.brushing) { L.right_arm.rx = L.right_arm.rx * 0.5 - PI / 5; L.right_arm.ry = 0; }
     if (s.blocking) { L.left_arm.rx = L.left_arm.rx * 0.5 - 0.9424779; L.left_arm.ry = PI / 6; }
   };
   // zombies hold their arms out, higher when they are after someone

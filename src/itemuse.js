@@ -27,6 +27,8 @@ const ItemUse = (() => {
     const it = ITEMS[s.id], n = it.name, { x, y, z } = hit, id = World.getBlock(x, y, z), st = World.getState(x, y, z), d = BLOCKS[id];
     const up = World.getBlock(x, y + 1, z);
     if (p.gamemode === 'adventure' && it.block >= 0) return false;
+    // a brush sweeps whatever block it is used on (see Archaeology)
+    if (n === 'brush') { startUse(p, s, offhand, 200); return true; }
     // hoe: till dirt into farmland
     if (it.tool && it.tool.kind === 'hoe' && hit.face !== 0 && (up === 0 || BLOCKS[up].replaceable && !BLOCKS[up].fluid)) {
       const to = { grass_block: B.farmland, dirt: B.farmland, dirt_path: B.farmland, coarse_dirt: B.dirt, rooted_dirt: B.dirt }[d.name];
@@ -221,6 +223,7 @@ const ItemUse = (() => {
     const it = ITEMS[s.id], n = it.name;
     if ((it.food || n === 'potion' || n === 'milk_bucket' || n === 'honey_bottle' || n === 'ominous_bottle') && p.useTicks % 4 === 0 && p.useTicks > 7) { Sound.play(it.food ? 'eat' : 'drink', p); if (it.food) Particles.eat && Particles.eat(p, s); }
     if (n === 'crossbow' && p.useTicks === Math.max(5, 25 - 5 * enchLevel(s, 'quick_charge'))) { Sound.play('crossbow_loaded', p); }
+    if (n === 'brush') { Archaeology.brushTick(p, s); if (!p.using) return; }
     if (p.useTicks >= p.useMax) finishUse(p);
   }
   function finishUse(p) {

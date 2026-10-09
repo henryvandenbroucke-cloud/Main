@@ -171,6 +171,14 @@ const Sound = (() => {
   N.chiseled_bookshelf_pickup_enchanted = d => { N.chiseled_bookshelf_pickup(d); tone(d, T() + 0.02, 'sine', 1900, 0.3, 0.05, { to: 1400 }); };
   N.decorated_pot_insert = (d, o) => { const k = (o && o.pitch) || 1; tone(d, T(), 'sine', 420 * k, 0.18, 0.18, { to: 300 * k }); noise(d, T(), 0.08, 'bandpass', 1800 * k, 2, 0.12); };
   N.decorated_pot_shatter = d => { noise(d, T(), 0.25, 'bandpass', 2400, 1.2, 0.45); for (let k = 0; k < 4; k++) tone(d, T() + k * 0.03, 'triangle', 900 + Math.random() * 900, 0.06, 0.08); };
+  // brushing: a soft scratchy sweep (finer for sand, grainier for gravel), and a crumble when the item comes free
+  const sweep = (d, f, q, peak) => { noise(d, T(), 0.32, 'bandpass', f, q, peak, 0.06, (fl, t0) => { fl.frequency.setValueAtTime(f * 0.7, t0); fl.frequency.linearRampToValueAtTime(f * 1.3, t0 + 0.3); }); };
+  N.brush_generic = d => sweep(d, 3200, 1.2, 0.12);
+  N.brush = N.brush_generic;
+  N.brush_sand = d => sweep(d, 4200, 0.9, 0.16);
+  N.brush_gravel = d => { sweep(d, 2200, 1.4, 0.16); for (let k = 0; k < 3; k++) noise(d, T() + 0.05 + k * 0.08, 0.03, 'bandpass', 1500 + Math.random() * 800, 3, 0.1); };
+  N.brush_sand_completed = d => { noise(d, T(), 0.4, 'lowpass', 2600, 0.8, 0.35, 0.01); tone(d, T(), 'triangle', 300, 0.12, 0.08, { to: 180 }); };
+  N.brush_gravel_completed = d => { noise(d, T(), 0.4, 'lowpass', 1600, 0.8, 0.4, 0.01); for (let k = 0; k < 5; k++) noise(d, T() + k * 0.05, 0.04, 'bandpass', 900 + Math.random() * 900, 3, 0.15); };
   N.decorated_pot_insert_fail = d => { tone(d, T(), 'sine', 260, 0.14, 0.14, { to: 220 }); noise(d, T(), 0.06, 'bandpass', 900, 2, 0.1); };
   N.glow_ink_use = d => { tone(d, T(), 'sine', 1200, 0.2, 0.1, { to: 1800 }); noise(d, T(), 0.1, 'bandpass', 2500, 2, 0.12); };
   N.ink_use = d => { noise(d, T(), 0.12, 'lowpass', 900, 1, 0.2); };

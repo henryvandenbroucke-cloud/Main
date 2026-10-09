@@ -17,7 +17,7 @@ class Player extends Living {
   }
   get eyeY() { return this.y + this.eyeH; }
   heldItem() { return this.inv.held; }
-  animState(s) { s.holdRight = !!this.inv.held; s.holdLeft = !!this.inv.offhand; const u = this.using && ITEMS[this.using.id].name; if (u === 'bow') s.bow = true; if (u === 'shield') s.blocking = true; if (u === 'spyglass') s.spyglass = true; if (this.using && ITEMS[this.using.id].food) s.eating = true; }
+  animState(s) { s.holdRight = !!this.inv.held; s.holdLeft = !!this.inv.offhand; const u = this.using && ITEMS[this.using.id].name; if (u === 'bow') s.bow = true; if (u === 'shield') s.blocking = true; if (u === 'spyglass') s.spyglass = true; if (u === 'brush') s.brushing = true; if (this.using && ITEMS[this.using.id].food) s.eating = true; }
   get creative() { return this.gamemode === 'creative'; }
   get spectator() { return this.gamemode === 'spectator'; }
   get noFallDamage() { return this.creative || this.spectator || this.flying; }

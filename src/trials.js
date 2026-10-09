@@ -255,7 +255,7 @@ const Trials = (() => {
           if (!be.display || vstate(st) === V.INACTIVE) continue;
           let v = shown.get(k); const id = be.display.id;
           if (v && v.what !== id) { v.dispose(); shown.delete(k); v = null; }
-          if (!v) { const m = ItemMesh.mesh(id); if (!m) continue; m.matrixAutoUpdate = true; const g = new THREE.Group(); g.add(m); scene.add(g); v = { what: id, g, dispose: () => { scene.remove(g); m.material.dispose && m.material.dispose(); } }; shown.set(k, v); }
+          if (!v) { const m = ItemMesh.mesh(id); if (!m) continue; m.matrixAutoUpdate = true; m.position.set(-0.5, -0.5, -0.5); const g = new THREE.Group(); g.add(m); scene.add(g); v = { what: id, g, dispose: () => { scene.remove(g); m.material.dispose && m.material.dispose(); } }; shown.set(k, v); }
           seen.add(k);
           const t = Game.gameTime + a;
           v.g.position.set(be.x + 0.5, be.y + 0.4 + Math.sin(t / 10) * 0.05, be.z + 0.5); v.g.rotation.set(0, t * 0.05, 0); v.g.scale.setScalar(0.5);

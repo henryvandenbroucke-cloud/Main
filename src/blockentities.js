@@ -17,6 +17,7 @@ const BlockEntities = (() => {
           case 'trial_spawner': Trials.tick(be); break;
           case 'vault': Trials.vaultTick(be); break;
           case 'hive': Bees.tick(be); break;
+          case 'brushable': Archaeology.tick(be); break;
           case 'comparator': Redstone.comparatorPoll(be); break;
           case 'daylight': Redstone.daylightTick(be); break;
           case 'crafter': Crafter.tick(be); break;
