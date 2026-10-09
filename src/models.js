@@ -305,7 +305,9 @@ const Models = (() => {
     wire: (d, s, conn) => {
       const els = [], p = s & 15;
       const dot = 'redstone_dust_dot', line = 'redstone_dust_line0';
-      const n = !!(conn & 4), so = !!(conn & 8), w = !!(conn & 16), e = !!(conn & 32);
+      // dust with no connections is a cross, or a dot after it was clicked (bit 4)
+      const lone = !(conn & 60), cross = lone && !(s & 16);
+      const n = !!(conn & 4) || cross, so = !!(conn & 8) || cross, w = !!(conn & 16) || cross, e = !!(conn & 32) || cross;
       const cnt = n + so + w + e;
       const flat = (x0, z0, x1, z1, tex, rot) => els.push(box(x0, 0.25, z0, x1, 0.25, z1, { up: tex, down: null }, { tint: true, noCull: true, rot: [0, rot || 0, 0, 0, 0, 0], uv: [null, [x0, z0, x1, z1], null, null, null, null] }));
       if (cnt === 0) { flat(0, 0, 16, 16, dot); }

@@ -52,6 +52,8 @@ const Blocks = (() => {
     if (name === 'spawner') return { type: 'spawner', mob: 'pig', delay: 20 };
     if (name === 'enchanting_table') return { type: 'enchanting' };
     if (name === 'end_gateway') return { type: 'gateway' };
+    if (name === 'comparator') return { type: 'comparator', out: 0 };
+    if (name === 'daylight_detector') return { type: 'daylight' };
     return null;
   }
   // tell the six neighbours that something changed next to them
@@ -80,10 +82,10 @@ const Blocks = (() => {
     if (id === B.farmland && SOLID[World.getBlock(x, y + 1, z)] && BLOCKS[World.getBlock(x, y + 1, z)].model === 'cube') World.setBlock(x, y, z, B.dirt, 0);
   }
   // ---------------------------------------------------------------- scheduled ticks
-  function scheduledTick(x, y, z, id, st) {
+  function scheduledTick(x, y, z, id, st, water) {
     const d = BLOCKS[id];
     if (d.fluid) return Fluids.tick(x, y, z, id, st);
-    if ((d.waterlog && (st & 128)) || d.fluidLog) { Fluids.tick(x, y, z, B.water, 0); return; }
+    if (water || (((d.waterlog && (st & 128)) || d.fluidLog) && !Redstone.isComponent(id))) { Fluids.tick(x, y, z, B.water, 0); return; }
     if (d.gravity) return Falling.check(x, y, z, id, st);
     if (BlockExtras.scheduledTick(x, y, z, id, st)) return;
     if (Redstone.isComponent(id)) return Redstone.scheduled(x, y, z, id, st);
@@ -215,6 +217,7 @@ const Blocks = (() => {
     if (p.spectator) return false;
     const held = p.inv.held;
     if (BlockExtras.use(p, hit, id, st, held)) return true;
+    if (id === B.redstone_wire && !p.sneaking && p.gamemode !== 'adventure') return Redstone.useWire(x, y, z, st);
     switch (d.model) {
       case 'door': if (n === 'iron_door') return false; { const by = st & 8 ? y - 1 : y; const bs = World.getState(x, by, z); World.setBlock(x, by, z, id, bs ^ 16); World.setBlock(x, by + 1, z, id, World.getState(x, by + 1, z) ^ 16); Sound.play(bs & 16 ? 'door_close' : 'door_open', null, { x, y, z, iron: false }); return true; }
       case 'trapdoor': if (n === 'iron_trapdoor') return false; World.setBlock(x, y, z, id, st ^ 16); Sound.play(st & 16 ? 'trapdoor_close' : 'trapdoor_open', null, { x, y, z }); return true;

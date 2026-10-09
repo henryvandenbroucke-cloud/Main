@@ -133,6 +133,22 @@ const Sound = (() => {
   N.iron_door_close = d => { tone(d, T(), 'sine', 100, 0.1, 0.4, { to: 50 }); noise(d, T(), 0.1, 'bandpass', 1500, 3, 0.3); };
   N.lever = d => { tone(d, T(), 'square', 700, 0.02, 0.15, { lp: 2500 }); };
   N.button = N.lever; N.click_off = d => tone(d, T(), 'square', 550, 0.02, 0.12, { lp: 2000 });
+  // trapdoors, fence gates and the redstone machines
+  N.trapdoor_open = d => { tone(d, T(), 'sawtooth', 260, 0.15, 0.1, { to: 340, lp: 1200 }); noise(d, T(), 0.06, 'bandpass', 800, 2, 0.2); };
+  N.trapdoor_close = d => { tone(d, T(), 'sine', 150, 0.07, 0.3, { to: 80 }); noise(d, T(), 0.05, 'bandpass', 800, 2, 0.25); };
+  N.iron_trapdoor_open = N.iron_door_open; N.iron_trapdoor_close = N.iron_door_close;
+  N.gate_open = d => { tone(d, T(), 'sawtooth', 240, 0.18, 0.1, { to: 320, lp: 1000, vib: [20, 10] }); noise(d, T(), 0.06, 'bandpass', 650, 2, 0.2); };
+  N.gate_close = d => { tone(d, T(), 'sine', 140, 0.07, 0.3, { to: 75 }); noise(d, T(), 0.05, 'bandpass', 650, 2, 0.25); };
+  N.piston_extend = d => { noise(d, T(), 0.18, 'bandpass', 500, 1.5, 0.45); tone(d, T(), 'sawtooth', 90, 0.15, 0.15, { to: 160, lp: 700 }); };
+  N.piston_contract = d => { noise(d, T(), 0.16, 'bandpass', 420, 1.5, 0.4); tone(d, T(), 'sawtooth', 150, 0.14, 0.13, { to: 80, lp: 700 }); };
+  N.dispense = d => { tone(d, T(), 'square', 1000, 0.03, 0.12, { lp: 3000 }); tone(d, T() + 0.04, 'square', 1000, 0.03, 0.1, { lp: 3000 }); };
+  N.dispense_fail = d => { tone(d, T(), 'square', 1200, 0.03, 0.12, { lp: 3500 }); tone(d, T() + 0.04, 'square', 1200, 0.03, 0.1, { lp: 3500 }); };
+  N.tripwire_click_on = d => tone(d, T(), 'square', 900, 0.02, 0.12, { lp: 3000 }); N.tripwire_click_off = d => tone(d, T(), 'square', 700, 0.02, 0.1, { lp: 3000 });
+  N.tripwire_attach = d => tone(d, T(), 'triangle', 600, 0.05, 0.12); N.tripwire_detach = d => tone(d, T(), 'triangle', 400, 0.05, 0.12);
+  N.copper_bulb_on = d => { tone(d, T(), 'sine', 1400, 0.12, 0.12); tone(d, T(), 'sine', 2100, 0.08, 0.05); }; N.copper_bulb_off = d => tone(d, T(), 'sine', 900, 0.1, 0.1, { to: 600 });
+  N.crafter_craft = d => { noise(d, T(), 0.08, 'bandpass', 1500, 3, 0.25); tone(d, T(), 'square', 500, 0.05, 0.08, { lp: 2000 }); };
+  N.crafter_fail = d => tone(d, T(), 'square', 300, 0.06, 0.1, { lp: 1500 });
+  N.torch_burnout = d => noise(d, T(), 0.25, 'highpass', 2500, 0.7, 0.3);
   N.bucket_fill = d => { for (let i = 0; i < 3; i++) noise(d, T() + i * 0.05, 0.1, 'bandpass', 800 + i * 200, 2, 0.3); };
   N.bucket_empty = N.bucket_fill; N.bottle_fill = d => { tone(d, T(), 'sine', 400, 0.3, 0.15, { to: 900 }); noise(d, T(), 0.2, 'bandpass', 1500, 3, 0.15); }; N.bottle_empty = N.bottle_fill;
   N.bucket_fill_lava = d => noise(d, T(), 0.3, 'lowpass', 500, 1, 0.4); N.bucket_empty_lava = N.bucket_fill_lava;

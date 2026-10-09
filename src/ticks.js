@@ -5,11 +5,16 @@ const Ticks = (() => {
   const sched = new Map(); // key -> { x, y, z, at, id }
   let now = 0;
   const key = (x, y, z) => World.dim + ':' + x + ',' + y + ',' + z;
-  function schedule(x, y, z, delay, id) {
-    const k = key(x, y, z), at = now + Math.max(1, delay | 0);
+  // pri: the game's tick priorities (-3 extremely high .. 0 normal); ticks due in the same game tick run in
+  // priority order, then in the order they were scheduled. Water flowing out of a waterlogged block is kept
+  // apart from the block's own ticks (a waterlogged lightning rod still gets its redstone ticks).
+  let seq = 0;
+  function schedule(x, y, z, delay, id, pri) {
+    const water = id === BID.water && World.getBlock(x, y, z) !== BID.water;
+    const k = key(x, y, z) + (water ? 'w' : ''), at = now + Math.max(1, delay | 0);
     const cur = sched.get(k);
     if (cur && cur.at <= at) return;
-    sched.set(k, { x, y, z, at, dim: World.dim, id: id === undefined ? World.getBlock(x, y, z) : id });
+    sched.set(k, { x, y, z, at, dim: World.dim, id: id === undefined ? World.getBlock(x, y, z) : id, pri: pri || 0, seq: seq++, water });
   }
   function has(x, y, z) { return sched.has(key(x, y, z)); }
   function tick() {
@@ -18,8 +23,8 @@ const Ticks = (() => {
     let n = 0;
     const due = [];
     for (const [k, t] of sched) { if (t.at <= now && t.dim === World.dim) { due.push(t); sched.delete(k); if (++n > 4000) break; } }
-    due.sort((a, b) => a.at - b.at);
-    for (const t of due) { if (!World.loaded(t.x, t.z)) continue; const id = World.getBlock(t.x, t.y, t.z); Blocks.scheduledTick(t.x, t.y, t.z, id, World.getState(t.x, t.y, t.z)); }
+    due.sort((a, b) => a.at - b.at || a.pri - b.pri || a.seq - b.seq);
+    for (const t of due) { if (!World.loaded(t.x, t.z)) continue; const id = World.getBlock(t.x, t.y, t.z); Blocks.scheduledTick(t.x, t.y, t.z, id, World.getState(t.x, t.y, t.z), t.water); }
     // random ticks around the player
     const speed = Game.rules.randomTickSpeed; if (!speed) return;
     const p = Game.player; if (!p) return;
@@ -37,8 +42,8 @@ const Ticks = (() => {
       }
     }
   }
-  function save() { const out = []; for (const t of sched.values()) out.push([t.dim, t.x, t.y, t.z, t.at - now]); return out; }
-  function load(arr) { sched.clear(); for (const [dim, x, y, z, d] of arr || []) sched.set(dim + ':' + x + ',' + y + ',' + z, { x, y, z, at: now + Math.max(1, d), dim }); }
+  function save() { const out = []; for (const t of sched.values()) out.push([t.dim, t.x, t.y, t.z, t.at - now, t.pri, t.water ? 1 : 0]); return out; }
+  function load(arr) { sched.clear(); for (const [dim, x, y, z, d, pri, w] of arr || []) sched.set(dim + ':' + x + ',' + y + ',' + z + (w ? 'w' : ''), { x, y, z, at: now + Math.max(1, d), dim, pri: pri || 0, seq: seq++, water: !!w }); }
   return { schedule, has, tick, save, load, get now() { return now; } };
 })();
 

@@ -191,6 +191,7 @@ const Save = (() => {
     if (!meta || !Game.running || saving) return;
     saving = true;
     try {
+      if (typeof Pistons !== 'undefined') Pistons.finishAll();
       for (const d in World.dims) for (const c of World.dims[d].values()) storeChunk(c, false);
       const st = worldState();
       meta.lastPlayed = Date.now(); meta.gamemode = Game.player.gamemode; meta.difficulty = Game.difficulty;

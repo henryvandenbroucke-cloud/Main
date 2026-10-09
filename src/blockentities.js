@@ -13,6 +13,8 @@ const BlockEntities = (() => {
           case 'campfire': campfire(be); break;
           case 'beacon': if (typeof Beacons !== 'undefined') Beacons.tick(be); break;
           case 'spawner': if (typeof Spawners !== 'undefined') Spawners.tick(be); break;
+          case 'comparator': Redstone.comparatorPoll(be); break;
+          case 'daylight': Redstone.daylightTick(be); break;
         }
       }
     }
@@ -88,13 +90,13 @@ const BlockUse = (() => {
             let be2 = World.getBE(ox, y, oz); if (!be2) { be2 = Blocks.newBE(n); World.setBE(ox, y, oz, be2); } LootTables.unpackContainer(be2, p);
             const [a, b] = t === 1 ? [be, be2] : [be2, be];
             const items = { get: i => i < 27 ? a.items[i] : b.items[i - 27], set: (i, v) => { v = v && v.count > 0 ? v : null; if (i < 27) a.items[i] = v; else b.items[i - 27] = v; World.chunkAt(x, z).modified = true; } };
-            Screens.open(new ChestScreen(items, 6, 'Large Chest', { onClose: () => Sound.play('chest_close', null, { x, y, z }) }));
+            Screens.open(new ChestScreen(items, 6, 'Large Chest', { onClose: () => { Sound.play('chest_close', null, { x, y, z }); ChestAnim.close(x, y, z); ChestAnim.close(ox, y, oz); if (n === 'trapped_chest') { Redstone.update(x, y, z); Redstone.update(ox, y, oz); } } }));
             Sound.play('chest_open', null, { x, y, z }); ChestAnim.open(x, y, z); ChestAnim.open(ox, y, oz);
-            if (n === 'trapped_chest') Redstone.update(x, y, z);
+            if (n === 'trapped_chest') { Redstone.update(x, y, z); Redstone.update(ox, y, oz); }
             return true;
           }
         }
-        Screens.open(new ChestScreen(be.items, 3, 'Chest', { onClose: () => { Sound.play('chest_close', null, { x, y, z }); ChestAnim.close(x, y, z); } }));
+        Screens.open(new ChestScreen(be.items, 3, 'Chest', { onClose: () => { Sound.play('chest_close', null, { x, y, z }); ChestAnim.close(x, y, z); if (n === 'trapped_chest') Redstone.update(x, y, z); } }));
         Sound.play('chest_open', null, { x, y, z }); ChestAnim.open(x, y, z);
         if (n === 'trapped_chest') Redstone.update(x, y, z);
         return true;
