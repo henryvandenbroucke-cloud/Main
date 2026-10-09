@@ -18,8 +18,8 @@ const Interact = (() => {
     for (const e of Entities.list) {
       if (e === p || e.removed || e.dead || e.type === 'item' || e.type === 'xp_orb' || e.type === 'arrow' || e.noPick || e === p.vehicle) continue;
       if (e.dist2(p.x, p.y, p.z) > 64) continue;
-      const hw = e.w / 2 + 0.1;
-      const h = Phys.rayBox(eye[0], eye[1], eye[2], dir[0], dir[1], dir[2], e.x - hw, e.y, e.z - hw, e.x + hw, e.y + e.h, e.z + hw);
+      const hw = e.w / 2 + 0.1, pb = e.pickBox && e.pickBox();
+      const h = pb ? Phys.rayBox(eye[0], eye[1], eye[2], dir[0], dir[1], dir[2], pb[0], pb[1], pb[2], pb[3], pb[4], pb[5]) : Phys.rayBox(eye[0], eye[1], eye[2], dir[0], dir[1], dir[2], e.x - hw, e.y, e.z - hw, e.x + hw, e.y + e.h, e.z + hw);
       if (h && h.t < best) { best = h.t; entTarget = e; }
     }
     if (entTarget) target = null;

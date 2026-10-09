@@ -701,6 +701,7 @@ Entities.restore = (d, dim) => {
   if (d.type === 'xp_orb') { const e = new XpOrb(d.x, d.y, d.z, d.value); e.age = d.age || 0; return Entities.add(e); }
   if (Projectiles.restore && Projectiles.restore(d)) return;
   if (Vehicles.restore && Vehicles.restore(d)) return;
+  if (Decor.restore(d)) return;
   const m = Mobs.create(d.type, d.x, d.y, d.z); if (!m) return;
   m.load(d); m.dim = dim; Entities.add(m);
 };

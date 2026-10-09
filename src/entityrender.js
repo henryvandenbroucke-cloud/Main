@@ -189,6 +189,39 @@ EntityRender = (() => {
         if (show) { if (l.L.color) { const c = l.L.color(e); l.mat.uniforms.uTint.value.setRGB(c[0], c[1], c[2]); } this.anim(l.inst, s); if (e.posePart) e.posePart(l.inst, s, a); if (e.baby && d.babyHead && l.inst.parts.head) { const h = l.inst.parts.head; h.sx = h.sy = h.sz = 1.5; } l.inst.apply(); }
       }
       this.updateHeld(a, s, sl, bl);
+      this.updateArmor(a, s, k, sl, bl);
+    }
+    // worn armour: the game's armour layers (helmet, chestplate and boots on one model blown up by 1, leggings
+    // on one blown up by 0.5), following the wearer's limbs
+    updateArmor(a, s, k, sl, bl) {
+      const e = this.e, P = this.inst.parts;
+      if (!P.head || !P.body || !P.right_leg || !P.right_arm) return;
+      const items = e.isPlayer ? [0, 1, 2, 3].map(i => e.inv.armor(i)) : e.equip ? [e.equip.head, e.equip.chest, e.equip.legs, e.equip.feet] : null;
+      if (!items) return;
+      const key = items.map(x => x ? x.id + ':' + ((x.tag && x.tag.color) || '') : '').join('|');
+      if (key !== this.armorKey) {
+        for (const l of this.armor || []) { this.obj.remove(l.inst.root); l.mat.dispose(); }
+        this.armor = []; this.armorKey = key;
+        const SHOW = [['head', 'hat'], ['body', 'right_arm', 'left_arm'], ['body', 'right_leg', 'left_leg'], ['right_leg', 'left_leg']];
+        items.forEach((x, i) => {
+          const ar = x && ITEMS[x.id].armor; if (!ar) return;
+          const name = (i === 2 ? 'armor2_' : 'armor1_') + ar.mat; if (!EntityModels.DEFS[name]) return;
+          const mat = entityMat(EntityModels.texture(name), { side: THREE.DoubleSide, transparent: true });
+          const inst = EntityModels.create(name, mat, mat);
+          this.obj.add(inst.root);
+          const col = ar.mat === 'leather' ? ((x.tag && x.tag.color) || 0xa06540) : null;
+          this.armor.push({ inst, mat, show: new Set(SHOW[i]), col });
+        });
+      }
+      for (const l of this.armor) {
+        l.inst.root.scale.setScalar(k); l.inst.root.rotation.copy(this.inst.root.rotation);
+        this.anim(l.inst, s); if (e.posePart) e.posePart(l.inst, s, a);
+        for (const p of l.inst.list) p.show = l.show.has(p.name);
+        if (e.type === 'armor_stand' && l.inst.parts.head) l.inst.parts.head.y += 1;
+        l.inst.apply();
+        l.mat.uniforms.uEnv.value.set(sl, bl); l.mat.uniforms.uFlash.value = this.mat.uniforms.uFlash.value;
+        if (l.col !== null) l.mat.uniforms.uTint.value.setRGB(((l.col >> 16) & 255) / 255, ((l.col >> 8) & 255) / 255, (l.col & 255) / 255);
+      }
     }
     anim(inst, s) { inst.reset(); const fn = EntityModels.A[this.e.anim || inst.def.anim]; if (fn) fn(inst, s); }
     // a tool, weapon or block in the mob's right hand
@@ -212,7 +245,7 @@ EntityRender = (() => {
         this.held.material.uniforms.uEnv.value.set(sl, bl);
       }
     }
-    dispose() { scene.remove(this.obj); this.mat.dispose(); if (this.matT) this.matT.dispose(); for (const l of this.layers) l.mat.dispose(); if (this.held) this.held.material.dispose(); }
+    dispose() { scene.remove(this.obj); this.mat.dispose(); if (this.matT) this.matT.dispose(); for (const l of this.layers) l.mat.dispose(); for (const l of this.armor || []) l.mat.dispose(); if (this.held) this.held.material.dispose(); }
   }
   class ItemVisual {
     constructor(e) {
