@@ -423,8 +423,9 @@ const Models = (() => {
     stonecutter: (d, s) => rotY([box(0, 0, 0, 16, 9, 16, { up: d.tex.up, down: d.tex.down, side: d.tex.side }), box(1, 9, 8, 15, 16, 8, { north: d.tex.front, south: d.tex.front }, { noCull: true, uv: [null, null, [1, 9, 15, 16], [1, 9, 15, 16], null, null] })], turnsOf(s)),
     bell: (d, s) => rotY([box(5, 6, 5, 11, 13, 11, 'bell_body'), box(4, 4, 4, 12, 6, 12, 'bell_body'), box(2, 13, 7, 14, 15, 9, 'dark_oak_planks'), box(0, 0, 6, 2, 16, 10, 'stone'), box(14, 0, 6, 16, 16, 10, 'stone')], turnsOf(s)),
     skull: (d, s) => [box(4, 0, 4, 12, 8, 12, d.tex.side)],
-    sign: (d, s) => { const t = d.tex.side; const els = [box(-4, 7, 7.25, 20, 19, 8.75, t), box(7.25, 0, 7.25, 8.75, 7, 8.75, t.replace('_planks', '_log').replace('crimson_log', 'crimson_stem').replace('warped_log', 'warped_stem').replace('bamboo_log', 'bamboo_block'))]; return rotYdeg(els, (s & 15) * 22.5); },
-    wall_sign: (d, s) => rotY([box(-4, 4.5, 14, 20, 16.5, 16, d.tex.side)], turnsOf(s)),
+    // the game's sign: a 16 x 8 board, 4/3 thick, on a post (the 24 x 12 model drawn at 2/3 size)
+    sign: (d, s) => { const t = d.tex.side; const els = [box(0, 9.333, 7.333, 16, 17.333, 8.667, t), box(7.333, 0, 7.333, 8.667, 9.333, 8.667, t.replace('_planks', '_log').replace('crimson_log', 'crimson_stem').replace('warped_log', 'warped_stem').replace('bamboo_log', 'bamboo_block'))]; return rotYdeg(els, (s & 15) * 22.5); },
+    wall_sign: (d, s) => rotY([box(0, 4.333, 14.333, 16, 12.333, 15.667, d.tex.side)], turnsOf(s)),
     banner: (d, s) => { const t = d.tex.side; return rotYdeg([box(-2, 1, 7, 18, 30, 8, t), box(7, 0, 7, 9, 31, 9, 'oak_planks'), box(-2, 30, 7, 18, 32, 9, 'oak_planks')], (s & 15) * 22.5); },
     glazed: (d, s) => { const k = turnsOf(s); const t = d.tex.side; return [box(0, 0, 0, 16, 16, 16, t, { rot: [k * 90, k * 90, 0, 0, 0, 0] })]; },
     piston: (d, s) => {

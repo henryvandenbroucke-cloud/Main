@@ -149,6 +149,21 @@ const Sound = (() => {
   N.crafter_craft = d => { noise(d, T(), 0.08, 'bandpass', 1500, 3, 0.25); tone(d, T(), 'square', 500, 0.05, 0.08, { lp: 2000 }); };
   N.crafter_fail = d => tone(d, T(), 'square', 300, 0.06, 0.1, { lp: 1500 });
   N.torch_burnout = d => noise(d, T(), 0.25, 'highpass', 2500, 0.7, 0.3);
+  // hanging things, armor stands and signs
+  N.painting_place = d => { noise(d, T(), 0.08, 'bandpass', 900, 2, 0.3); tone(d, T(), 'sine', 180, 0.06, 0.2, { to: 120 }); };
+  N.painting_break = d => { noise(d, T(), 0.15, 'bandpass', 700, 1.5, 0.4); tone(d, T(), 'sawtooth', 140, 0.1, 0.12, { lp: 800, to: 70 }); };
+  N.item_frame_place = N.painting_place; N.item_frame_break = N.painting_break;
+  N.item_frame_add = d => { tone(d, T(), 'triangle', 520, 0.06, 0.15); noise(d, T(), 0.04, 'highpass', 2500, 1, 0.1); };
+  N.item_frame_rotate = d => tone(d, T(), 'triangle', 760, 0.05, 0.12);
+  N.item_frame_remove = d => tone(d, T(), 'triangle', 380, 0.07, 0.15, { to: 260 });
+  N.armor_stand_place = d => { tone(d, T(), 'sine', 160, 0.08, 0.3, { to: 90 }); noise(d, T(), 0.06, 'bandpass', 600, 2, 0.2); };
+  N.armor_stand_hit = d => { noise(d, T(), 0.06, 'bandpass', 1200, 2, 0.3); tone(d, T(), 'triangle', 300, 0.05, 0.15); };
+  N.armor_stand_break = d => { noise(d, T(), 0.2, 'bandpass', 800, 1.2, 0.4); tone(d, T(), 'sawtooth', 120, 0.12, 0.12, { lp: 700, to: 60 }); };
+  N.honeycomb_wax = d => { noise(d, T(), 0.12, 'bandpass', 3000, 3, 0.2); tone(d, T(), 'sine', 900, 0.1, 0.08, { to: 1200 }); };
+  N.waxed_sign_fail = d => tone(d, T(), 'square', 220, 0.06, 0.08, { lp: 1200 });
+  N.dye_use = d => { noise(d, T(), 0.1, 'bandpass', 2000, 2, 0.18); };
+  N.glow_ink_use = d => { tone(d, T(), 'sine', 1200, 0.2, 0.1, { to: 1800 }); noise(d, T(), 0.1, 'bandpass', 2500, 2, 0.12); };
+  N.ink_use = d => { noise(d, T(), 0.12, 'lowpass', 900, 1, 0.2); };
   N.bucket_fill = d => { for (let i = 0; i < 3; i++) noise(d, T() + i * 0.05, 0.1, 'bandpass', 800 + i * 200, 2, 0.3); };
   N.bucket_empty = N.bucket_fill; N.bottle_fill = d => { tone(d, T(), 'sine', 400, 0.3, 0.15, { to: 900 }); noise(d, T(), 0.2, 'bandpass', 1500, 3, 0.15); }; N.bottle_empty = N.bottle_fill;
   N.bucket_fill_lava = d => noise(d, T(), 0.3, 'lowpass', 500, 1, 0.4); N.bucket_empty_lava = N.bucket_fill_lava;

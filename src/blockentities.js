@@ -163,7 +163,7 @@ const BlockUse = (() => {
       case 'chiseled_bookshelf': return false;
       case 'tnt': if (hn === 'flint_and_steel' || hn === 'fire_charge') { Explosions.primeTnt(x, y, z, p); if (hn === 'flint_and_steel') p.inv.damageHeld(1, p); else consume(p); return true; } return false;
       case 'sign': case 'oak_sign': default:
-        if (d.model === 'sign' || d.model === 'wall_sign') { if (hn.endsWith('_dye') || hn === 'glow_ink_sac' || hn === 'ink_sac') { const be = World.getBE(x, y, z); if (be) { if (hn === 'glow_ink_sac') be.glow = true; else if (hn === 'ink_sac') be.glow = false; else be.color = hn.replace('_dye', ''); World.setBE(x, y, z, be); consume(p); return true; } } UI.open('sign', { x, y, z }); return true; }
+        if (Signs.isSign(id)) return Signs.use(p, x, y, z, held);
         if (d.name.endsWith('shulker_box')) { const be = World.getBE(x, y, z) || (World.setBE(x, y, z, Blocks.newBE(d.name)), World.getBE(x, y, z)); Screens.open(new ChestScreen(be.items, 3, 'Shulker Box', { filter: s => !ITEMS[s.id].name.endsWith('shulker_box') })); return true; }
     }
     return false;

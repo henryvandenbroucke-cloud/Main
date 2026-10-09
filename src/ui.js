@@ -79,7 +79,7 @@ const UI = (() => {
     confirm: d => `<div class="mtitle">${d.title}</div><div class="mhint big">${d.text}</div><div class="mbottom"><div class="mrow">${btn(d.yes || 'Yes', 'cyes', { w: 150 })}${btn(d.no || 'Cancel', 'cno', { w: 150 })}</div></div>`,
     stats: () => { let h = '<div class="mtitle">Statistics</div><div class="statlist">'; const st = Stats.all(); for (const [k, v] of Object.entries(st.general || {})) h += `<div class="statrow"><span>${k}</span><span>${v}</span></div>`; h += '</div><div class="mbottom">' + btn('Done', 'pause') + '</div>'; return h; },
     advancements: () => Advancements.page(),
-    sign: d => `<div class="mtitle">Edit Sign Message</div><div class="signedit">${[0, 1, 2, 3].map(i => `<input class="signline" maxlength="15" data-i="${i}" value="${escapeHTML((World.getBE(d.x, d.y, d.z) || { lines: [] }).lines[i] || '')}">`).join('')}</div><div class="mbottom">${btn('Done', 'signdone')}</div>`,
+    sign: d => { const be = World.getBE(d.x, d.y, d.z) || { lines: [] }, t = d.side === 'back' ? (be.back || { lines: [] }) : be; return `<div class="mtitle">Edit Sign Message</div><div class="signedit">${[0, 1, 2, 3].map(i => `<input class="signline" maxlength="15" data-i="${i}" value="${escapeHTML((t.lines || [])[i] || '')}">`).join('')}</div><div class="mbottom">${btn('Done', 'signdone')}</div>`; },
   };
   PAGES.title.after = () => drawLogo();
   PAGES.single.after = () => listWorlds();
@@ -136,7 +136,7 @@ const UI = (() => {
       case 'advancements': show('advancements'); break;
       case 'stats': show('stats'); break;
       case 'pause': show('pause'); break;
-      case 'signdone': { if (signTarget) { const be = World.getBE(signTarget.x, signTarget.y, signTarget.z) || { type: 'sign' }; be.lines = [...root.querySelectorAll('.signline')].map(i => i.value); be.type = 'sign'; World.setBE(signTarget.x, signTarget.y, signTarget.z, be); World.markDirty(signTarget.x, signTarget.y, signTarget.z); Signs && Signs.refresh && Signs.refresh(signTarget.x, signTarget.y, signTarget.z); } signTarget = null; hide(); screen = null; Input.requestLock(); break; }
+      case 'signdone': { if (signTarget) { const be = World.getBE(signTarget.x, signTarget.y, signTarget.z) || { type: 'sign' }; const lines = [...root.querySelectorAll('.signline')].map(i => i.value); if (signTarget.side === 'back') be.back = Object.assign(be.back || {}, { lines }); else be.lines = lines; be.type = 'sign'; World.setBE(signTarget.x, signTarget.y, signTarget.z, be); World.markDirty(signTarget.x, signTarget.y, signTarget.z); Signs && Signs.refresh && Signs.refresh(signTarget.x, signTarget.y, signTarget.z); } signTarget = null; hide(); screen = null; Input.requestLock(); break; }
       default:
         if (a.startsWith('ctab:')) { readCreate(); createData.tab = a.slice(5); show('create', createData); break; }
         if (a.startsWith('bind:')) { binding = a.slice(5); el.textContent = '> ' + keyName(Input.BIND[binding]) + ' <'; break; }

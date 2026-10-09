@@ -7,4 +7,3 @@ const Advancements = stub({ page() { return '<div class="mtitle">Advancements</d
 const Fishing = stub({});
 const Maps = stub({});
 const Leads = stub({});
-const Signs = stub({});
