@@ -124,7 +124,7 @@ class FishingHook extends Entity {
         if (e) { const d0 = p.x - this.x, d1 = p.y - this.y, d2 = p.z - this.z; e.vx = d0 * 0.1; e.vy = d1 * 0.1 + Math.sqrt(Math.sqrt(d0 * d0 + d1 * d1 + d2 * d2)) * 0.08; e.vz = d2 * 0.1; }
         Drops.spawnXp(p.x, p.y + 0.5, p.z + 0.5, 1 + rnd(6));
         if (['cod', 'salmon', 'tropical_fish', 'pufferfish'].includes(ITEMS[s.id].name)) Stats.add('custom', 'fish_caught');
-        if (typeof Advancements !== 'undefined' && Advancements.check) Advancements.check('fished', s);
+        Advancements.fire('fishing_rod_hooked', { item: s, rod: p.inv.held, entity: this });
       }
       dmg = 1;
     }

@@ -23,6 +23,7 @@ const Game = {
     const p = new Player(this.spawn[0], this.spawn[1], this.spawn[2]);
     this.player = p;
     p.setGamemode(opts.gamemode || 'survival');
+    Advancements.reset(); p.inv.listeners.push(() => Advancements.inventoryChanged());
     if (opts.player) Save.loadPlayer(p, opts.player);
     p.updateArmor();
     Entities.list.length = 0; Entities.byId.clear();
@@ -100,7 +101,7 @@ const Game = {
     Portals.tick(p);
     Maps.tick(p);
     Leads.tick();
-    GameEvents.tick(); Sculk.tickPlayer(p); Raids.tick(); Dripstone.tick(); Withers.tick();
+    GameEvents.tick(); Sculk.tickPlayer(p); Raids.tick(); Dripstone.tick(); Withers.tick(); Advancements.tick(p);
     if (World.dim === 'end') EndFight.afterArrival(p);
     EndFight.tick();
     Sound.tick(p);

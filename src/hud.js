@@ -69,6 +69,7 @@ const HUD = (() => {
     bossBars(cx);
     effects(p);
     Chat.draw(g, S, H, text);
+    Advancements.drawToasts(g, S, W, text);
     if (debug) debugScreen(p);
     if (Settings.showFps && !debug) text(Loop.fps + ' fps', 2 * S, 2 * S, '#ffffff');
   }

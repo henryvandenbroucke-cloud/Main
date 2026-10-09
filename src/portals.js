@@ -111,7 +111,7 @@ const Portals = (() => {
     if (ep && p.y < ep.y + 0.75 && !p.portalLock) { travelEnd(p); return; }
     if (!ep && !inNether) p.portalLock = false;
     const gw = touching(p, B.end_gateway);
-    if (gw && !p.portalLock && typeof EndFight !== 'undefined') EndFight.gateway(p, gw);
+    if (gw && !p.portalLock && typeof EndFight !== 'undefined') { Advancements.fire('enter_block', { block: 'end_gateway' }); EndFight.gateway(p, gw); }
   }
   function travelNether(p, axis) {
     if (World.dim === 'end') return;
@@ -119,9 +119,12 @@ const Portals = (() => {
     const lim = 29999984;
     const tx = Math.max(-lim, Math.min(lim, p.x * k)), tz = Math.max(-lim, Math.min(lim, p.z * k));
     Sound.play('portal_travel', p, { ui: true });
+    // where the player went into the nether from (for Subspace Bubble)
+    const from = World.dim; if (to === 'nether') p.netherEntry = { x: p.x, y: p.y, z: p.z }; const entry = p.netherEntry;
     changeDim(to, tx, p.y, tz, { kind: 'nether', axis });
     Stats.add('custom', 'portal_travel');
-    Advancements.trigger && Advancements.trigger('enter_' + to);
+    Advancements.fire('changed_dimension', { from, to });
+    if (to === 'overworld' && entry) { Advancements.fire('nether_travel', { startPos: entry }); p.netherEntry = null; }
   }
   function travelEnd(p) {
     if (World.dim === 'end') {
@@ -129,10 +132,12 @@ const Portals = (() => {
       const sp = Beds.respawnPoint(p);
       p.seenCredits = true;
       changeDim('overworld', sp.x, sp.y, sp.z, { kind: 'exact' });
+      Advancements.fire('changed_dimension', { from: 'end', to: 'overworld' });
       return;
     }
+    const from = World.dim;
     changeDim('end', 100.5, 49, 0.5, { kind: 'end' });
-    Advancements.trigger && Advancements.trigger('enter_end');
+    Advancements.fire('changed_dimension', { from, to: 'end' });
   }
   // leave the current dimension and wait in the new one until the ground there is loaded
   function changeDim(dim, x, y, z, opts) {

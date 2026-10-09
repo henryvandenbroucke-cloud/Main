@@ -3,4 +3,3 @@
    method that is not listed here does nothing. */
 const NOOP = () => undefined;
 const stub = o => new Proxy(o, { get: (t, k) => (k in t ? t[k] : typeof k === 'string' ? NOOP : undefined) });
-const Advancements = stub({ page() { return '<div class="mtitle">Advancements</div><div class="mhint big">Coming soon</div><div class="mbottom"><div class="mbtn" data-act="pause">Done</div></div>'; } });

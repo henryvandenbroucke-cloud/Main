@@ -208,6 +208,7 @@ const Place = (() => {
     p.swingArm();
     if (!p.creative) { s.count--; if (s.count <= 0) { if (offhand) p.inv.set(40, null); else p.inv.held = null; } p.inv.changed(); }
     Stats.add('placed', BLOCKS[id].name);
+    if (p.isPlayer) Advancements.fire('placed_block', { pos: [x, y, z], item: s, block: BLOCKS[id].name });
     return true;
   }
   return { tryPlace, canSurvive, lookDir, look6, solidTop, sturdyFace, soil };

@@ -146,7 +146,7 @@ class Player extends Living {
       const got = before - (left ? left.count : 0);
       if (got <= 0) continue;
       Stats.add('picked_up', ITEMS[e.stack.id].name, got);
-      Advancements.check && Advancements.check('pickup', ITEMS[e.stack.id].name);
+      if (e.thrower && !e.thrower.isPlayer) Advancements.fire('thrown_item_picked_up_by_player', { entity: e.thrower, item: e.stack });
       Sound.play('pop', this, { pitch: ((Math.random() - Math.random()) * 0.7 + 1) * 2 });
       if (EntityRender && EntityRender.pickup) EntityRender.pickup(e, this);
       if (left) e.stack.count = left.count; else e.removed = true;
@@ -213,7 +213,7 @@ class Player extends Living {
     // shield blocks attacks from the front
     if (this.using && ITEMS[this.using.id].name === 'shield' && this.useTicks >= 5 && attacker && ['mob', 'arrow', 'explosion', 'fireball'].includes(sourceKind(source))) {
       const ax = attacker.x - this.x, az = attacker.z - this.z, lv = this.lookVec();
-      if (ax * lv[0] + az * lv[2] > 0) { Sound.play('shield_block', this); damageItem(this.using, Math.floor(amount) + 1, this, () => { this.inv.held = null; this.using = null; }); if (attacker.type === 'vindicator' || attacker.type === 'warden' || (attacker.heldAxe)) { this.shieldCooldown = 100; this.using = null; } return false; }
+      if (ax * lv[0] + az * lv[2] > 0) { Advancements.fire('entity_hurt_player', Object.assign(Advancements.damageCtx(this, amount, source, attacker), { blocked: true, taken: 0 })); Sound.play('shield_block', this); damageItem(this.using, Math.floor(amount) + 1, this, () => { this.inv.held = null; this.using = null; }); if (attacker.type === 'vindicator' || attacker.type === 'warden' || (attacker.heldAxe)) { this.shieldCooldown = 100; this.using = null; } return false; }
     }
     if (this.invul > 10) { if (amount <= this.lastDamage) return false; const d = amount - this.lastDamage; this.lastDamage = amount; amount = d; }
     else { this.lastDamage = amount; this.invul = 20; this.hurtTime = 10; }
@@ -247,7 +247,7 @@ class Player extends Living {
     if (this.health <= 0) {
       // a totem of undying in either hand saves you
       const hands = [this.inv.selected, 40];
-      for (const h of hands) { const s = this.inv.get(h); if (s && ITEMS[s.id].name === 'totem_of_undying') { this.inv.set(h, null); this.health = 1; this.effects.clear(); this.addEffect('regeneration', 900, 1); this.addEffect('absorption', 100, 1); this.addEffect('fire_resistance', 800, 0); Particles.totem(this); Sound.play('totem', this); HUD.totem(); return true; } }
+      for (const h of hands) { const s = this.inv.get(h); if (s && ITEMS[s.id].name === 'totem_of_undying') { Advancements.fire('used_totem', { item: s }); this.inv.set(h, null); this.health = 1; this.effects.clear(); this.addEffect('regeneration', 900, 1); this.addEffect('absorption', 100, 1); this.addEffect('fire_resistance', 800, 0); Particles.totem(this); Sound.play('totem', this); HUD.totem(); return true; } }
       this.die(source, attacker);
     }
     return true;
@@ -263,6 +263,7 @@ class Player extends Living {
     this.dead = true; this.health = 0; this.deathTime = 0; this.flying = false;
     Stats.add('custom', 'deaths'); if (Stats.raw.custom) Stats.raw.custom.time_since_death = 0; if (this.sleeping) Beds.wake(this);
     this.deathCause = DeathMessages.text(this, source, attacker);
+    Advancements.fire('entity_killed_player', { entity: attacker ? attacker.owner || attacker : null });
     GameEvents.emit('entity_die', this.x, this.y, this.z, this);
     Chat.system(this.deathCause);
     if (!Game.rules.keepInventory) {

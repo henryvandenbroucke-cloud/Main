@@ -500,6 +500,7 @@ const Redstone = (() => {
     const d = hit.face < 2 ? Math.max(fx, fz) : hit.face < 4 ? Math.max(fx, fy) : Math.max(fy, fz);
     const p = Math.max(1, Math.ceil(15 * Math.max(0, Math.min(1, (0.5 - d) / 0.5))));
     World.setBlock(x, y, z, B.target, p);
+    if (proj && proj.owner && proj.owner.isPlayer) Advancements.fire('target_hit', { signal: p, projectile: proj });
     region(x, y, z); flush();
     Ticks.schedule(x, y, z, proj instanceof Arrow ? 20 : 8);
   }

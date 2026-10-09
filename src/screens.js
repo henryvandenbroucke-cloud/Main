@@ -302,7 +302,7 @@ class CraftGrid {
   returnAll() { for (let i = 0; i < this.inv.size; i++) { const s = this.inv.get(i); if (s) { const left = Game.player.inv.add(s, 0, 36); if (left) ItemUse.drop(Game.player, left); this.inv.slots[i] = null; } } this.update(); }
 }
 function craftOutputSlot(scr, grid, x, y) {
-  return scr.slot(grid.out, 0, x, y, { output: true, big: true, onTake: r => { grid.consume(); Stats.add('crafted', ITEMS[r.id].name); Advancements.onCraft(ITEMS[r.id].name); Sound.play('craft'); } });
+  return scr.slot(grid.out, 0, x, y, { output: true, big: true, onTake: r => { const rec = grid.recipe && grid.recipe.recipe, ing = grid.inv.slots.filter(Boolean).map(s => Object.assign({}, s)); grid.consume(); Stats.add('crafted', ITEMS[r.id].name); Advancements.fire('recipe_crafted', { recipe: rec ? rec.special || rec.id || rec.r : ITEMS[r.id].name, ingredients: ing }); Sound.play('craft'); } });
 }
 
 // the survival inventory: armour, 2x2 crafting, off hand

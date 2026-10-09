@@ -3,7 +3,11 @@
 const Chat = (() => {
   const lines = []; // { text, color, t }
   let open = false, input = null, history = [], hIdx = -1;
-  function add(text, color) { for (const l of String(text).split('\n')) lines.push({ text: l, color: color || '#ffffff', t: performance.now() }); if (lines.length > 100) lines.shift(); }
+  function add(text, color) {
+    // a line can be a list of [text, colour] pieces
+    if (Array.isArray(text)) { lines.push({ text: text.map(s => s[0]).join(''), segs: text, color: '#ffffff', t: performance.now() }); if (lines.length > 100) lines.shift(); return; }
+    for (const l of String(text).split('\n')) lines.push({ text: l, color: color || '#ffffff', t: performance.now() }); if (lines.length > 100) lines.shift();
+  }
   function system(t) { add(t, '#ffffff'); }
   function err(t) { add(t, '#ff5555'); }
   function draw(g, S, H, text) {
@@ -15,7 +19,7 @@ const Chat = (() => {
       const a = open ? 1 : Math.max(0, Math.min(1, (10000 - age) / 1000));
       if (a <= 0) continue;
       g.globalAlpha = a * 0.5; g.fillStyle = '#000'; g.fillRect(2 * S, y - S, maxW, 9 * S); g.globalAlpha = a;
-      text(l.text, 4 * S, y, l.color);
+      if (l.segs) { let x = 4 * S; for (const [s, c] of l.segs) { text(s, x, y, c); x += g.measureText(s).width; } } else text(l.text, 4 * S, y, l.color);
       y -= 9 * S;
     }
     g.globalAlpha = 1;
@@ -102,6 +106,15 @@ const Commands = (() => {
     teleport: a => list.tp(a),
     kill: a => { if (!a[0] || a[0] === '@s' || a[0] === '@p') { p().hurt(Infinity, 'kill'); p().health = 0; p().die('kill'); } else if (a[0] === '@e') { for (const e of Entities.list) if (e.type !== 'player') e.removed = true; ok('Killed all entities'); } else { const t = strip(a[0].replace('@e[type=', '').replace(']', '')); let k = 0; for (const e of Entities.list) if (e.type === t) { e.removed = true; k++; } ok('Killed ' + k + ' entities'); } },
     summon: a => { const t = strip(a[0]), q = p(); const x = coord(a[1], q.x), y = coord(a[2], q.y), z = coord(a[3], q.z); if (t === 'lightning_bolt') { Weather.lightning(x, y, z); return; } if (t === 'tnt') { Explosions.spawnTnt(x, y, z, 80); return; } const m = Mobs.spawn(t, x, y, z, { force: true }); if (m) ok('Summoned new ' + t); else Chat.err('Unable to summon ' + t); },
+    // /advancement grant|revoke @s everything | only <id> [criterion]
+    advancement: a => {
+      const act = a[0], what = a[2], id = strip(a[3] || ''), all = Advancements.LIST;
+      if (act !== 'grant' && act !== 'revoke') { Chat.err('Usage: /advancement (grant|revoke) @s (everything|only <advancement>)'); return; }
+      const list = what === 'everything' ? all : what === 'only' && Advancements.BY.get(id) ? [Advancements.BY.get(id)] : null;
+      if (!list) { Chat.err('Unknown advancement: ' + id); return; }
+      for (const adv of list) { if (act === 'grant') { for (const k of (a[4] ? [a[4]] : Object.keys(adv.crit))) Advancements.grant(adv.id, k); } else Advancements.revoke(adv.id); }
+      ok((act === 'grant' ? 'Granted ' : 'Revoked ') + (list.length === 1 ? 'the advancement [' + list[0].title + ']' : list.length + ' advancements') + ' to Player');
+    },
     effect: a => { if (a[0] === 'clear') { p().effects.clear(); p().maxHealth = 20; ok('Removed every effect'); return; } const n = strip(a[0] === 'give' ? a[2] : a[0]), sec = +(a[0] === 'give' ? a[3] || 30 : a[1] || 30), amp = +(a[0] === 'give' ? a[4] || 0 : a[2] || 0); p().addEffect(n, sec * 20, amp); ok('Applied effect ' + n); },
     enchant: a => { const e = strip(a[0] === '@s' || a[0] === '@p' ? a[1] : a[0]), l = +(a[0] === '@s' || a[0] === '@p' ? a[2] || 1 : a[1] || 1); const h = p().inv.held; if (!h) return Chat.err('No item in hand'); if (!MCDATA.enchantments[e]) return Chat.err('Unknown enchantment: ' + e); h.tag = Object.assign({}, h.tag); h.tag.ench = Object.assign({}, h.tag.ench, { [e]: l }); p().inv.changed(); ok('Applied enchantment ' + e); },
     xp: a => { const n = parseInt(a[1] || a[0]); const lv = /l$/i.test(a[1] || a[0]) || a[2] === 'levels'; if (a[0] === 'add' || !isNaN(parseInt(a[0]))) { if (lv) p().addLevels(n); else p().addXp(n); ok('Gave ' + n + (lv ? ' levels' : ' experience')); } },

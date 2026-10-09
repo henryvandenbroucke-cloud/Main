@@ -90,6 +90,7 @@ const Bees = (() => {
   // broken: without silk touch the bees pour out angry; with it the hive keeps them (and its honey)
   function broken(p, x, y, z, id, st, silk) {
     const be = World.getBE(x, y, z);
+    if (p && p.isPlayer) Advancements.fire('bee_nest_destroyed', { block: BLOCKS[id].name, item: p.inv.held, bees: be && be.bees ? be.bees.length : 0 });
     if (silk || (p && p.creative)) return be && be.bees && be.bees.length ? { bees: be.bees.slice(), honey: honey(st) } : (honey(st) ? { honey: honey(st) } : null);
     anger(x, y, z, p);
     return null;

@@ -59,8 +59,8 @@ const Weather = (() => {
     // fire where it lands (normal and hard)
     if (Game.rules.doFireTick && Game.difficulty !== 'peaceful' && Game.difficulty !== 'easy') {
       const bx = Math.floor(x), by = Math.floor(y), bz = Math.floor(z);
-      if (World.getBlock(bx, by, bz) === 0 && Place.canSurvive(BID.fire, 0, bx, by, bz)) World.setBlock(bx, by, bz, BID.fire, 0);
-      for (let i = 0; i < 4; i++) { const fx = bx + rnd(3) - 1, fy = by + rnd(3) - 1, fz = bz + rnd(3) - 1; if (World.getBlock(fx, fy, fz) === 0 && Place.canSurvive(BID.fire, 0, fx, fy, fz)) World.setBlock(fx, fy, fz, BID.fire, 0); }
+      if (World.getBlock(bx, by, bz) === 0 && Place.canSurvive(BID.fire, 0, bx, by, bz)) { World.setBlock(bx, by, bz, BID.fire, 0); bolt.firesSet = (bolt.firesSet || 0) + 1; }
+      for (let i = 0; i < 4; i++) { const fx = bx + rnd(3) - 1, fy = by + rnd(3) - 1, fz = bz + rnd(3) - 1; if (World.getBlock(fx, fy, fz) === 0 && Place.canSurvive(BID.fire, 0, fx, fy, fz)) { World.setBlock(fx, fy, fz, BID.fire, 0); bolt.firesSet = (bolt.firesSet || 0) + 1; } }
     }
     // entities nearby: 5 damage and set alight; some mobs change
     for (const e of Entities.list.concat(p ? [p] : [])) {
@@ -68,6 +68,8 @@ const Weather = (() => {
       if (e.onLightning) { e.onLightning(); continue; }
       if (e.hurt) { e.hurt(5, 'lightning', bolt); e.fireTicks = Math.max(e.fireTicks || 0, 160); }
     }
+    // Surge Protector: the villagers within 30 blocks that it didn't hit
+    if (p) { const near = Entities.list.filter(e => e.type === 'villager' && !e.dead && Math.hypot(e.x - x, e.y - y, e.z - z) <= 30 && !(Math.abs(e.x - x) <= 3 && Math.abs(e.z - z) <= 3 && e.y >= y - 3 && e.y <= y + 6)); Advancements.fire('lightning_strike', { lightning: bolt, bystanders: near }); }
     return bolt;
   }
   // rain and snow do things to the world near the player (a few random columns per tick)

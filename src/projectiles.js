@@ -50,7 +50,7 @@ class Arrow extends Projectile {
     if (this.pierce > 0) { this.pierced = this.pierced || new Set(); if (this.pierced.size >= this.pierce + 1) { this.removed = true; return; } this.pierced.add(e); }
     if (e.type === 'enderman') { e.teleportRandom && e.teleportRandom(); return false; }
     const fire = this.fireTicks > 0 && e.type !== 'enderman';
-    const ok = e.hurt(this.owner && this.owner.isPlayer ? d : (e.isPlayer ? d : d), 'arrow', this.owner || this);
+    const ok = Advancements.withDamage({ direct: this }, () => e.hurt(this.owner && this.owner.isPlayer ? d : (e.isPlayer ? d : d), 'arrow', this.owner || this));
     if (ok) {
       if (fire) e.fireTicks = Math.max(e.fireTicks || 0, 100);
       if (this.knock > 0 && e.knockback) { const h = Math.hypot(this.vx, this.vz) || 1; e.knockback(0, 0, 0); e.vx += this.vx / h * this.knock * 0.6; e.vy += 0.1; e.vz += this.vz / h * this.knock * 0.6; }
@@ -99,7 +99,7 @@ class ThrownItem extends Projectile {
   onEntity(e) {
     if (this.kind === 'snowball') { e.hurt(e.type === 'blaze' ? 3 : 0, 'projectile', this.owner || this); if (e.knockback) e.knockback(0.4, -this.vx, -this.vz); }
     else if (this.kind === 'egg') { e.hurt(0, 'projectile', this.owner || this); if (e.knockback) e.knockback(0.4, -this.vx, -this.vz); }
-    else if (this.kind === 'wind_charge') { e.hurt(1, 'projectile', this.owner || this); }
+    else if (this.kind === 'wind_charge') { Advancements.withDamage({ direct: this }, () => e.hurt(1, 'projectile', this.owner || this)); }
     this.impact();
   }
   onBlock(hit) { if (this.kind === 'wind_charge' && Redstone.windCharge) Redstone.windCharge(hit); this.impact(hit); }
@@ -146,9 +146,9 @@ class Trident extends Arrow {
   onEntity(e) {
     if (this.dealt) return false;
     let d = 8; const imp = enchLevel(this.stackItem, 'impaling'); if (imp && (e.inWater || Weather.rainingAt(e.x, e.y, e.z) || ['squid', 'glow_squid', 'cod', 'salmon', 'tropical_fish', 'pufferfish', 'dolphin', 'guardian', 'elder_guardian', 'turtle', 'axolotl'].includes(e.type))) d += 2.5 * imp;
-    if (e.hurt(d, 'trident', this.owner || this)) Sound.play('trident_hit', this);
+    if (Advancements.withDamage({ direct: this }, () => e.hurt(d, 'trident', this.owner || this))) Sound.play('trident_hit', this);
     this.dealt = true; this.vx *= -0.01; this.vy *= -0.1; this.vz *= -0.01;
-    if (enchLevel(this.stackItem, 'channeling') && Weather.thundering && Weather.thundering() && World.skyLight(Math.floor(e.x), Math.floor(e.y) + 1, Math.floor(e.z)) >= 15) Weather.lightning(e.x, e.y, e.z);
+    if (enchLevel(this.stackItem, 'channeling') && Weather.thundering && Weather.thundering() && World.skyLight(Math.floor(e.x), Math.floor(e.y) + 1, Math.floor(e.z)) >= 15) { Weather.lightning(e.x, e.y, e.z); if (this.owner && this.owner.isPlayer) Advancements.fire('channeled_lightning', { victims: [e] }); }
     if (this.loyalty) this.returning = true;
   }
   tick() {
@@ -270,8 +270,9 @@ const Projectiles = (() => {
       const a = arrowFrom(p, Object.assign({}, ammo, { free: ang !== 0 || ammo.free })); a.pierce = enchLevel(s, 'piercing'); a.dmg = 2;
       const yaw = p.yaw + ang * Math.PI / 180, cp = Math.cos(p.pitch);
       shoot(a, -Math.sin(yaw) * cp, -Math.sin(p.pitch), -Math.cos(yaw) * cp, 3.15, 1);
-      a.crit = true; Entities.add(a);
+      a.crit = true; a.fromCrossbow = true; Entities.add(a);
     }
+    if (p.isPlayer) Advancements.fire('shot_crossbow', { item: s });
     p.inv.damageHeld(multi ? 3 : 1, p);
     Sound.play('crossbow_shoot', p);
   }
@@ -409,6 +410,7 @@ const Explosions = (() => {
       e.vx += dx / l * k; e.vy += dy / l * k; e.vz += dz / l * k;
       // launched by wind: falling only counts from here
       if (e.isPlayer || e.living) e.fallDistance = 0;
+      if (e.isPlayer) e.launchedBy = { x: e.x, y: e.y, z: e.z, cause: owner && owner.kind === 'wind_charge' ? owner : { type: 'wind_charge' }, t: Game.gameTime };
     }
   }
   return { explode, primeTnt, spawnTnt, wind, PrimedTnt, exposure };

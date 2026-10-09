@@ -239,8 +239,9 @@ const LootTables = (() => {
     if (!be || !be.loot) return;
     if (!be.items) be.items = new Array(27).fill(null);
     fill(be.items, be.loot.startsWith('chests/') || be.loot.includes('/') ? be.loot : 'chests/' + be.loot, be.seed, { luck: p && p.effect ? (p.effect('luck') ? p.effect('luck').amp + 1 : 0) - (p.effect('unluck') ? p.effect('unluck').amp + 1 : 0) : 0 });
+    const table = be.loot.replace(/^minecraft:/, '');
     be.loot = null; be.seed = undefined;
-    Advancements.check && Advancements.check('loot', be);
+    if (p && p.isPlayer) Advancements.fire('player_generates_container_loot', { loot: table.includes('/') ? table : 'chests/' + table });
   }
   return { roll, fill, unpackContainer, has: n => !!T()[strip(n)], num };
 })();

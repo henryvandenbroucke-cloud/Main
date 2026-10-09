@@ -536,7 +536,7 @@ const Vehicles = (() => {
     e.vehicle = v; v.passengers.push(e);
     GameEvents.emit('entity_mount', v.x, v.y, v.z, e);
     e.vx = e.vy = e.vz = 0; e.fallDistance = 0;
-    if (e.isPlayer) { e.flying = false; e.sprinting = false; e.mountedAt = Game.gameTime; HUD.actionBar && HUD.actionBar('Press Shift to Dismount'); }
+    if (e.isPlayer) { Advancements.fire('started_riding'); e.flying = false; e.sprinting = false; e.mountedAt = Game.gameTime; HUD.actionBar && HUD.actionBar('Press Shift to Dismount'); }
     if (e.nav) e.nav.stop && e.nav.stop();
     const s = seat(v, e); e.x = e.px = s[0]; e.y = e.py = s[1]; e.z = e.pz = s[2];
     return true;
@@ -586,7 +586,7 @@ const Vehicles = (() => {
       // an untamed horse bucks its rider off now and then until it trusts them
       if (!m.tame && t !== 'camel' && t !== 'skeleton_horse') {
         if (rnd(25) === 0) {
-          if (rnd(100) < (m.temper || 0)) { m.tame = true; m.owner = 'player'; Particles.heart(m, 7); }
+          if (rnd(100) < (m.temper || 0)) { m.tame = true; m.owner = 'player'; Advancements.fire('tame_animal', { entity: m }); Particles.heart(m, 7); }
           else { m.temper = Math.min(100, (m.temper || 0) + 5); dismount(p); Sound.play(t + '_hurt', m); Particles.smoke(m); return true; }
         }
         m.forward = 0; return true;
@@ -614,7 +614,7 @@ const Vehicles = (() => {
     const m = p.vehicle, n = ITEMS[s.id].name;
     if (!m || STEER[m.type] !== n || !m.saddled || m.boostTime > 0) return false;
     m.boostTotal = m.boostTime = 140 + rnd(841);
-    if (!p.creative) { s.dmg = (s.dmg || 0) + 7; if (s.dmg >= ITEMS[s.id].dur) { p.inv.held = stack('fishing_rod'); } }
+    if (!p.creative) { s.dmg = (s.dmg || 0) + 7; Advancements.fire('item_durability_changed', { item: s, durability: ITEMS[s.id].dur - s.dmg, delta: -7 }); if (s.dmg >= ITEMS[s.id].dur) { p.inv.held = stack('fishing_rod'); } }
     return true;
   }
   // ---------------------------------------------------------------- spawning and saving

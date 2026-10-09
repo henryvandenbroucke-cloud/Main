@@ -155,7 +155,7 @@ const Withers = (() => {
     const w = Mobs.create('wither', x, y, z); if (!w) return null;
     w.makeInvulnerable(); w.yaw = w.bodyYaw = 0;
     Entities.add(w);
-    Advancements.check && Advancements.check('summon_wither');
+    Advancements.fire('summoned_entity', { entity: w });
     return w;
   }
   function tick() {

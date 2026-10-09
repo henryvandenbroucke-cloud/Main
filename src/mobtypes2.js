@@ -136,7 +136,7 @@
   class Parrot extends Flyer {
     constructor(t, x, y, z) { super('parrot', x, y, z); this.tame = false; this.flap = 0; this.flySpeed = 0.15; }
     aiFly() { if (this.onGround && rnd(80) !== 0 && !this.dest) { this.noGravity = false; return; } this.noGravity = true; this.flap += 0.3; }
-    onInteract(p, s) { const n = s ? ITEMS[s.id].name : ''; if (!this.tame && SEEDS.includes(n)) { this.useFood(p, s); if (rnd(10) === 0) { this.tame = true; this.persistent = true; Particles.heart(this, 7); } else Particles.smoke(this); return true; } if (n === 'cookie') { this.useFood(p, s); this.addEffect('poison', 900, 0); this.hurt(100, 'magic', p); return true; } return false; }
+    onInteract(p, s) { const n = s ? ITEMS[s.id].name : ''; if (!this.tame && SEEDS.includes(n)) { this.useFood(p, s); if (rnd(10) === 0) { this.tame = true; Advancements.fire('tame_animal', { entity: this }); this.persistent = true; Particles.heart(this, 7); } else Particles.smoke(this); return true; } if (n === 'cookie') { this.useFood(p, s); this.addEffect('poison', 900, 0); this.hurt(100, 'magic', p); return true; } return false; }
     animState(s) { s.flying = !this.onGround; s.flap = Math.abs(Math.sin(this.flap)) * 0.6; }
   }
   reg('parrot', Parrot);
@@ -221,7 +221,7 @@
       if (World.dim !== 'nether' && ++this.zombify > 300) { const z = Mobs.spawnEntity('zombified_piglin', this.x, this.y, this.z); if (z) { z.equip.main = this.equip.main; z.addEffect('nausea', 200, 0); } this.removed = true; }
       // admiring gold: bartering
       if (this.admire > 0 && --this.admire === 0) { if (this.admireItem && ITEMS[this.admireItem.id].name === 'gold_ingot') for (const s of LootTables.roll('gameplay/piglin_bartering', { entity: this })) Drops.spawnItem(this.x - Math.sin(this.yaw), this.y + 1, this.z - Math.cos(this.yaw), s); else if (this.admireItem) Drops.spawnItem(this.x, this.y + 1, this.z, this.admireItem); this.admireItem = null; this.equip.off = null; }
-      if (!this.admire && this.type === 'piglin') for (const e of Entities.list) if (e.type === 'item' && !e.removed && e.pickupDelay <= 0 && e.dist2(this.x, this.y, this.z) < 3 && ['gold_ingot', 'golden_apple', 'gold_block', 'gold_nugget', 'golden_carrot', 'raw_gold', 'golden_sword', 'golden_helmet', 'bell', 'clock'].includes(ITEMS[e.stack.id].name)) { this.admireItem = Object.assign({}, e.stack, { count: 1 }); e.stack.count--; if (!e.stack.count) e.removed = true; this.equip.off = this.admireItem; this.admire = 120; this.target = null; this.nav.stop(); break; }
+      if (!this.admire && this.type === 'piglin') for (const e of Entities.list) if (e.type === 'item' && !e.removed && e.pickupDelay <= 0 && e.dist2(this.x, this.y, this.z) < 3 && ['gold_ingot', 'golden_apple', 'gold_block', 'gold_nugget', 'golden_carrot', 'raw_gold', 'golden_sword', 'golden_helmet', 'bell', 'clock'].includes(ITEMS[e.stack.id].name)) { if (e.thrower && e.thrower.isPlayer) Advancements.fire('thrown_item_picked_up_by_entity', { entity: this, item: e.stack }); this.admireItem = Object.assign({}, e.stack, { count: 1 }); e.stack.count--; if (!e.stack.count) e.removed = true; this.equip.off = this.admireItem; this.admire = 120; this.target = null; this.nav.stop(); break; }
       if (this.admire) { this.nav.stop(); this.target = null; }
     }
     onInteract(p, s) { if (s && ITEMS[s.id].name === 'gold_ingot' && this.type === 'piglin' && !this.admire && !this.target) { this.admireItem = Object.assign({}, s, { count: 1 }); this.equip.off = this.admireItem; this.admire = 120; if (!p.creative) { s.count--; if (!s.count) p.inv.held = null; } return true; } return false; }
@@ -389,7 +389,7 @@
     tick() { this.vx += this.accel[0]; this.vy += this.accel[1]; this.vz += this.accel[2]; super.tick(); Particles.smoke({ x: this.x, y: this.y + this.h / 2, z: this.z, w: 0, h: 0 }, 1); if (++this.life2 > 400) this.removed = true; }
     onEntity(e) {
       if (e === this.owner) return false;
-      if (this.big) { e.hurt(6, 'fireball', this.owner || this); this.explode(); }
+      if (this.big) { Advancements.withDamage({ direct: this }, () => e.hurt(6, 'fireball', this.owner || this)); this.explode(); }
       else { if (!e.fireImmune && e.hurt(5, 'fireball', this.owner || this)) e.fireTicks = Math.max(e.fireTicks || 0, 100); this.removed = true; }
     }
     onBlock(hit) { if (this.big) this.explode(); else { this.removed = true; const x = hit.x + DX[hit.face], y = hit.y + DY[hit.face], z = hit.z + DZ[hit.face]; if (Game.rules.mobGriefing && World.getBlock(x, y, z) === 0) World.setBlock(x, y, z, BID.fire, 0); } }

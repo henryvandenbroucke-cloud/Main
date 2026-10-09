@@ -110,6 +110,8 @@ const GameEvents = (() => {
     else if (L.kind === 'warden') { if (!FREQ[ev] && ev !== 'shriek' && ev !== 'sculk_sensor_tendrils_clicking') return; }
     else if (!FREQ[ev]) return;
     if (L.cur) return;
+    // Sneak 100: a sensor or warden in range didn't hear a sneaking player
+    if (src && src.isPlayer && src.sneaking && SNEAK.has(ev) && L.kind !== 'shrieker') Advancements.fire('avoid_vibration');
     if (!valid(ev, src, affected)) return;
     if (L.kind === 'warden' ? !L.warden.canHear() : !canReceive(L, ev, x, y, z, src)) return;
     if (occluded(x, y, z, lx, ly, lz)) return;

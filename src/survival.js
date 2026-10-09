@@ -21,6 +21,7 @@ const Beds = (() => {
     if (World.getState(hx, hy, hz) & 16) { HUD.actionBar('This bed is occupied'); return true; }
     // lie down
     p.sleeping = { x: hx + 0.5, y: hy + 0.5625, z: hz + 0.5, f: st & 7 }; p.sleepTimer = 0;
+    Advancements.fire('slept_in_bed', { pos: [hx, hy, hz] });
     p.x = p.px = hx + 0.5; p.y = p.py = hy + 0.5625; p.z = p.pz = hz + 0.5; p.vx = p.vy = p.vz = 0;
     World.setState(hx, hy, hz, World.getState(hx, hy, hz) | 16);
     Stats.add('custom', 'sleep_in_bed'); Stats.timeSinceRest = 0;
@@ -181,7 +182,7 @@ const Golems = (() => {
         for (const [ax, az] of [[1, 0], [0, 1]]) {
           if (World.getBlock(x + ax, y - 1, z + az) === B.iron_block && World.getBlock(x - ax, y - 1, z - az) === B.iron_block && World.getBlock(x + ax, y - 2, z + az) !== B.iron_block && World.getBlock(x - ax, y - 2, z - az) !== B.iron_block) {
             for (const [bx, by, bz] of [[x, y, z], [x, y - 1, z], [x, y - 2, z], [x + ax, y - 1, z + az], [x - ax, y - 1, z - az]]) { Particles.blockBreak(bx, by, bz, World.getBlock(bx, by, bz), 0); World.setBlock(bx, by, bz, 0, 0); }
-            const g = Mobs.spawn('iron_golem', x + 0.5, y - 2, z + 0.5, { force: true }); if (g) g.playerMade = true;
+            const g = Mobs.spawn('iron_golem', x + 0.5, y - 2, z + 0.5, { force: true }); if (g) { g.playerMade = true; Advancements.fire('summoned_entity', { entity: g }); }
             return;
           }
         }

@@ -158,7 +158,7 @@ const Interact = (() => {
     if (crit) dmg *= 1.5;
     const total = dmg + ench;
     p.breach = enchLevel(held, 'breach');
-    const hit = e.hurt(Math.max(0, total), 'player', p);
+    const hit = Advancements.withDamage({ tags: smash ? ['mace_smash'] : [] }, () => e.hurt(Math.max(0, total), 'player', p));
     p.breach = 0;
     p.lastAttacked = e; p.lastAttackTime = p.age; if (hit) Stats.add('custom', 'damage_dealt', total);
     if (!hit) { Sound.play('attack_nodamage', p); return; }
@@ -184,7 +184,7 @@ const Interact = (() => {
     if (p.spectator || p.dead) return;
     const held = p.inv.held;
     // entities first (feeding, riding, trading, shearing...)
-    if (entTarget && entTarget.interact) { if (entTarget.interact(p, held)) { p.swingArm(); return true; } }
+    if (entTarget && entTarget.interact) { const was = held ? Object.assign({}, held) : null, who = entTarget; if (entTarget.interact(p, held)) { p.swingArm(); Advancements.fire('player_interacted_with_entity', { entity: who, item: was }); return true; } }
     if (target) {
       const t = target;
       // using the block (unless sneaking with an item in hand)

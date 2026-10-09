@@ -105,7 +105,7 @@ class EnchantScreen extends Screens.Screen {
     this.items[0] = Enchant.apply(Stations.clone(s), l);
     if (!p.creative) { const lap = this.items[1]; lap.count -= j + 1; if (lap.count <= 0) this.items[1] = null; p.addLevels(-(j + 1)); }
     p.enchSeed = (Math.random() * 2147483647) | 0;
-    Stats.add('custom', 'enchant_item'); Advancements.onEnchant && Advancements.onEnchant();
+    Stats.add('custom', 'enchant_item'); Advancements.fire('enchanted_item', { item: this.items[0], levels: j + 1 });
     Sound.play('enchant', null, Object.assign({}, this.pos));
     this.update(); Screens.render();
   }
@@ -413,6 +413,9 @@ class SmithingScreen extends Screens.Screen {
     }
   }
   take() {
+    // the recipe's id: a trim is <template>_smithing_trim, an upgrade <result>_smithing
+    const tn = this.items[0] && Stations.nameOf(this.items[0]), rn = this.result && ITEMS[this.result.id].name;
+    if (tn) Advancements.fire('recipe_crafted', { recipe: tn.endsWith('_armor_trim_smithing_template') ? tn + '_smithing_trim' : rn + '_smithing', ingredients: this.items.filter(Boolean).map(s => Object.assign({}, s)) });
     for (let i = 0; i < 3; i++) { const s = this.items[i]; if (!s) continue; s.count--; if (s.count <= 0) this.items[i] = null; }
     Sound.play('smithing_table_use', null, this.pos);
     this.update();
@@ -448,6 +451,8 @@ const Brewing = (() => {
     if (Stations.nameOf(ing) === 'dragon_breath') { const bottle = stack('glass_bottle'); if (ing.count <= 0) it[3] = bottle; else Drops.spawnItem(be.x + 0.5, be.y + 1, be.z + 0.5, bottle); }
     if (ing.count <= 0 && it[3] === ing) it[3] = null;
     Sound.play('brewing_stand_brew', null, { x: be.x, y: be.y, z: be.z });
+    // the potions are the brewer's (whoever is at the stand)
+    const pl = Game.player; if (pl && (pl.x - be.x) ** 2 + (pl.y - be.y) ** 2 + (pl.z - be.z) ** 2 < 64) for (let i = 0; i < 3; i++) if (it[i] && it[i].tag && it[i].tag.potion) Advancements.fire('brewed_potion', { potion: it[i].tag.potion });
   }
   return { tick, isBottle, brewable };
 })();
@@ -527,6 +532,7 @@ const Beacons = (() => {
     const segs = beam(x, y, z);
     be.levels = segs ? levelsAt(x, y, z) : 0;
     if (be.levels > 0 && segs) active.set(key, { x, y, z, levels: be.levels, segs }); else active.delete(key);
+    const pl = Game.player; if (be.levels > 0 && pl && Math.abs(pl.x - x - 0.5) <= 10.5 && Math.abs(pl.z - z - 0.5) <= 10.5 && pl.y >= y - 9 && pl.y <= y + 6) Advancements.fire('construct_beacon', { level: be.levels });
     BeaconBeams.dirty = true;
     if (be.levels <= 0 || !be.primary) return;
     // powers: range 10 + 10 per level, 9 + 2 per level seconds, level II when both powers are the same

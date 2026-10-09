@@ -119,8 +119,8 @@ class Drowned extends Zombie {
 reg('drowned', Drowned);
 class ZombieVillager extends Zombie {
   constructor(t, x, y, z) { super('zombie_villager', x, y, z); this.curing = 0; }
-  onInteract(p, s) { if (s && ITEMS[s.id].name === 'golden_apple' && this.effect('weakness') && !this.curing) { this.curing = 3600 + rnd(2400); if (!p.creative) { s.count--; if (!s.count) p.inv.held = null; } this.persistent = true; Sound.play('zombie_villager_cure', this); return true; } return false; }
-  aiStep() { super.aiStep(); if (this.curing > 0 && --this.curing === 0) { const v = Mobs.spawnEntity('villager', this.x, this.y, this.z); if (v) { v.addEffect('nausea', 200, 0); v.profession = this.profession || null; } this.removed = true; } }
+  onInteract(p, s) { if (s && ITEMS[s.id].name === 'golden_apple' && this.effect('weakness') && !this.curing) { this.curing = 3600 + rnd(2400); this.curer = p; if (!p.creative) { s.count--; if (!s.count) p.inv.held = null; } this.persistent = true; Sound.play('zombie_villager_cure', this); return true; } return false; }
+  aiStep() { super.aiStep(); if (this.curing > 0 && --this.curing === 0) { const v = Mobs.spawnEntity('villager', this.x, this.y, this.z); if (v) { v.addEffect('nausea', 200, 0); v.profession = this.profession || null; if (this.curer && this.curer.isPlayer) Advancements.fire('cured_zombie_villager', { zombie: this, villager: v }); } this.removed = true; } }
 }
 reg('zombie_villager', ZombieVillager);
 class AbstractSkeleton extends Monster {
@@ -465,7 +465,7 @@ class Wolf extends Tameable {
   get angry() { return !!this.target && !this.target.dead; }
   onInteract(p, s) {
     const n = s ? ITEMS[s.id].name : '';
-    if (!this.tame && n === 'bone' && !this.angry) { if (!p.creative) { s.count--; if (!s.count) p.inv.held = null; } if (rnd(3) === 0) { this.tame = true; this.persistent = true; this.sitting = true; this.nav.stop(); this.target = null; this.maxHealth = 40; this.health = 40; Particles.heart && Particles.heart(this, 7); } else Particles.smoke && Particles.smoke(this); return true; }
+    if (!this.tame && n === 'bone' && !this.angry) { if (!p.creative) { s.count--; if (!s.count) p.inv.held = null; } if (rnd(3) === 0) { this.tame = true; Advancements.fire('tame_animal', { entity: this }); this.persistent = true; this.sitting = true; this.nav.stop(); this.target = null; this.maxHealth = 40; this.health = 40; Particles.heart && Particles.heart(this, 7); } else Particles.smoke && Particles.smoke(this); return true; }
     if (this.tame) {
       if (this.isFood(s) && this.health < this.maxHealth) { this.heal(ITEMS[s.id].food ? ITEMS[s.id].food[0] : 2); this.useFood(p, s); return true; }
       if (n.endsWith('_dye')) { this.collar = n.replace('_dye', ''); if (!p.creative) { s.count--; if (!s.count) p.inv.held = null; } return true; }
@@ -496,7 +496,7 @@ class Cat extends Tameable {
   }
   onInteract(p, s) {
     const n = s ? ITEMS[s.id].name : '';
-    if (!this.tame && (n === 'cod' || n === 'salmon') && this.type === 'cat') { this.useFood(p, s); if (rnd(3) === 0) { this.tame = true; this.persistent = true; this.sitting = true; Particles.heart && Particles.heart(this, 7); } else Particles.smoke && Particles.smoke(this); return true; }
+    if (!this.tame && (n === 'cod' || n === 'salmon') && this.type === 'cat') { this.useFood(p, s); if (rnd(3) === 0) { this.tame = true; Advancements.fire('tame_animal', { entity: this }); this.persistent = true; this.sitting = true; Particles.heart && Particles.heart(this, 7); } else Particles.smoke && Particles.smoke(this); return true; }
     if (this.tame && !this.isFood(s)) { this.sitting = !this.sitting; this.nav.stop(); return true; }
     return false;
   }

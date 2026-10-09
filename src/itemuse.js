@@ -8,6 +8,7 @@ const ItemUse = (() => {
   const swapHeld = (p, s, offhand) => { if (offhand) p.inv.set(40, s); else p.inv.held = s; };
   // replace one of the held stack with another item (filling buckets and bottles)
   function exchange(p, offhand, newStack) {
+    if (newStack && ITEMS[newStack.id].name.endsWith('_bucket') && p.isPlayer) Advancements.fire('filled_bucket', { item: newStack });
     if (p.creative) { if (p.inv.find(s => sameItem(s, newStack)) < 0) p.inv.addItem(newStack); return; }
     const s = offhand ? p.inv.offhand : p.inv.held;
     if (s.count === 1) { swapHeld(p, newStack, offhand); return; }
@@ -26,6 +27,7 @@ const ItemUse = (() => {
   function onBlock(p, s, hit, offhand) {
     const it = ITEMS[s.id], n = it.name, { x, y, z } = hit, id = World.getBlock(x, y, z), st = World.getState(x, y, z), d = BLOCKS[id];
     const up = World.getBlock(x, y + 1, z);
+    if (p.isPlayer) Advancements.fire('item_used_on_block', { pos: [x, y, z], item: s });
     if (p.gamemode === 'adventure' && it.block >= 0) return false;
     // a brush sweeps whatever block it is used on (see Archaeology)
     if (n === 'brush') { startUse(p, s, offhand, 200); return true; }
@@ -223,19 +225,21 @@ const ItemUse = (() => {
     const it = ITEMS[s.id], n = it.name;
     if ((it.food || n === 'potion' || n === 'milk_bucket' || n === 'honey_bottle' || n === 'ominous_bottle') && p.useTicks % 4 === 0 && p.useTicks > 7) { Sound.play(it.food ? 'eat' : 'drink', p); if (it.food) Particles.eat && Particles.eat(p, s); }
     if (n === 'crossbow' && p.useTicks === Math.max(5, 25 - 5 * enchLevel(s, 'quick_charge'))) { Sound.play('crossbow_loaded', p); }
+    if (n === 'spyglass' && p.useTicks % 5 === 0) Advancements.fire('using_item', { item: s });
     if (n === 'brush') { Archaeology.brushTick(p, s); if (!p.using) return; }
     if (p.useTicks >= p.useMax) finishUse(p);
   }
   function finishUse(p) {
     const s = p.using, it = ITEMS[s.id], n = it.name;
     p.using = null;
+    if (it.food || ['potion', 'milk_bucket', 'honey_bottle', 'ominous_bottle'].includes(n)) Advancements.fire('consume_item', { item: Object.assign({}, s) });
     if (it.food) {
       p.eat(it.food[0], it.food[1] / Math.max(1, it.food[0]) / 2);
       for (const f of it.foodFx || []) { if (f[0] === 'clear') { p.removeEffect(f[1]); continue; } if (Math.random() < (f[3] === undefined ? 1 : f[3])) p.addEffect(f[0], f[1], f[2]); }
       if (n === 'suspicious_stew' && s.tag && s.tag.effect) p.addEffect(s.tag.effect, s.tag.dur || 160, 0);
       if (n === 'chorus_fruit') chorusTeleport(p);
       Sound.play('burp', p);
-      Stats.add('used', n); Advancements.onEat && Advancements.onEat(n);
+      Stats.add('used', n);
       if (!p.creative) { s.count--; if (s.count <= 0) swapHeld(p, it.leftover ? stack(it.leftover) : null, p.useOff); else if (it.leftover) { const l = p.inv.addItem(stack(it.leftover)); if (l) drop(p, l); } p.inv.changed(); }
       if (n === 'chorus_fruit') cooldown(p, n, 20);
       return;
@@ -270,7 +274,8 @@ const ItemUse = (() => {
       if (Phys.boxFree(x - 0.3, y, z - 0.3, x + 0.3, y + 1.8, z + 0.3) && SOLID[World.getBlock(Math.floor(x), y - 1, Math.floor(z))]) { p.x = x; p.y = y; p.z = z; p.vx = p.vy = p.vz = 0; p.fallDistance = 0; Sound.play('teleport', p); return; }
     }
   }
-  return { onBlock, inAir, tickUse, release, drop, boneMeal, consumeFrom, exchange };
+  function onBlockAfter(p, s, hit, offhand) { const was = s ? Object.assign({}, s) : null, r = onBlock(p, s, hit, offhand); if (r && p.isPlayer) Advancements.fire('item_used_on_block', { pos: [hit.x, hit.y, hit.z], item: was }); return r; }
+  return { onBlock: onBlockAfter, inAir, tickUse, release, drop, boneMeal, consumeFrom, exchange };
 })();
 
 /* Cauldrons hold water (3 levels), lava or powder snow; buckets and bottles fill and empty them, they wash

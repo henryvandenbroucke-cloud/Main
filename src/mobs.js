@@ -399,6 +399,8 @@ class Mob extends Living {
     const res = this.effect('resistance'); if (res) amount *= Math.max(0, 1 - 0.2 * (res.amp + 1));
     if (attacker) { this.lastHurtBy = attacker.owner || attacker; this.lastHurtTime = this.age; if (attacker.isPlayer || (attacker.owner && attacker.owner.isPlayer)) this.lastHurtByPlayer = 100; }
     this.health -= amount;
+    const byPlayer = attacker && (attacker.isPlayer || (attacker.owner && attacker.owner.isPlayer));
+    if (byPlayer) { this.lastDmgCtx = Advancements.damageCtx(this, amount, source, attacker); Advancements.fire('player_hurt_entity', this.lastDmgCtx); }
     GameEvents.emit('entity_damage', this.x, this.y, this.z, attacker ? attacker.owner || attacker : null);
     if (this.onHurt) this.onHurt(amount, source, attacker);
     if (this.health <= 0) this.die(source, attacker);
@@ -435,6 +437,14 @@ class Mob extends Living {
     this.killer = attacker;
     if (Game.rules.doMobLoot && !this.baby) this.dropLoot(source, attacker);
     if (attacker && attacker.isPlayer) Stats.add('killed', this.type);
+    if (attacker && (attacker.isPlayer || (attacker.owner && attacker.owner.isPlayer))) {
+      const x = this.lastDmgCtx || Advancements.damageCtx(this, 0, source, attacker);
+      Advancements.fire('player_killed_entity', x);
+      // killed by a crossbow bolt: the bolt remembers everything it killed (Arbalistic, Two Birds, One Arrow)
+      const bolt = x.direct; if (bolt && bolt.fromCrossbow) { (bolt.victims = bolt.victims || []).push(this); Advancements.fire('killed_by_arrow', { victims: bolt.victims, weapon: stack('crossbow') }); }
+      // a kill a sculk catalyst blooms for
+      if (typeof GameEvents !== 'undefined') for (let dx = -8; dx <= 8; dx += 1) { let found = false; for (let dy = -8; dy <= 8 && !found; dy++) for (let dz = -8; dz <= 8 && !found; dz++) if (World.getBlock(Math.floor(this.x) + dx, Math.floor(this.y) + dy, Math.floor(this.z) + dz) === BID.sculk_catalyst) found = true; if (found) { Advancements.fire('kill_mob_near_sculk_catalyst', { entity: this }); break; } }
+    }
     if (this.onDeath) this.onDeath(source, attacker);
     const k = attacker && (attacker.owner || attacker); if (k && k.onKill) k.onKill(this);
   }
@@ -465,7 +475,7 @@ class Mob extends Living {
     Entities.add(baby);
     Drops.spawnXp(this.x, this.y + 0.5, this.z, 1 + rnd(7));
     Stats.add('bred', this.type);
-    Advancements.check && Advancements.check('breed', this.type);
+    Advancements.fire('bred_animals', { child: baby, parent: this, partner: q });
   }
   setBaby() { this.baby = true; this.ageTicks = -24000; this.w0 = this.w0 || this.w; this.h0 = this.h0 || this.h; this.w = this.w0 / 2; this.h = this.h0 / 2; }
   growUp() { this.baby = false; this.ageTicks = 0; if (this.w0) { this.w = this.w0; this.h = this.h0; } }

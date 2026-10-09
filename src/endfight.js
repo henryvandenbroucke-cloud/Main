@@ -386,7 +386,8 @@ const EndFight = (() => {
       buildGateway(Math.floor(96 * Math.cos(a)), 75, Math.floor(96 * Math.sin(a)));
     }
     HUD.setBoss('dragon', null, null);
-    Advancements.trigger && Advancements.trigger('kill_dragon');
+    // Free the End: however the last hit came (crystals, explosions), the player in the End gets it
+    Advancements.fire('player_killed_entity', { entity: { type: 'ender_dragon', x: 0, y: 70, z: 0, dim: 'end' } });
     Stats.add('killed', 'ender_dragon');
   }
   // an End gateway: the gateway block between two bedrock caps (the game's EndGatewayFeature)

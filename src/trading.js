@@ -180,6 +180,7 @@ const Trading = (() => {
   // ---------------------------------------------------------------- the villager's side
   function trade(v, o, p) {
     o.uses++;
+    if (p && p.isPlayer) Advancements.fire('villager_trade', { villager: v, item: o.out });
     if (v.type !== 'wandering_trader') {
       v.xp = (v.xp || 0) + o.xp;
       if (v.level < 5 && v.xp >= XP_AT[v.level]) v.levelUpIn = 40;

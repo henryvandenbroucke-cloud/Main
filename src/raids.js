@@ -133,7 +133,7 @@ const Raids = (() => {
   }
   function win(r) {
     r.over = 'win'; r.overT = 0;
-    for (const h of r.heroes) if (!h.dead) { h.addEffect('hero_of_the_village', 48000, r.level - 1); Stats && Stats.add && Stats.add('custom', 'raid_win'); }
+    for (const h of r.heroes) if (!h.dead) { h.addEffect('hero_of_the_village', 48000, r.level - 1); if (h.isPlayer) Advancements.fire('hero_of_the_village'); Stats && Stats.add && Stats.add('custom', 'raid_win'); }
     Sound.play('raid_horn', null, { x: r.cx, y: r.cy, z: r.cz });
   }
   // a bell rung during a raid makes the raiders within 48 blocks glow for 3 seconds

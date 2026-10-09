@@ -175,6 +175,9 @@ const Sound = (() => {
   N.pointed_dripstone_land = d => { noise(d, T(), 0.25, 'bandpass', 1800, 1.2, 0.5, 0.005); tone(d, T(), 'triangle', 420, 0.12, 0.15, { to: 200 }); };
   N.pointed_dripstone_drip_water = d => tone(d, T(), 'sine', 1400 + Math.random() * 500, 0.08, 0.12, { to: 700 });
   N.pointed_dripstone_drip_lava = d => { tone(d, T(), 'sine', 500 + Math.random() * 200, 0.1, 0.12, { to: 260 }); noise(d, T(), 0.06, 'lowpass', 900, 1, 0.08); };
+  // advancement toasts: a soft rising chime, and the challenge fanfare
+  N.ui_toast_in = d => { tone(d, T(), 'sine', 880, 0.15, 0.08, { to: 1320 }); };
+  N.ui_toast_challenge_complete = d => { [523, 659, 784, 1047].forEach((f, i) => tone(d, T() + i * 0.12, 'triangle', f, 0.35, 0.16)); };
   // brushing: a soft scratchy sweep (finer for sand, grainier for gravel), and a crumble when the item comes free
   const sweep = (d, f, q, peak) => { noise(d, T(), 0.32, 'bandpass', f, q, peak, 0.06, (fl, t0) => { fl.frequency.setValueAtTime(f * 0.7, t0); fl.frequency.linearRampToValueAtTime(f * 1.3, t0 + 0.3); }); };
   N.brush_generic = d => sweep(d, 3200, 1.2, 0.12);
