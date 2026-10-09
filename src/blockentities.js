@@ -14,6 +14,8 @@ const BlockEntities = (() => {
           case 'beacon': if (typeof Beacons !== 'undefined') Beacons.tick(be); break;
           case 'spawner': Spawners.tick(be); break;
           case 'catalyst': Sculk.catalystTick(be); break;
+          case 'trial_spawner': Trials.tick(be); break;
+          case 'vault': Trials.vaultTick(be); break;
           case 'comparator': Redstone.comparatorPoll(be); break;
           case 'daylight': Redstone.daylightTick(be); break;
           case 'crafter': Crafter.tick(be); break;
@@ -163,6 +165,7 @@ const BlockUse = (() => {
       case 'cake': return false;
       case 'chiseled_bookshelf': return Shelves.use(p, hit, held);
       case 'decorated_pot': return Shelves.pot(p, x, y, z, held);
+      case 'vault': return Trials.vaultUse(p, x, y, z, held);
       case 'tnt': if (hn === 'flint_and_steel' || hn === 'fire_charge') { Explosions.primeTnt(x, y, z, p); if (hn === 'flint_and_steel') p.inv.damageHeld(1, p); else consume(p); return true; } return false;
       case 'sign': case 'oak_sign': default:
         if (Signs.isSign(id)) return Signs.use(p, x, y, z, held);

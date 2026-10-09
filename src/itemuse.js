@@ -94,6 +94,7 @@ const ItemUse = (() => {
     }
     if (n.endsWith('_spawn_egg')) {
       if (d.name === 'spawner') { const be = World.getBE(x, y, z) || Blocks.newBE('spawner'); be.mob = it.mob; World.setBE(x, y, z, be); consumeFrom(p, offhand); return true; }
+      if (d.name === 'trial_spawner') { const be = World.getBE(x, y, z) || Blocks.newBE('trial_spawner'); be.customMob = it.mob; World.setBE(x, y, z, be); consumeFrom(p, offhand); return true; }
       let fx = x + DX[hit.face], fy = y + DY[hit.face], fz = z + DZ[hit.face];
       if (d.replaceable) { fx = x; fy = y; fz = z; }
       const m = Mobs.spawn(it.mob, fx + 0.5, fy, fz + 0.5, { fromEgg: true, name: s.tag && s.tag.name });
@@ -157,7 +158,7 @@ const ItemUse = (() => {
       startUse(p, s, offhand, n === 'dried_kelp' ? 16 : 32); return true;
     }
     switch (n) {
-      case 'potion': case 'milk_bucket': case 'honey_bottle': startUse(p, s, offhand, n === 'honey_bottle' ? 40 : 32); return true;
+      case 'potion': case 'milk_bucket': case 'honey_bottle': case 'ominous_bottle': startUse(p, s, offhand, n === 'honey_bottle' ? 40 : 32); return true;
       case 'bow': if (p.creative || p.inv.find(x => ['arrow', 'spectral_arrow', 'tipped_arrow'].includes(ITEMS[x.id].name)) >= 0 || enchLevel(s, 'infinity')) { startUse(p, s, offhand, 72000); return true; } return false;
       case 'crossbow': if (s.tag && s.tag.charged) { Projectiles.crossbow(p, s); s.tag.charged = null; p.inv.changed(); return true; } if (p.creative || p.inv.find(x => ['arrow', 'spectral_arrow', 'tipped_arrow', 'firework_rocket'].includes(ITEMS[x.id].name)) >= 0) { startUse(p, s, offhand, 72000); return true; } return false;
       case 'trident': if (s.dmg >= it.dur - 1) return false; startUse(p, s, offhand, 72000); return true;
@@ -218,7 +219,7 @@ const ItemUse = (() => {
     if (cur !== s) { p.using = null; return; }
     p.useTicks++;
     const it = ITEMS[s.id], n = it.name;
-    if ((it.food || n === 'potion' || n === 'milk_bucket' || n === 'honey_bottle') && p.useTicks % 4 === 0 && p.useTicks > 7) { Sound.play(it.food ? 'eat' : 'drink', p); if (it.food) Particles.eat && Particles.eat(p, s); }
+    if ((it.food || n === 'potion' || n === 'milk_bucket' || n === 'honey_bottle' || n === 'ominous_bottle') && p.useTicks % 4 === 0 && p.useTicks > 7) { Sound.play(it.food ? 'eat' : 'drink', p); if (it.food) Particles.eat && Particles.eat(p, s); }
     if (n === 'crossbow' && p.useTicks === Math.max(5, 25 - 5 * enchLevel(s, 'quick_charge'))) { Sound.play('crossbow_loaded', p); }
     if (p.useTicks >= p.useMax) finishUse(p);
   }
@@ -239,6 +240,8 @@ const ItemUse = (() => {
     if (n === 'milk_bucket') { p.effects.clear(); p.maxHealth = 20; p.absorption = 0; if (!p.creative) swapHeld(p, stack('bucket'), p.useOff); return; }
     if (n === 'honey_bottle') { p.eat(6, 0.1); p.removeEffect('poison'); if (!p.creative) swapHeld(p, s.count > 1 ? Object.assign(s, { count: s.count - 1 }) : stack('glass_bottle'), p.useOff); return; }
     if (n === 'potion') { Potions.apply(p, s.tag && s.tag.potion, 1); if (!p.creative) swapHeld(p, stack('glass_bottle'), p.useOff); return; }
+    // an ominous bottle: Bad Omen for 100 minutes, its level from the bottle; the bottle is used up
+    if (n === 'ominous_bottle') { p.addEffect('bad_omen', 120000, (s.tag && s.tag.amp) || 0); Sound.play('ominous_bottle_dispose', p); if (!p.creative) { s.count--; if (s.count <= 0) swapHeld(p, null, p.useOff); p.inv.changed(); } return; }
   }
   // releasing right click: bows shoot, crossbows finish charging, tridents are thrown
   function release(p) {

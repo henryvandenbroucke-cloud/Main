@@ -57,6 +57,8 @@ const Blocks = (() => {
     if (name === 'sculk_sensor' || name === 'calibrated_sculk_sensor') return { type: 'sensor', power: 0, freq: 0 };
     if (name === 'sculk_shrieker') return { type: 'shrieker', warning: 0 };
     if (name === 'sculk_catalyst') return { type: 'catalyst', cursors: [] };
+    if (name === 'trial_spawner') return Trials.newBE();
+    if (name === 'vault') return Trials.newVault();
     if (name === 'campfire' || name === 'soul_campfire') return { type: 'campfire', items: [null, null, null, null], times: [0, 0, 0, 0] };
     if (name === 'beacon') return { type: 'beacon', levels: 0, primary: null, secondary: null };
     if (name === 'lectern') return { type: 'lectern', book: null };

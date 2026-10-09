@@ -35,7 +35,7 @@ class AreaEffectCloud extends Entity {
     for (const [e, t] of this.victims) if (this.age >= t) this.victims.delete(e);
     const list = [Game.player].concat(Entities.list);
     for (const e of list) {
-      if (!e || e.removed || e.dead || !e.effects || this.victims.has(e) || e === this.owner) continue;
+      if (!e || e.removed || e.dead || !e.effects || !e.addEffect || this.victims.has(e) || e === this.owner) continue;
       const dx = e.x - this.x, dz = e.z - this.z;
       if (dx * dx + dz * dz > this.radius * this.radius || e.y > this.y + 1 || e.y + e.h < this.y - 0.5) continue;
       this.victims.set(e, this.age + this.reapply);

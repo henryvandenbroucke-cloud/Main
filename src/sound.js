@@ -289,6 +289,26 @@ const Sound = (() => {
   }
   // subtitles (accessibility): a short list in the corner
   function subtitle(name, x, y, z) { if (!Settings.subtitles) return; const t = name.replace(/_/g, ' '); const now = performance.now(); const f = SUBS.find(s => s.t === t); if (f) { f.time = now; f.x = x; f.z = z; } else { SUBS.push({ t, time: now, x, z }); if (SUBS.length > 8) SUBS.shift(); } }
+  // trial spawners and vaults
+  N.trial_spawner_detect_player = d => { tone(d, T(), 'square', 330, 0.12, 0.08, { lp: 1500 }); tone(d, T() + 0.1, 'square', 495, 0.15, 0.08, { lp: 1500 }); };
+  N.trial_spawner_spawn_mob = d => { noise(d, T(), 0.3, 'bandpass', 1500, 1.5, 0.3, 0.01); tone(d, T(), 'sawtooth', 220, 0.2, 0.08, { to: 440, lp: 1800 }); };
+  N.trial_spawner_open_shutter = d => { for (let i = 0; i < 3; i++) noise(d, T() + i * 0.06, 0.05, 'bandpass', 2400, 4, 0.25); tone(d, T(), 'square', 260, 0.25, 0.06, { to: 390, lp: 1500 }); };
+  N.trial_spawner_close_shutter = d => { for (let i = 0; i < 3; i++) noise(d, T() + i * 0.06, 0.05, 'bandpass', 1800, 4, 0.25); tone(d, T(), 'square', 390, 0.25, 0.06, { to: 260, lp: 1500 }); };
+  N.trial_spawner_eject_item = d => { noise(d, T(), 0.12, 'bandpass', 2000, 2, 0.3); tone(d, T(), 'sine', 600, 0.15, 0.1, { to: 900 }); };
+  N.trial_spawner_ominous_activate = d => { tone(d, T(), 'sawtooth', 120, 1.2, 0.18, { to: 60, lp: 900, vib: [5, 10] }); tone(d, T(), 'sine', 900, 1, 0.06, { to: 1500 }); };
+  N.trial_spawner_spawn_item_begin = d => tone(d, T(), 'sine', 500, 0.6, 0.08, { to: 800, attack: 0.2 });
+  N.trial_spawner_spawn_item = d => { noise(d, T(), 0.15, 'bandpass', 1600, 2, 0.2); tone(d, T(), 'sine', 800, 0.2, 0.08, { to: 400 }); };
+  N.trial_spawner_ambient = d => { noise(d, T(), 0.4, 'bandpass', 900, 2, 0.06, 0.1); };
+  N.trial_spawner_ambient_ominous = d => { noise(d, T(), 0.5, 'bandpass', 1300, 2, 0.06, 0.1); tone(d, T(), 'sine', 220, 0.5, 0.03, { vib: [6, 8] }); };
+  N.vault_activate = d => { tone(d, T(), 'sine', 440, 0.3, 0.08, { to: 660 }); tone(d, T() + 0.1, 'sine', 880, 0.3, 0.05); };
+  N.vault_deactivate = d => { tone(d, T(), 'sine', 660, 0.3, 0.08, { to: 440 }); };
+  N.vault_insert_item = d => { noise(d, T(), 0.1, 'bandpass', 2600, 3, 0.25); tone(d, T(), 'square', 300, 0.1, 0.06, { lp: 1200 }); };
+  N.vault_insert_item_fail = d => tone(d, T(), 'square', 160, 0.15, 0.08, { lp: 900 });
+  N.vault_reject_rewarded_player = d => { tone(d, T(), 'square', 200, 0.12, 0.07, { lp: 900 }); tone(d, T() + 0.14, 'square', 150, 0.15, 0.07, { lp: 900 }); };
+  N.vault_open_shutter = d => { for (let i = 0; i < 4; i++) noise(d, T() + i * 0.05, 0.04, 'bandpass', 2400, 4, 0.25); };
+  N.vault_close_shutter = d => { for (let i = 0; i < 4; i++) noise(d, T() + i * 0.05, 0.04, 'bandpass', 1700, 4, 0.25); };
+  N.vault_eject_item = (d, o) => { const k = (o && o.pitch) || 1; noise(d, T(), 0.1, 'bandpass', 2000 * k, 2, 0.25); tone(d, T(), 'sine', 600 * k, 0.15, 0.1, { to: 900 * k }); };
+  N.ominous_bottle_dispose = d => { noise(d, T(), 0.3, 'highpass', 2500, 1, 0.25); tone(d, T(), 'sine', 300, 0.6, 0.08, { to: 150, vib: [8, 20] }); };
   // the mace
   N.mace_smash_air = d => { noise(d, T(), 0.3, 'lowpass', 1200, 1, 0.5, 0.005); tone(d, T(), 'sine', 140, 0.25, 0.4, { to: 60 }); };
   N.mace_smash_ground = d => { tone(d, T(), 'sine', 90, 0.4, 0.7, { to: 35 }); noise(d, T(), 0.45, 'lowpass', 900, 1, 0.6, 0.003); };

@@ -487,6 +487,10 @@ SHARED.push(function blocksModule(G) {
   // ------------------------------------------------------------------ light that depends on the block state
   // (LIGHT holds the most a block can give; lightFn gives the value for a state)
   const lit = (n, fn) => { const d = BLOCKS[BID[n]]; d.lightFn = fn; for (let st = 0; st < 256; st++) d.light = Math.max(d.light, fn(st)); };
+  // trial spawners glow by state (waiting 4, active and rewarding 8); vaults 6 when idle, 12 when lit
+  lit('trial_spawner', s => [0, 4, 8, 8, 8, 0, 0, 0][s & 7]);
+  lit('vault', s => ((s >> 3) & 3) ? 12 : 6);
+  BLOCKS[BID.trial_spawner].stateTex = s => { const k = s & 7, o = s & 8 ? '_ominous' : '', on = k >= 1 && k <= 4; return { up: 'trial_spawner_top_' + (k === 3 || k === 4 ? 'ejecting_reward' : on ? 'active' : 'inactive') + o, down: 'trial_spawner_bottom' + o, side: 'trial_spawner_side_' + (on ? 'active' : 'inactive') + o }; };
   for (const c of [''].concat(COLORS)) { const n = (c ? c + '_' : '') + 'candle'; BLOCKS[BID[n]].light = 12; lit(n, s => (s & 4) ? 3 * ((s & 3) + 1) : 0); lit(n + '_cake', s => (s & 4) ? 3 : 0); }
   OX.forEach((o, i) => {
     const level = [15, 12, 8, 4][i];

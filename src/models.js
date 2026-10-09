@@ -111,6 +111,8 @@ const Models = (() => {
       if (n === 'redstone_lamp' && (s & 1)) return [box(0, 0, 0, 16, 16, 16, 'redstone_lamp_on')];
       if (n === 'respawn_anchor') return [box(0, 0, 0, 16, 16, 16, { up: (s & 7) ? 'respawn_anchor_top' : 'respawn_anchor_top_off', down: 'respawn_anchor_bottom', side: 'respawn_anchor_side' + Math.min(4, s & 7) })];
       if (n === 'jukebox' && (s & 1)) return [box(0, 0, 0, 16, 16, 16, t)];
+      // the vault: its face lights up, opens while ejecting, and turns blue when ominous
+      if (n === 'vault') { const vs = (s >> 3) & 3, o = s & 32 ? '_ominous' : '', side = (vs ? 'vault_side_on' : 'vault_side_off') + o; return rotY([box(0, 0, 0, 16, 16, 16, { up: (vs === 3 ? 'vault_top_ejecting' : 'vault_top') + o, down: 'vault_bottom' + o, north: (vs === 0 ? 'vault_front_off' : vs === 3 ? 'vault_front_ejecting' : 'vault_front_on') + o, south: side, west: side, east: side })], TURNS[s & 7] || 0); }
       // the chiseled bookshelf: facing in the low two bits, the six filled slots above them
       if (n === 'chiseled_bookshelf') { const m = s >> 2, side = 'chiseled_bookshelf_side'; return rotY([box(0, 0, 0, 16, 16, 16, { up: 'chiseled_bookshelf_top', down: 'chiseled_bookshelf_top', north: m ? 'chiseled_bookshelf_' + m : 'chiseled_bookshelf_empty', south: side, west: side, east: side })], TURNS[(s & 3) + 2]); }
       if (d.place === 'facing_h' || d.place === 'facing_h_opp' || d.place === 'facing6' || d.place === 'facing6_opp') {
