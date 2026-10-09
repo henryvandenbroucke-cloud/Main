@@ -55,7 +55,7 @@ const Redstone = (() => {
     if (d.opaque && d.solid && n !== 'redstone_block' && n !== 'observer') COND[i] = 1;
     else if (d.model === 'slab') COND[i] = 2;
     // blocks a comparator can read
-    if (/chest$|^barrel$|shulker_box$|^dispenser$|^dropper$|^hopper$|^furnace$|^blast_furnace$|^smoker$|^brewing_stand$|^jukebox$|^cake$|candle_cake$|^cauldron$|^composter$|^end_portal_frame$|^respawn_anchor$|^beehive$|^bee_nest$|copper_bulb$|^crafter$|^chiseled_bookshelf$|^decorated_pot$|^lectern$|^detector_rail$/.test(n) && n !== 'ender_chest') ANALOG[i] = 1;
+    if (/chest$|^barrel$|shulker_box$|^dispenser$|^dropper$|^hopper$|^furnace$|^blast_furnace$|^smoker$|^brewing_stand$|^jukebox$|^cake$|candle_cake$|^cauldron$|^composter$|^end_portal_frame$|^respawn_anchor$|^beehive$|^bee_nest$|copper_bulb$|^crafter$|^chiseled_bookshelf$|^decorated_pot$|^lectern$|^detector_rail$|sculk_sensor$/.test(n) && n !== 'ender_chest') ANALOG[i] = 1;
   }
   const SIDES = { 2: [4, 5], 3: [4, 5], 4: [2, 3], 5: [2, 3] };
   const getB = (x, y, z) => World.getBlock(x, y, z), getS = (x, y, z) => World.getState(x, y, z);
@@ -111,7 +111,8 @@ const Redstone = (() => {
       case S.HOOK: if (!(st & 16)) return 0; return !strong || f === OPP[st & 7] ? 15 : 0;
       case S.DETECTOR: if (!(st & 16)) return 0; return !strong || f === 0 ? 15 : 0;
       case S.ROD: if (!(st & 8)) return 0; return !strong || f === OPP[st & 7] ? 15 : 0;
-      case S.SENSOR: { const be = World.getBE(x, y, z), p = be && be.power || 0; return !strong || f === 0 ? p : 0; }
+      // sculk sensors: weak power all round, strong into the block below; a calibrated one never powers its amethyst side
+      case S.SENSOR: { if ((st & 3) !== 1) return 0; if (id === B.calibrated_sculk_sensor && f === OPP[(st >> 2) & 7]) return 0; const be = World.getBE(x, y, z), p = be && be.power || 0; return !strong || f === 0 ? p : 0; }
       case S.JUKEBOX: return !strong && (st & 1) ? 15 : 0;
       case S.LECTERN: if (!(st & 16)) return 0; return !strong || f === 0 ? 15 : 0;
     }
@@ -369,6 +370,7 @@ const Redstone = (() => {
     const n = BLOCKS[id].name, st = getS(x, y, z);
     switch (n) {
       case 'cake': return (7 - (st & 7)) * 2;
+      case 'sculk_sensor': case 'calibrated_sculk_sensor': return GameEvents.sensorAnalog(x, y, z);
       case 'cauldron': return ((st >> 2) & 3) === 1 ? 3 : st & 3;
       case 'composter': return st & 15;
       case 'end_portal_frame': return st & 8 ? 15 : 0;

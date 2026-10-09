@@ -111,7 +111,7 @@ const Drops = (() => {
   function xpFor(id, tool) {
     if (enchLevel(tool, 'silk_touch')) return 0;
     const n = BLOCKS[id].name.replace('deepslate_', '');
-    switch (n) { case 'coal_ore': return r(0, 2); case 'diamond_ore': case 'emerald_ore': return r(3, 7); case 'lapis_ore': return r(2, 5); case 'redstone_ore': return r(1, 5); case 'nether_quartz_ore': return r(2, 5); case 'nether_gold_ore': return r(0, 1); case 'spawner': return r(15, 43); }
+    switch (n) { case 'coal_ore': return r(0, 2); case 'diamond_ore': case 'emerald_ore': return r(3, 7); case 'lapis_ore': return r(2, 5); case 'redstone_ore': return r(1, 5); case 'nether_quartz_ore': return r(2, 5); case 'nether_gold_ore': return r(0, 1); case 'spawner': return r(15, 43); case 'sculk': return 1; case 'sculk_sensor': case 'calibrated_sculk_sensor': case 'sculk_shrieker': case 'sculk_catalyst': return 5; }
     return 0;
   }
   // ---------------------------------------------------------------- dropped items

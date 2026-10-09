@@ -81,7 +81,11 @@ class Player extends Living {
     if (this.sleeping && Input.wasPressed('sneak')) Beds.wake(this);
     // walking: exhaustion and step sounds
     const moved = Math.hypot(this.x - this.px, this.z - this.pz);
-    if (this.onGround && moved > 0.001 && !this.flying) { this.stepAcc = (this.stepAcc || 0) + moved; if (this.stepAcc > 1.6 && !this.sneaking) { this.stepAcc = 0; Sound.step(this); } }
+    // (a step is a game event even when sneaking quietly: sculk sensors just don't notice it then)
+    if (this.onGround && moved > 0.001 && !this.flying) { this.stepAcc = (this.stepAcc || 0) + moved; if (this.stepAcc > 1.6) { this.stepAcc = 0; if (!this.sneaking) Sound.step(this); GameEvents.emit('step', this.x, this.y, this.z, this, World.getBlock(Math.floor(this.x), Math.floor(this.y - 0.2), Math.floor(this.z))); } }
+    else if (this.inWater && moved > 0.001 && !this.flying) { this.stepAcc = (this.stepAcc || 0) + moved; if (this.stepAcc > 1.6) { this.stepAcc = 0; GameEvents.emit('swim', this.x, this.y, this.z, this); } }
+    // standing on a sculk sensor or shrieker sets it off
+    if (this.onGround && !this.spectator) { const bx = Math.floor(this.x), by = Math.floor(this.y - 0.2), bz = Math.floor(this.z), b = World.getBlock(bx, by, bz); if (GameEvents.KIND.has(b) && b !== BID.sculk_catalyst) GameEvents.stepOn(this, bx, by, bz, b); }
     if (this.sprinting && this.onGround) this.exhaust(0.1 * moved);
     if (this.inWater && moved > 0) this.exhaust(0.01 * moved);
   }
@@ -152,16 +156,18 @@ class Player extends Living {
     if (this.spectator && source !== 'kill') return false;
     if (Game.difficulty === 'peaceful' && attacker && attacker.hostile) return false;
     if ((source === 'inFire' || source === 'onFire' || source === 'lava' || source === 'hotFloor' || source === 'fireball') && this.effect('fire_resistance')) return false;
-    if (attacker && attacker.hostile && attacker.type !== 'player') amount = Game.scaleDamage(amount);
+    // difficulty scales what mobs (and their arrows and fireballs) do, explosions and sonic booms (once, here)
+    const dealer = attacker && !attacker.living && attacker.owner ? attacker.owner : attacker;
+    if (source === 'explosion' || source === 'sonic_boom' || (dealer && dealer.living && !dealer.isPlayer)) amount = Game.scaleDamage(amount);
     if (this.sleeping) Beds.wake(this);
     // shield blocks attacks from the front
     if (this.using && ITEMS[this.using.id].name === 'shield' && this.useTicks >= 5 && attacker && ['mob', 'arrow', 'explosion', 'fireball'].includes(sourceKind(source))) {
       const ax = attacker.x - this.x, az = attacker.z - this.z, lv = this.lookVec();
-      if (ax * lv[0] + az * lv[2] > 0) { Sound.play('shield_block', this); damageItem(this.using, Math.floor(amount) + 1, this, () => { this.inv.held = null; this.using = null; }); if (attacker.type === 'vindicator' || (attacker.heldAxe)) { this.shieldCooldown = 100; this.using = null; } return false; }
+      if (ax * lv[0] + az * lv[2] > 0) { Sound.play('shield_block', this); damageItem(this.using, Math.floor(amount) + 1, this, () => { this.inv.held = null; this.using = null; }); if (attacker.type === 'vindicator' || attacker.type === 'warden' || (attacker.heldAxe)) { this.shieldCooldown = 100; this.using = null; } return false; }
     }
     if (this.invul > 10) { if (amount <= this.lastDamage) return false; const d = amount - this.lastDamage; this.lastDamage = amount; amount = d; }
     else { this.lastDamage = amount; this.invul = 20; this.hurtTime = 10; }
-    const bypassArmor = ['fall', 'drown', 'starve', 'magic', 'wither', 'outOfWorld', 'inWall', 'kill', 'flyIntoWall', 'freeze'].includes(source);
+    const bypassArmor = ['fall', 'drown', 'starve', 'magic', 'wither', 'outOfWorld', 'inWall', 'kill', 'flyIntoWall', 'freeze', 'sonic_boom'].includes(source);
     if (!bypassArmor) {
       const a = this.armorPts, t = this.toughness;
       amount = amount * (1 - Math.min(20, Math.max(a / 5, a - 4 * amount / (t + 8))) / 25);
@@ -169,7 +175,7 @@ class Player extends Living {
       for (let i = 0; i < 4; i++) { const s = this.inv.armor(i); if (s && ITEMS[s.id].dur) damageItem(s, Math.max(1, Math.floor(this.lastDamage / 4)), this, () => { this.inv.set(36 + i, null); Sound.play('break_item', this); this.updateArmor(); }); }
     }
     const res = this.effect('resistance'); if (res && source !== 'outOfWorld') amount *= Math.max(0, 1 - 0.2 * (res.amp + 1));
-    if (!['outOfWorld', 'starve', 'kill'].includes(source)) {
+    if (!['outOfWorld', 'starve', 'kill', 'sonic_boom'].includes(source)) {
       let epf = this.armorEnchSum('protection');
       if (['inFire', 'onFire', 'lava', 'hotFloor', 'fireball'].includes(source)) epf += 2 * this.armorEnchSum('fire_protection');
       if (source === 'explosion') epf += 2 * this.armorEnchSum('blast_protection');
@@ -181,6 +187,7 @@ class Player extends Living {
     if (this.absorption > 0) { const k = Math.min(this.absorption, amount); this.absorption -= k; amount -= k; }
     this.exhaust(0.1);
     this.health -= amount; Stats.add('custom', 'damage_taken', amount);
+    GameEvents.emit('entity_damage', this.x, this.y, this.z, attacker ? attacker.owner || attacker : null);
     this.lastHurtBy = attacker || null; this.lastHurtTime = this.age;
     if (attacker) { this.hurtDir = Math.atan2(attacker.z - this.z, attacker.x - this.x) * 180 / Math.PI - this.yaw * 180 / Math.PI; }
     Sound.play('player_hurt', this, { source });
@@ -205,12 +212,13 @@ class Player extends Living {
     this.dead = true; this.health = 0; this.deathTime = 0; this.flying = false;
     Stats.add('custom', 'deaths'); if (Stats.raw.custom) Stats.raw.custom.time_since_death = 0; if (this.sleeping) Beds.wake(this);
     this.deathCause = DeathMessages.text(this, source, attacker);
+    GameEvents.emit('entity_die', this.x, this.y, this.z, this);
     Chat.system(this.deathCause);
     if (!Game.rules.keepInventory) {
       for (let i = 0; i < this.inv.size; i++) { const s = this.inv.get(i); if (s && !enchLevel(s, 'vanishing_curse')) Drops.spawnItem(this.x, this.y + 1, this.z, s, true); }
       this.inv.clear();
-      const xp = Math.min(100, this.xpLevel * 7);
-      Drops.spawnXp(this.x, this.y + 0.5, this.z, xp);
+      const xp = this.xpConsumed ? 0 : Math.min(100, this.xpLevel * 7);
+      if (xp > 0) Drops.spawnXp(this.x, this.y + 0.5, this.z, xp);
       this.xpLevel = 0; this.xpProgress = 0; this.xpTotal = 0;
     }
     this.updateArmor();
@@ -220,7 +228,7 @@ class Player extends Living {
     if (World.dim !== sp.dim) Portals.changeDim(sp.dim, sp.x, sp.y, sp.z, true);
     this.x = this.px = sp.x; this.y = this.py = sp.y; this.z = this.pz = sp.z;
     this.vx = this.vy = this.vz = 0; this.dead = false; this.deathTime = 0; this.health = this.maxHealth = 20; this.food = 20; this.saturation = 5; this.exhaustion = 0;
-    this.air = 300; this.fireTicks = 0; this.fallDistance = 0; this.effects.clear(); this.absorption = 0; this.hurtTime = 0;
+    this.air = 300; this.fireTicks = 0; this.fallDistance = 0; this.effects.clear(); this.absorption = 0; this.hurtTime = 0; this.xpConsumed = false;
   }
   // ---------------------------------------------------------------- experience (the game's level curve)
   static xpForLevel(l) { return l >= 30 ? 112 + (l - 30) * 9 : l >= 15 ? 37 + (l - 15) * 5 : 7 + l * 2; }

@@ -205,7 +205,8 @@ const Models = (() => {
       if (s & 2) els.push(box(0, 0, 16 - o, 16, 16, 16 - o, { north: t, south: t }, { tint: true, noCull: true }));
       if (s & 4) els.push(box(o, 0, 0, o, 16, 16, { west: t, east: t }, { tint: true, noCull: true }));
       if (s & 8) els.push(box(16 - o, 0, 0, 16 - o, 16, 16, { west: t, east: t }, { tint: true, noCull: true }));
-      if (s & 16 || !s) els.push(box(0, 16 - o, 0, 16, 16 - o, 16, { up: t, down: t }, { tint: true, noCull: true }));
+      if (s & 16 || !(s & 63)) els.push(box(0, 16 - o, 0, 16, 16 - o, 16, { up: t, down: t }, { tint: true, noCull: true }));
+      if (s & 32) els.push(box(0, o, 0, 16, o, 16, { up: t, down: t }, { tint: true, noCull: true }));
       return els;
     },
     carpet: d => [box(0, 0, 0, 16, 1, 16, d.tex.side)],

@@ -179,6 +179,8 @@ EntityRender = (() => {
       const [sl, bl] = lightAt(x, y + e.h * 0.85, z);
       const flash = (e.hurtTime > 0 || (e.dead && e.deathTime > 0)) ? 1 : 0;
       for (const m of [this.mat, this.matT].concat(this.layers.map(l => l.mat))) if (m) { m.uniforms.uEnv.value.set(e.glow ? 1 : sl, e.glow ? 1 : bl); m.uniforms.uFlash.value = flash; if (e.tint && m === this.mat) m.uniforms.uTint.value.setRGB(e.tint[0], e.tint[1], e.tint[2]); }
+      // glowing layers (the warden's spots and heart) ignore the light
+      for (const l of this.layers) if (l.L.glow) l.mat.uniforms.uEnv.value.set(1, 1);
       this.anim(this.inst, s);
       if (e.baby && d.babyHead) { const h = this.inst.parts.head; if (h) { h.sx = h.sy = h.sz = 1.5; h.y -= d.babyHead / 1.5 * 0; } }
       if (e.posePart) e.posePart(this.inst, s, a);

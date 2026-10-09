@@ -47,6 +47,9 @@ class Entity {
     if (ewater) { const st = World.getState(ex, Math.floor(ey), ez); const top = Math.floor(ey) + (ed.fluid && BLOCKS[World.getBlock(ex, Math.floor(ey) + 1, ez)].fluid !== 'water' ? (8 - (st & 7)) / 9 : 1); this.eyesInWater = ey < top; }
     else this.eyesInWater = false;
     this.eyesInLava = ed.fluid === 'lava';
+    // falling into water: a splash
+    if (this.inWater && this.wasInWater === false && (this.living || this.isPlayer) && !this.spectator) Sound.play('splash', this);
+    this.wasInWater = this.inWater;
     if (this.inWater) { this.fallDistance = 0; }
   }
   distTo(e) { const dx = this.x - e.x, dy = this.y - e.y, dz = this.z - e.z; return Math.sqrt(dx * dx + dy * dy + dz * dz); }
@@ -176,6 +179,7 @@ class Living extends Entity {
       if (World.getBlock(ex, ey, ez) === BID.turtle_egg && this.type !== 'item' && this.type !== 'xp_orb') BlockExtras.trample(this, ex, ey, ez, this.fallDistance > 0);
       if (this.fallDistance > 0) {
         const land = World.getBlock(Math.floor(this.x), Math.floor(this.y - 0.2), Math.floor(this.z));
+        if (this.living || this.isPlayer) GameEvents.emit('hit_ground', this.x, this.y, this.z, this, land);
         this.onLand && this.onLand(this.fallDistance, land);
         let dmg = Math.ceil(this.fallDistance - 3 - (this.effect('jump_boost') ? this.effect('jump_boost').amp + 1 : 0));
         if (land === BID.hay_block) dmg = Math.ceil(dmg * 0.2);
@@ -212,6 +216,14 @@ class Living extends Entity {
     let d = Math.sqrt(dx * dx + dz * dz) * 4; if (d > 1) d = 1;
     this.limbAmount += (d - this.limbAmount) * 0.4; this.limbSwing += this.limbAmount;
     this.walkDist += Math.sqrt(dx * dx + dz * dz) * 0.6;
+    // mobs' steps, strokes and wingbeats are game events (the player's are counted in Player)
+    if (!this.isPlayer && !this.dead && this.walkDist > (this.nextStep || 1)) {
+      this.nextStep = Math.floor(this.walkDist) + 1;
+      if (this.onGround) GameEvents.emit('step', this.x, this.y, this.z, this, World.getBlock(Math.floor(this.x), Math.floor(this.y - 0.2), Math.floor(this.z)));
+      else if (this.inWater) GameEvents.emit('swim', this.x, this.y, this.z, this);
+      else if (FLAPPERS.has(this.type)) GameEvents.emit('flap', this.x, this.y, this.z, this);
+    }
+    if (!this.isPlayer && this.onGround && !this.dead) { const bx = Math.floor(this.x), by = Math.floor(this.y - 0.2), bz = Math.floor(this.z), b = World.getBlock(bx, by, bz); if (GameEvents.KIND.has(b) && b !== BID.sculk_catalyst) GameEvents.stepOn(this, bx, by, bz, b); }
     // swinging the arm
     this.pswing = this.swing;
     if (this.swinging) { this.swingTime++; if (this.swingTime >= 6) { this.swingTime = 0; this.swinging = false; } } else this.swingTime = 0;
@@ -225,5 +237,7 @@ class Living extends Entity {
   }
   swingArm() { if (!this.swinging || this.swingTime >= 3) { this.swingTime = -1; this.swinging = true; } }
 }
+// mobs whose wingbeats are game events
+const FLAPPERS = new Set(['bat', 'bee', 'parrot', 'allay', 'phantom', 'vex', 'chicken']);
 function angleDiff(a, b) { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; }
 function turnToward(a, b, max) { const d = angleDiff(b, a); return a + Math.max(-max, Math.min(max, d)); }

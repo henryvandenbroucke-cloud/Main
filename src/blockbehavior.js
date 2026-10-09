@@ -27,6 +27,7 @@ const Blocks = (() => {
   }
   function onPlaced(x, y, z, id, st, p, s) {
     const d = BLOCKS[id];
+    GameEvents.emit('block_place', x + 0.5, y + 0.5, z + 0.5, p || GameEvents.actor, id);
     BlockExtras.onPlaced(x, y, z, id, st);
     // block entities for containers and machines
     const be = newBE(d.name);
@@ -53,6 +54,9 @@ const Blocks = (() => {
     if (name === 'jukebox') return { type: 'jukebox', disc: null };
     if (name === 'decorated_pot') return { type: 'pot', items: [null] };
     if (name === 'chiseled_bookshelf') return { type: 'bookshelf', items: new Array(6).fill(null) };
+    if (name === 'sculk_sensor' || name === 'calibrated_sculk_sensor') return { type: 'sensor', power: 0, freq: 0 };
+    if (name === 'sculk_shrieker') return { type: 'shrieker', warning: 0 };
+    if (name === 'sculk_catalyst') return { type: 'catalyst', cursors: [] };
     if (name === 'campfire' || name === 'soul_campfire') return { type: 'campfire', items: [null, null, null, null], times: [0, 0, 0, 0] };
     if (name === 'beacon') return { type: 'beacon', levels: 0, primary: null, secondary: null };
     if (name === 'lectern') return { type: 'lectern', book: null };
@@ -93,6 +97,7 @@ const Blocks = (() => {
   function scheduledTick(x, y, z, id, st, water) {
     const d = BLOCKS[id];
     if (d.fluid) return Fluids.tick(x, y, z, id, st);
+    if (!water && typeof Sculk !== 'undefined' && Sculk.scheduledTick(x, y, z, id, st)) return;
     if (water || (((d.waterlog && (st & 128)) || d.fluidLog) && !Redstone.isComponent(id))) { Fluids.tick(x, y, z, B.water, 0); return; }
     if (d.gravity) return Falling.check(x, y, z, id, st);
     if (BlockExtras.scheduledTick(x, y, z, id, st)) return;

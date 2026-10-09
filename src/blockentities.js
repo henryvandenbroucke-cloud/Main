@@ -13,6 +13,7 @@ const BlockEntities = (() => {
           case 'campfire': campfire(be); break;
           case 'beacon': if (typeof Beacons !== 'undefined') Beacons.tick(be); break;
           case 'spawner': Spawners.tick(be); break;
+          case 'catalyst': Sculk.catalystTick(be); break;
           case 'comparator': Redstone.comparatorPoll(be); break;
           case 'daylight': Redstone.daylightTick(be); break;
           case 'crafter': Crafter.tick(be); break;

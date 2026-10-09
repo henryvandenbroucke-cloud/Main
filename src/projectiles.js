@@ -346,7 +346,7 @@ const Explosions = (() => {
       let dx = e.x - x, dy = (e.living || e.isPlayer ? e.eyeY : e.y) - y, dz = e.z - z; const l = Math.hypot(dx, dy, dz); if (l === 0) continue; dx /= l; dy /= l; dz /= l;
       const ex = exposure(x, y, z, e), imp = (1 - d) * ex;
       const dmg = Math.floor((imp * imp + imp) / 2 * 7 * r2 + 1);
-      if (e.hurt && !(e.type === 'item' && false)) e.hurt(e.isPlayer ? Game.scaleDamage(dmg) : dmg, 'explosion', source);
+      if (e.hurt) e.hurt(dmg, 'explosion', source);
       let kb = imp;
       if (e.isPlayer) { const bp = e.armorEnch ? e.armorEnch('blast_protection') : 0; if (bp) kb *= 1 - 0.15 * bp; if (e.creative && e.flying) kb = 0; }
       if (e.living || e.isPlayer || e.type === 'item' || e.type === 'tnt' || e instanceof Projectile || e.blockId !== undefined) { e.vx += dx * kb; e.vy += dy * kb; e.vz += dz * kb; }

@@ -245,6 +245,9 @@ const Sound = (() => {
     generic: { say: null, hurt: d => noise(d, T(), 0.15, 'bandpass', 900, 1, 0.3), death: d => noise(d, T(), 0.3, 'bandpass', 700, 1, 0.3) },
   };
   MOB.mooshroom = MOB.cow; MOB.husk = MOB.zombie; MOB.drowned = { say: d => voice(d, rp(80, 100), 0.9, { lp: 400, bp: 250, q: 2, vib: [3, 12], v: 0.35 }), hurt: MOB.zombie.hurt, death: MOB.zombie.death }; MOB.zombie_villager = MOB.zombie;
+  MOB.warden = { say: d => { voice(d, rp(45, 60), 1.2, { type: 'sawtooth', lp: 300, bp: 120, q: 2, vib: [3, 6], attack: 0.15, v: 0.45 }); noise(d, T(), 1, 'lowpass', 200, 1, 0.12, 0.2); },
+    hurt: d => { voice(d, 90, 0.4, { lp: 500, bp: 200, q: 2, to: 50, v: 0.5 }); noise(d, T(), 0.3, 'lowpass', 400, 1, 0.3); },
+    death: d => { voice(d, 70, 2.2, { lp: 400, bp: 150, q: 2, to: 30, vib: [4, 10], v: 0.5 }); noise(d, T(), 2, 'lowpass', 300, 1, 0.25, 0.3); } };
   MOB.stray = MOB.skeleton; MOB.bogged = MOB.skeleton; MOB.wither_skeleton = MOB.skeleton; MOB.cave_spider = MOB.spider; MOB.magma_cube = MOB.slime; MOB.wandering_trader = MOB.villager; MOB.ocelot = MOB.cat;
   MOB.cod = MOB.fish; MOB.salmon = MOB.fish; MOB.tropical_fish = MOB.fish; MOB.pufferfish = MOB.fish; MOB.glow_squid = MOB.squid;
   N.magma_cube_squish = d => tone(d, T(), 'sine', 160, 0.12, 0.3, { to: 80 }); N.slime_squish = d => tone(d, T(), 'sine', 220, 0.12, 0.3, { to: 120 }); N.slime_jump = d => tone(d, T(), 'sine', 180, 0.1, 0.2, { to: 300 }); N.magma_cube_jump = N.slime_jump;
@@ -252,6 +255,11 @@ const Sound = (() => {
   function blockSoundTo(d, id, kind) { blockSound(id, undefined, undefined, undefined, kind); }
   // ---------------------------------------------------------------- the public API
   function play(name, e, o) {
+    // the sounds of things that sculk sensors and wardens can feel (game events)
+    if (EV[name] && typeof GameEvents !== 'undefined' && Game && Game.player) {
+      const ev = typeof EV[name] === 'function' ? EV[name](o || {}) : EV[name];
+      if (ev) { const [x, y, z] = at(e, o); if (x !== undefined) { const c = o && o.x !== undefined && Number.isInteger(o.x) ? 0.5 : 0; GameEvents.emit(ev, x + c, y + c, z + c, e && e.x !== undefined ? e : GameEvents.actor, o && o.block); } }
+    }
     if (!ready || !Game) return;
     o = o || {};
     let [x, y, z] = at(e, o);
@@ -266,7 +274,7 @@ const Sound = (() => {
       return;
     }
     const fn = N[name]; if (!fn) return;
-    const range = name === 'explode' || name === 'firework_blast' ? 64 : name === 'bell' ? 32 : name === 'goat_horn' ? 256 : name === 'thunder' ? 1e6 : 16;
+    const range = name === 'explode' || name === 'firework_blast' ? 64 : name === 'bell' ? 32 : name === 'goat_horn' ? 256 : name === 'thunder' ? 1e6 : /^warden_(roar|sonic|emerge|dig|nearby|listening|heartbeat|tendril|attack)/.test(name) || name === 'sculk_shrieker_shriek' ? 48 : 16;
     const d = out(name === 'click' || name === 'ui' ? 'ui' : 'sfx', x, y, z, 1, range);
     fn(d, o);
     subtitle(name, x, y, z);
@@ -281,6 +289,48 @@ const Sound = (() => {
   }
   // subtitles (accessibility): a short list in the corner
   function subtitle(name, x, y, z) { if (!Settings.subtitles) return; const t = name.replace(/_/g, ' '); const now = performance.now(); const f = SUBS.find(s => s.t === t); if (f) { f.time = now; f.x = x; f.z = z; } else { SUBS.push({ t, time: now, x, z }); if (SUBS.length > 8) SUBS.shift(); } }
+  // the deep dark
+  N.sculk_clicking = d => { for (let i = 0; i < 7; i++) noise(d, T() + i * 0.045 + Math.random() * 0.02, 0.02, 'bandpass', rp(1800, 3200), 6, 0.3); };
+  N.sculk_clicking_stop = d => { for (let i = 0; i < 3; i++) noise(d, T() + i * 0.07, 0.02, 'bandpass', rp(1500, 2500), 6, 0.2); };
+  N.sculk_shrieker_shriek = d => { tone(d, T(), 'sawtooth', 700, 2.2, 0.12, { to: 900, lp: 2500, vib: [6, 40], attack: 0.3 }); tone(d, T(), 'sine', 1400, 2, 0.06, { to: 1800, vib: [5, 60], attack: 0.4 }); noise(d, T(), 2.2, 'bandpass', 1200, 3, 0.08, 0.4); };
+  N.sculk_catalyst_bloom = (d, o) => { const k = (o && o.pitch) || 1; tone(d, T(), 'sine', 300 * k, 0.8, 0.12, { to: 600 * k, attack: 0.1 }); noise(d, T(), 0.6, 'lowpass', 800, 1, 0.12, 0.15); };
+  N.sculk_block_spread = d => { noise(d, T(), 0.18, 'lowpass', 600, 2, 0.25, 0.01); tone(d, T(), 'sine', 140, 0.12, 0.1, { to: 90 }); };
+  N.amethyst_block_resonate = (d, o) => { const k = (o && o.pitch) || 1; [1, 2.01, 3.03].forEach((h, i) => tone(d, T(), 'sine', 880 * k * h, 1.4 - i * 0.3, 0.08 / (i + 1), { attack: 0.01 })); };
+  N.warden_heartbeat = d => { tone(d, T(), 'sine', 55, 0.12, 0.5, { to: 40 }); tone(d, T() + 0.22, 'sine', 50, 0.14, 0.4, { to: 36 }); };
+  N.warden_tendril_clicks = d => { for (let i = 0; i < 9; i++) noise(d, T() + i * 0.035 + Math.random() * 0.01, 0.018, 'bandpass', rp(2500, 4000), 6, 0.3); };
+  N.warden_listening = d => { voice(d, 70, 0.9, { lp: 350, bp: 150, q: 2, vib: [2, 4], attack: 0.2, v: 0.35 }); N.warden_tendril_clicks(d); };
+  N.warden_listening_angry = d => { voice(d, 80, 1.1, { lp: 600, bp: 200, q: 2, vib: [5, 10], attack: 0.1, v: 0.5 }); N.warden_tendril_clicks(d); };
+  N.warden_agitated = d => voice(d, rp(60, 75), 1, { lp: 500, bp: 180, q: 2, vib: [4, 8], attack: 0.1, v: 0.45 });
+  N.warden_angry = d => { voice(d, rp(70, 90), 1.2, { lp: 800, bp: 250, q: 2, vib: [7, 14], attack: 0.05, v: 0.55 }); noise(d, T(), 0.8, 'lowpass', 500, 1, 0.2); };
+  N.warden_roar = d => { voice(d, 85, 3, { lp: 1200, bp: 300, q: 1.5, vib: [6, 20], attack: 0.3, to: 60, v: 0.7 }); noise(d, T(), 3, 'lowpass', 900, 1, 0.4, 0.4); };
+  N.warden_sonic_charge = d => { tone(d, T(), 'sawtooth', 80, 1.6, 0.25, { to: 600, lp: 1500, attack: 0.5 }); noise(d, T(), 1.6, 'bandpass', 600, 2, 0.15, 0.8, (fl, t) => fl.frequency.exponentialRampToValueAtTime(3000, t + 1.6)); };
+  N.warden_sonic_boom = d => { tone(d, T(), 'sine', 90, 1.2, 0.8, { to: 30 }); noise(d, T(), 0.9, 'lowpass', 1800, 0.7, 0.7, 0.005, (fl, t) => fl.frequency.exponentialRampToValueAtTime(200, t + 0.9)); tone(d, T(), 'sawtooth', 400, 0.5, 0.2, { to: 80, lp: 2000 }); };
+  N.warden_emerge = d => { noise(d, T(), 4, 'lowpass', 400, 1, 0.45, 0.5); voice(d, 55, 4, { lp: 300, bp: 100, q: 2, vib: [3, 8], attack: 1.5, v: 0.4 }); };
+  N.warden_dig = d => { noise(d, T(), 3, 'lowpass', 500, 1, 0.45, 0.3); voice(d, 60, 2, { lp: 300, bp: 120, q: 2, to: 35, v: 0.35 }); };
+  N.warden_sniff = d => { for (let i = 0; i < 4; i++) noise(d, T() + i * 0.32, 0.22, 'bandpass', 1400, 1.5, 0.25, 0.08); };
+  N.warden_attack_impact = d => { tone(d, T(), 'sine', 70, 0.3, 0.8, { to: 35 }); noise(d, T(), 0.25, 'lowpass', 900, 1, 0.6); };
+  N.warden_step = d => tone(d, T(), 'sine', 60, 0.2, 0.4, { to: 35 });
+  N.warden_nearby_close = d => voice(d, 50, 2.5, { lp: 250, bp: 100, q: 2, vib: [2, 5], attack: 0.8, v: 0.25 });
+  N.warden_nearby_closer = d => voice(d, 55, 2.5, { lp: 350, bp: 120, q: 2, vib: [3, 7], attack: 0.6, v: 0.35 });
+  N.warden_nearby_closest = d => { voice(d, 60, 2.5, { lp: 500, bp: 150, q: 2, vib: [4, 9], attack: 0.4, v: 0.45 }); noise(d, T(), 2, 'lowpass', 300, 1, 0.2, 0.5); };
+  // which sounds are game events (the game raises the event where these happen)
+  const EV = {
+    door_open: 'block_open', iron_door_open: 'block_open', trapdoor_open: 'block_open', iron_trapdoor_open: 'block_open', gate_open: 'block_open',
+    door_close: 'block_close', iron_door_close: 'block_close', trapdoor_close: 'block_close', iron_trapdoor_close: 'block_close', gate_close: 'block_close',
+    chest_open: 'container_open', barrel_open: 'container_open', chest_close: 'container_close', barrel_close: 'container_close',
+    click: o => o.on === true ? 'block_activate' : o.on === false ? 'block_deactivate' : null, button: 'block_activate', click_off: 'block_deactivate',
+    piston_extend: 'block_activate', piston_contract: 'block_deactivate', tripwire_click_on: 'block_activate', tripwire_click_off: 'block_deactivate', tripwire_attach: 'block_attach', tripwire_detach: 'block_detach',
+    eat: 'eat', drink: 'drink', witch_drink: 'drink', bucket_fill: 'fluid_pickup', bucket_fill_lava: 'fluid_pickup', bottle_fill: 'fluid_pickup', bucket_empty: 'fluid_place', bucket_empty_lava: 'fluid_place', bottle_empty: 'fluid_place',
+    splash: 'splash', bobber_splash: 'splash', hoe_till: 'block_change', shovel_flatten: 'block_change', axe_strip: 'block_change', bone_meal: 'block_change', berry_pick: 'block_change',
+    shear: 'shear', pumpkin_carve: 'shear', composter_fill: 'block_change', composter_fill_success: 'block_change', composter_empty: 'block_change',
+    explode: 'explode', firework_blast: 'explode', tnt_primed: 'prime_fuse', creeper_primed: 'prime_fuse', flint: 'block_place', teleport: 'teleport', enderman_teleport: 'teleport',
+    goat_horn: 'instrument_play', bell: 'block_change', equip: 'equip', saddle: 'equip', eye_place: 'block_change', anchor_charge: 'block_change', extinguish: 'block_change',
+    painting_place: 'entity_place', item_frame_place: 'entity_place', armor_stand_place: 'entity_place', leash_place: 'entity_place', chicken_egg: 'entity_place',
+    item_frame_add: 'block_change', item_frame_rotate: 'block_change', item_frame_remove: 'block_change', book_put: 'block_change', chiseled_bookshelf_insert: 'block_change', chiseled_bookshelf_pickup: 'block_change',
+    chiseled_bookshelf_insert_enchanted: 'block_change', chiseled_bookshelf_pickup_enchanted: 'block_change', decorated_pot_insert: 'block_change', dye_use: 'block_change', glow_ink_use: 'block_change', ink_use: 'block_change', honeycomb_wax: 'block_change',
+    bow_shoot: 'projectile_shoot', crossbow_shoot: 'projectile_shoot', skeleton_shoot: 'projectile_shoot', snow_golem_shoot: 'projectile_shoot', throw: 'projectile_shoot', ender_pearl_throw: 'projectile_shoot', witch_throw: 'projectile_shoot',
+    wind_charge_throw: 'projectile_shoot', trident_throw: 'projectile_shoot', bobber_throw: 'projectile_shoot', firework_launch: 'projectile_shoot', arrow_hit: 'projectile_land', trident_hit: 'projectile_land',
+  };
   // ---------------------------------------------------------------- music: generative piano, every 10 to 20 minutes
   let musicMode = null, nextMusic = 0, musicPlaying = false;
   const SCALES = [[0, 2, 4, 7, 9], [0, 3, 5, 7, 10], [0, 2, 4, 5, 7, 9, 11], [0, 2, 3, 5, 7, 8, 10]];

@@ -395,10 +395,11 @@ class Mob extends Living {
     // inside the invulnerability window only a bigger hit counts, and only by the difference
     if (this.invul > 10) { if (amount <= this.lastDamage) return false; const extra = amount - this.lastDamage; this.lastDamage = amount; amount = extra; }
     else { this.lastDamage = amount; this.invul = 20; this.hurtTime = 10; }
-    if (this.armorPts && !['outOfWorld', 'starve', 'magic', 'wither', 'drown', 'fall', 'kill'].includes(source)) amount *= 1 - Math.min(20, Math.max(this.armorPts / 5, this.armorPts - 4 * amount / 8)) / 25;
+    if (this.armorPts && !['outOfWorld', 'starve', 'magic', 'wither', 'drown', 'fall', 'kill', 'sonic_boom'].includes(source)) amount *= 1 - Math.min(20, Math.max(this.armorPts / 5, this.armorPts - 4 * amount / 8)) / 25;
     const res = this.effect('resistance'); if (res) amount *= Math.max(0, 1 - 0.2 * (res.amp + 1));
     if (attacker) { this.lastHurtBy = attacker.owner || attacker; this.lastHurtTime = this.age; if (attacker.isPlayer || (attacker.owner && attacker.owner.isPlayer)) this.lastHurtByPlayer = 100; }
     this.health -= amount;
+    GameEvents.emit('entity_damage', this.x, this.y, this.z, attacker ? attacker.owner || attacker : null);
     if (this.onHurt) this.onHurt(amount, source, attacker);
     if (this.health <= 0) this.die(source, attacker);
     else Sound.play(this.type + '_hurt', this, { mob: this });
@@ -413,9 +414,8 @@ class Mob extends Living {
   }
   // melee: damage with the held weapon, knockback and fire aspect
   doHurtTarget(t) {
-    let dmg = Game.scaleDamage(this.attackDamage);
-    const w = this.equip.main; if (w && ITEMS[w.id].dmg > 1) dmg = Game.scaleDamage(this.attackDamage + ITEMS[w.id].dmg - 1);
-    if (!t.isPlayer) dmg = this.attackDamage;
+    let dmg = this.attackDamage;
+    const w = this.equip.main; if (w && ITEMS[w.id].dmg > 1) dmg = this.attackDamage + ITEMS[w.id].dmg - 1;
     if (dmg <= 0 && !t.isPlayer) return false;
     const ok = t.hurt(dmg, 'mob', this);
     if (ok) {
@@ -431,6 +431,7 @@ class Mob extends Living {
     if (this.dead) return;
     this.dead = true; this.health = 0; this.deathTime = 0; this.goals.stopAll(); this.targets.stopAll(); this.nav.stop();
     Sound.play(this.type + '_death', this, { mob: this });
+    GameEvents.emit('entity_die', this.x, this.y, this.z, this);
     this.killer = attacker;
     if (Game.rules.doMobLoot && !this.baby) this.dropLoot(source, attacker);
     if (attacker && attacker.isPlayer) Stats.add('killed', this.type);
@@ -455,7 +456,7 @@ class Mob extends Living {
     if (this.hostile && n > 0) for (const k in this.equip) if (this.equip[k]) n += 1 + rnd(3);
     return this.lastHurtByPlayer > 0 ? n : 0;
   }
-  dropXp() { if (!Game.rules.doMobLoot) return; const n = this.xpValue(); if (n > 0) Drops.spawnXp(this.x, this.y + 0.5, this.z, n); }
+  dropXp() { if (!Game.rules.doMobLoot || this.xpConsumed) return; const n = this.xpValue(); if (n > 0) Drops.spawnXp(this.x, this.y + 0.5, this.z, n); }
   // ---------------------------------------------------------------- breeding
   breedWith(q) {
     this.inLove = 0; q.inLove = 0; this.ageTicks = 6000; q.ageTicks = 6000;

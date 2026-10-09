@@ -32,7 +32,7 @@ const Game = {
     if (!opts.player) { Weather.reset(); Stats.reset(); }
     UI.enterGame();
   },
-  stop() { this.running = false; EntityRender && EntityRender.clear(); Particles.clear(); BeaconBeams.clear(); Signs.clear(); Banners.clear(); Leads.clear(); Spawners.clear(); Pots.clear(); for (const d in World.dims) { for (const c of World.dims[d].values()) for (const m of c.meshes) if (m) Render.disposeSection(m); World.dims[d].clear(); } Entities.list.length = 0; },
+  stop() { this.running = false; EntityRender && EntityRender.clear(); Particles.clear(); BeaconBeams.clear(); Signs.clear(); Banners.clear(); Leads.clear(); Spawners.clear(); Pots.clear(); GameEvents.clear(); for (const d in World.dims) { for (const c of World.dims[d].values()) for (const m of c.meshes) if (m) Render.disposeSection(m); World.dims[d].clear(); } Entities.list.length = 0; },
   // like the game, the player spawns on a grass or podzol surface (never on a tree) near the world spawn
   findSpawn(x0, z0) {
     const top = (x, z) => { let y = MAXY; while (y > MINY && (World.getBlock(x, y, z) === 0 || !SOLID[World.getBlock(x, y, z)] && !FLUID[World.getBlock(x, y, z)])) y--; return y; };
@@ -100,6 +100,7 @@ const Game = {
     Portals.tick(p);
     Maps.tick(p);
     Leads.tick();
+    GameEvents.tick(); Sculk.tickPlayer(p);
     if (World.dim === 'end') EndFight.afterArrival(p);
     EndFight.tick();
     Sound.tick(p);
@@ -157,8 +158,16 @@ const Loop = (() => {
     if (under === 'water') { U.uFogStart.value = -8; U.uFogEnd.value = 48 * (p.effect('water_breathing') || p.effect('conduit_power') ? 1.5 : 1); }
     else if (under === 'lava') { U.uFogStart.value = p.effect('fire_resistance') ? 0 : 0.25; U.uFogEnd.value = p.effect('fire_resistance') ? 5 : 1; }
     else if (World.dim === 'nether') { U.uFogStart.value = dist * 0.05; U.uFogEnd.value = Math.min(96, dist * 0.5); }
-    else if (p.effect('blindness') || p.effect('darkness')) { U.uFogStart.value = 0; U.uFogEnd.value = 5; }
+    else if (p.effect('blindness')) { U.uFogStart.value = 0; U.uFogEnd.value = 5; }
     else { U.uFogStart.value = dist - Math.max(4, Math.min(64, dist / 10)) * 2.5; U.uFogEnd.value = dist; }
+    // darkness: fades in and out over about a second, pulls the fog in to 15 blocks, turns brightness off and
+    // dims the light in a slow pulse (every 4 seconds)
+    const dk = p.effect('darkness'), dkT = dk ? 1 : 0;
+    p.darkBlend = (p.darkBlend || 0) + Math.max(-dt / 1100, Math.min(dt / 1100, dkT - (p.darkBlend || 0)));
+    const db = p.darkBlend;
+    if (db > 0 && !under && !p.effect('blindness')) { const fe = U.uFogEnd.value + (15 - U.uFogEnd.value) * db; U.uFogEnd.value = fe; U.uFogStart.value = Math.min(U.uFogStart.value, fe * 0.75); }
+    U.uGamma.value = Math.max(0, Settings.gamma - db);
+    U.uDark.value = db > 0 ? Math.max(0, Math.cos((p.age + a) * Math.PI * 0.025) * 0.45 * db) : 0;
     p.updateCamera(a);
     camera.far = Math.max(256, dist * 1.6);
     camera.updateProjectionMatrix();

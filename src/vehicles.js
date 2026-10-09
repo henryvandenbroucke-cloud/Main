@@ -534,6 +534,7 @@ const Vehicles = (() => {
     if (!e || !v || e === v || e.dead || v.dead) return false;
     if (e.vehicle) dismount(e);
     e.vehicle = v; v.passengers.push(e);
+    GameEvents.emit('entity_mount', v.x, v.y, v.z, e);
     e.vx = e.vy = e.vz = 0; e.fallDistance = 0;
     if (e.isPlayer) { e.flying = false; e.sprinting = false; e.mountedAt = Game.gameTime; HUD.actionBar && HUD.actionBar('Press Shift to Dismount'); }
     if (e.nav) e.nav.stop && e.nav.stop();
@@ -544,6 +545,7 @@ const Vehicles = (() => {
   function dismount(e) {
     const v = e.vehicle; if (!v) return;
     e.vehicle = null;
+    GameEvents.emit('entity_dismount', v.x, v.y, v.z, e);
     const i = v.passengers.indexOf(e); if (i >= 0) v.passengers.splice(i, 1);
     const hw = e.w / 2, side = (v.w || 1) / 2 + hw + 0.05;
     const yaw = v.yaw || 0, offs = [[Math.cos(yaw), -Math.sin(yaw)], [-Math.cos(yaw), Math.sin(yaw)], [-Math.sin(yaw), -Math.cos(yaw)], [Math.sin(yaw), Math.cos(yaw)]];

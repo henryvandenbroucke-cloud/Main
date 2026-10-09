@@ -149,7 +149,7 @@ SHARED.push(function blocksModule(G) {
   reg('bamboo', { model: 'bamboo', tex: 'bamboo_stalk', layer: 1, opacity: 0, ticks: true, sound: 'bamboo', place: 'bamboo' });
   // vine: bits 0-4 attached faces (north, south, west, east, up)
   reg('vine', plant({ model: 'vine', tint: 'foliage', climb: true, replaceable: true, ticks: true, place: 'vine', flam: [15, 100] }));
-  reg('glow_lichen', plant({ model: 'vine', light: 7, replaceable: true, place: 'vine' }));
+  reg('glow_lichen', plant({ model: 'vine', light: 7, replaceable: true, place: 'vine', waterlog: true }));
   reg('lily_pad', plant({ model: 'lily', tint: 0x208030, solid: true, place: 'lily' }));
   reg('pumpkin', { tex: { side: 'pumpkin_side', end: 'pumpkin_top' }, sound: 'wood' });
   reg('carved_pumpkin', { tex: { side: 'pumpkin_side', end: 'pumpkin_top', front: 'carved_pumpkin' }, place: 'facing_h', sound: 'wood' });
@@ -444,8 +444,8 @@ SHARED.push(function blocksModule(G) {
   for (const [p2, src] of [['polished_tuff', 'polished_tuff'], ['tuff_brick', 'tuff_bricks']]) { const base = { tex: src, sound: 'tuff', waterlog: true }; reg(p2 + '_stairs', Object.assign({ model: 'stairs', place: 'stairs', opacity: 15 }, base)); reg(p2 + '_slab', Object.assign({ model: 'slab', place: 'slab', opacity: 15 }, base)); reg(p2 + '_wall', Object.assign({ model: 'wall' }, base)); }
   // sculk
   reg('sculk', { sound: 'sculk', tex: 'sculk' });
-  reg('sculk_vein', plant({ model: 'vine', place: 'vine', replaceable: true, sound: 'sculk', tex: 'sculk_vein', tint: null }));
-  reg('sculk_catalyst', { light: 6, sound: 'sculk', tex: { top: 'sculk_catalyst_top', side: 'sculk_catalyst_side', bottom: 'sculk_catalyst_bottom' } });
+  reg('sculk_vein', plant({ model: 'vine', place: 'vine', replaceable: true, sound: 'sculk', tex: 'sculk_vein', tint: null, waterlog: true }));
+  reg('sculk_catalyst', { light: 6, sound: 'sculk', stateTex: s => s & 1 ? { up: 'sculk_catalyst_top_bloom', down: 'sculk_catalyst_bottom', side: 'sculk_catalyst_side_bloom' } : { up: 'sculk_catalyst_top', down: 'sculk_catalyst_bottom', side: 'sculk_catalyst_side' }, tex: { top: 'sculk_catalyst_top', side: 'sculk_catalyst_side', bottom: 'sculk_catalyst_bottom' } });
   reg('sculk_shrieker', { model: 'shrieker', opacity: 0, sound: 'sculk', waterlog: true, tex: { top: 'sculk_shrieker_top', side: 'sculk_shrieker_side', bottom: 'sculk_shrieker_bottom' } });
   reg('sculk_sensor', { model: 'sensor', layer: 1, opacity: 0, light: 1, sound: 'sculk', waterlog: true, tex: { top: 'sculk_sensor_top', side: 'sculk_sensor_side', bottom: 'sculk_sensor_bottom', extra: 'sculk_sensor_tendril_inactive' } });
   reg('calibrated_sculk_sensor', { model: 'sensor', layer: 1, opacity: 0, light: 1, sound: 'sculk', waterlog: true, place: 'facing_h', tex: { top: 'calibrated_sculk_sensor_top', side: 'sculk_sensor_side', bottom: 'sculk_sensor_bottom', extra: 'calibrated_sculk_sensor_amethyst' } });

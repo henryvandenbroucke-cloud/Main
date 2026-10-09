@@ -257,8 +257,8 @@ class EnderDragon extends Mob {
     const hp = this.headPos(), p = Game.player;
     if (p && !p.dead && !p.creative && !p.spectator && World.dim === 'end' && this.hurtTime === 0 && !this.sitting) {
       const inBox = (cx, cy, cz, rx, ry, rz) => p.intersects([cx - rx, cy - ry, cz - rz, cx + rx, cy + ry, cz + rz]);
-      if (inBox(this.x, this.y + 2, this.z, 6, 2, 6)) { const dx = p.x - this.x, dz = p.z - this.z, l = Math.max(0.1, Math.hypot(dx, dz)); p.vx += dx / l * 4 * 0.25; p.vz += dz / l * 4 * 0.25; p.vy += 0.2; p.hurt(Game.scaleDamage(5), 'mob', this); }
-      if (inBox(hp[0], hp[1], hp[2], 1.5, 1.5, 1.5)) p.hurt(Game.scaleDamage(10), 'mob', this);
+      if (inBox(this.x, this.y + 2, this.z, 6, 2, 6)) { const dx = p.x - this.x, dz = p.z - this.z, l = Math.max(0.1, Math.hypot(dx, dz)); p.vx += dx / l * 4 * 0.25; p.vz += dz / l * 4 * 0.25; p.vy += 0.2; p.hurt(5, 'mob', this); }
+      if (inBox(hp[0], hp[1], hp[2], 1.5, 1.5, 1.5)) p.hurt(10, 'mob', this);
     }
     if (!Game.rules.mobGriefing || this.sitting || this.phase === 'landing') return;
     const boxes = [[this.x - 2.5, this.y, this.z - 2.5, this.x + 2.5, this.y + 3, this.z + 2.5], [hp[0] - 1, hp[1] - 1, hp[2] - 1, hp[0] + 1, hp[1] + 1, hp[2] + 1]];

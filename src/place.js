@@ -116,7 +116,11 @@ const Place = (() => {
         break;
       case 'skull': st = face > 1 ? face : 0; break;
       case 'hopper': st = face === 1 || face === 0 ? 0 : OPP[face]; break;
-      case 'vine': { if (face === 0) return false; st = face === 1 ? 16 : [0, 0, 2, 1, 8, 4][face]; break; }
+      case 'vine': {
+        // glow lichen and sculk veins cling to any face (floors and ceilings too); vines hang from sides and tops
+        if (d.name === 'glow_lichen' || d.name === 'sculk_vein') { st = [16, 32, 2, 1, 8, 4][face] | (waterHere ? 128 : 0); break; }
+        if (face === 0) return false; st = face === 1 ? 16 : [0, 0, 2, 1, 8, 4][face]; break;
+      }
       case 'pickle': st = waterHere ? 128 : 0; break;
       case 'rail': st = Rails.shapeFor(x, y, z, L); break;
       case 'chest': {

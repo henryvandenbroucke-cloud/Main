@@ -53,6 +53,7 @@ const Weather = (() => {
     const p = Game.player, d = p ? Math.hypot(p.x - x, p.z - z) : 999;
     Sound.thunder(x, y, z, d < 50);
     if (o.visualOnly) return bolt;
+    GameEvents.emit('lightning_strike', x, y, z, null);
     BlockExtras.lightning(Math.floor(x), Math.floor(y - 0.5), Math.floor(z));
     LightningRods.struck(Math.floor(x), Math.floor(y - 0.5), Math.floor(z));
     // fire where it lands (normal and hard)

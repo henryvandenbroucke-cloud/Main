@@ -66,6 +66,7 @@ const Interact = (() => {
     if (be && be.type === 'jukebox' && be.disc) Drops.spawnItem(x + 0.5, y + 1, z + 0.5, be.disc);
     if (be && be.type === 'lectern' && be.book) Drops.spawnItem(x + 0.5, y + 1, z + 0.5, be.book);
     Blocks.remove(x, y, z, p);
+    GameEvents.emit('block_destroy', x + 0.5, y + 0.5, z + 0.5, p, id);
     if (!p.creative) {
       if (d.name.endsWith('shulker_box') && be) { const s = stack(d.name, 1); if (be.items && be.items.some(i => i)) s.tag = { items: be.items }; Drops.spawnItem(x + 0.5, y + 0.5, z + 0.5, s); }
       else if (d.name === 'decorated_pot') Pots.drops(be, Pots.shatters(held), x, y, z);
@@ -149,7 +150,9 @@ const Interact = (() => {
     p.exhaust(0.1);
   }
   // ---------------------------------------------------------------- right click
-  function use(p) {
+  // what the player does is the source of the game events it causes (doors, chests, buckets...)
+  function use(p) { GameEvents.actor = p; try { return use0(p); } finally { GameEvents.actor = null; } }
+  function use0(p) {
     if (p.spectator || p.dead) return;
     const held = p.inv.held;
     // entities first (feeding, riding, trading, shearing...)

@@ -127,7 +127,7 @@
     registerGoals() { this.targets.add(1, new G.HurtByTarget(this, true)); }
     aiFly() {
       const t = this.target;
-      if (t && !this.stung) { this.flyTo(t.x, t.y + t.h * 0.5, t.z, 1.6); if (this.distTo(t) < 1.2 && this.age % 10 === 0) { if (t.hurt(Game.scaleDamage(2), 'sting', this)) { this.stung = true; if (t.addEffect && Game.difficulty !== 'easy') t.addEffect('poison', Game.difficulty === 'hard' ? 360 : 200, 0); this.target = null; this.dieTimer = 600 + rnd(600); } } }
+      if (t && !this.stung) { this.flyTo(t.x, t.y + t.h * 0.5, t.z, 1.6); if (this.distTo(t) < 1.2 && this.age % 10 === 0) { if (t.hurt(2, 'sting', this)) { this.stung = true; if (t.addEffect && Game.difficulty !== 'easy') t.addEffect('poison', Game.difficulty === 'hard' ? 360 : 200, 0); this.target = null; this.dieTimer = 600 + rnd(600); } } }
       if (this.stung && --this.dieTimer <= 0) this.hurt(100, 'magic');
       if (!this.dest && rnd(20) === 0) this.dest = [this.x + rnd(10) - 5, this.y + rnd(5) - 2, this.z + rnd(10) - 5];
     }
@@ -247,7 +247,7 @@
       if (this.type === 'hoglin' && this.age % 20 === 0) { for (let k = 0; k < 20; k++) { const x = Math.floor(this.x) + rnd(15) - 7, y = Math.floor(this.y) + rnd(7) - 3, z = Math.floor(this.z) + rnd(15) - 7; const n = BLOCKS[World.getBlock(x, y, z)].name; if (n === 'warped_fungus' || n === 'nether_portal' || n === 'respawn_anchor') { this.target = null; const t = randomPos(this, 10, 4, null, [x, y, z]); if (t) this.nav.moveTo(t[0], t[1], t[2], 1.2); break; } } }
       if (this.type === 'hoglin' && World.dim !== 'nether' && ++this.zombify > 300) { const z = Mobs.spawnEntity('zoglin', this.x, this.y, this.z); if (z && this.baby) z.setBaby(); this.removed = true; }
     }
-    doHurtTarget(t) { this.attackT = 10; const d = Game.scaleDamage(this.baby ? 0.5 : 3 + rnd(6)); const ok = t.hurt(d, 'mob', this); if (ok && !this.baby) { t.vy += 0.4 * (1 - (t.kbResist || 0)); t.knockback && t.knockback(1, this.x - t.x, this.z - t.z); } return ok; }
+    doHurtTarget(t) { this.attackT = 10; const d = this.baby ? 0.5 : 3 + rnd(6); const ok = t.hurt(d, 'mob', this); if (ok && !this.baby) { t.vy += 0.4 * (1 - (t.kbResist || 0)); t.knockback && t.knockback(1, this.x - t.x, this.z - t.z); } return ok; }
     animState(s, a) { s.attack = this.attackT > 0 ? (10 - this.attackT + a) / 10 : 0; }
   }
   reg('hoglin', Hoglin); reg('zoglin', class extends Hoglin { constructor(t, x, y, z) { super('zoglin', x, y, z); } get undead() { return true; } });

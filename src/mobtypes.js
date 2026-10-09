@@ -362,7 +362,7 @@ class IronGolem extends Mob {
   doHurtTarget(t) {
     this.attackT = 10; Sound.play('iron_golem_attack', this);
     const base = 15, dmg = base / 2 + rnd(base);
-    const ok = t.hurt(t.isPlayer ? Game.scaleDamage(dmg) : dmg, 'mob', this);
+    const ok = t.hurt(dmg, 'mob', this);
     if (ok) { t.vy += 0.4; t.knockback && t.knockback(0.5, this.x - t.x, this.z - t.z); }
     return ok;
   }
