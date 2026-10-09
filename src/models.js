@@ -426,7 +426,9 @@ const Models = (() => {
     // the game's sign: a 16 x 8 board, 4/3 thick, on a post (the 24 x 12 model drawn at 2/3 size)
     sign: (d, s) => { const t = d.tex.side; const els = [box(0, 9.333, 7.333, 16, 17.333, 8.667, t), box(7.333, 0, 7.333, 8.667, 9.333, 8.667, t.replace('_planks', '_log').replace('crimson_log', 'crimson_stem').replace('warped_log', 'warped_stem').replace('bamboo_log', 'bamboo_block'))]; return rotYdeg(els, (s & 15) * 22.5); },
     wall_sign: (d, s) => rotY([box(0, 4.333, 14.333, 16, 12.333, 15.667, d.tex.side)], turnsOf(s)),
-    banner: (d, s) => { const t = d.tex.side; return rotYdeg([box(-2, 1, 7, 18, 30, 8, t), box(7, 0, 7, 9, 31, 9, 'oak_planks'), box(-2, 30, 7, 18, 32, 9, 'oak_planks')], (s & 15) * 22.5); },
+    // banners: the pole and bar (the game's model at 2/3 size); the flag itself is drawn by Banners with its patterns
+    wall_banner: (d, s) => rotY([box(1.333, 12.333, 14.333, 14.667, 13.667, 15.333, 'oak_planks')], turnsOf(s)),
+    banner: (d, s) => { return rotYdeg([box(7.333, 0, 7.333, 8.667, 28, 8.667, 'oak_planks'), box(1.333, 28, 7.333, 14.667, 29.333, 8.667, 'oak_planks')], (s & 15) * 22.5); },
     glazed: (d, s) => { const k = turnsOf(s); const t = d.tex.side; return [box(0, 0, 0, 16, 16, 16, t, { rot: [k * 90, k * 90, 0, 0, 0, 0] })]; },
     piston: (d, s) => {
       const ext = s & 8, inner = d.tex.extra;
@@ -655,6 +657,7 @@ const Models = (() => {
       case 'portal': return st & 1 ? [[6 / 16, 0, 0, 10 / 16, 1, 1]] : [[0, 0, 6 / 16, 1, 1, 10 / 16]];
       case 'end_portal': return [[0, 0, 0, 1, 12 / 16, 1]];
       case 'banner': return [[0.25, 0, 0.25, 0.75, 1, 0.75]];
+      case 'wall_banner': return col ? null : [rot([0, 0, 14 / 16, 1, 12.5 / 16, 1])];
       case 'tripwire_hook': return [rot([5 / 16, 0, 10 / 16, 11 / 16, 10 / 16, 1])];
       case 'wall_fan': return [rot([0, 4 / 16, 5 / 16, 1, 12 / 16, 1])];
     }

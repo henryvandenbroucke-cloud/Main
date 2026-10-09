@@ -53,7 +53,7 @@ const Place = (() => {
     if (n === 'sweet_berry_bush') return soil(below);
     if (n === 'cocoa') { const f = st & 7; const l = World.getBlock(x + DX[f], y, z + DZ[f]); return l === BID.jungle_log || l === BID.jungle_wood || l === BID.stripped_jungle_log || l === BID.stripped_jungle_wood; }
     if (n === 'kelp_plant' || n === 'tall_seagrass') return true;
-    if (d.model === 'wall_torch' || d.model === 'wall_sign') { const f = st & 7; return SOLID[World.getBlock(x - DX[f], y, z - DZ[f])] === 1; }
+    if (d.model === 'wall_torch' || d.model === 'wall_sign' || d.model === 'wall_banner') { const f = st & 7; return SOLID[World.getBlock(x - DX[f], y, z - DZ[f])] === 1; }
     if (d.model === 'carpet' || d.model === 'plate' || d.model === 'wire' || d.model === 'repeater' || d.model === 'comparator') return SOLID[below] === 1 || (d.model === 'carpet' && below !== 0);
     if (d.model === 'bed') return true;
     if (n === 'snow') return SOLID[below] && below !== BID.ice && below !== BID.packed_ice && below !== BID.barrier || below === BID.snow && (World.getState(x, y - 1, z) & 7) === 7 || bd.name.endsWith('_leaves');
@@ -110,7 +110,7 @@ const Place = (() => {
       case 'lantern': st = face === 0 ? 8 : 0; if (!canSurvive(id, st, x, y, z)) st ^= 8; break;
       case 'sign': case 'banner':
         if (face === 0) return false;
-        if (face > 1 && d.place === 'sign') { id = it.wall; st = face; }
+        if (face > 1 && it.wall !== undefined) { id = it.wall; st = face; }
         else if (face > 1) return false;
         else st = Math.round((((-p.yaw * 180 / Math.PI) + 180) % 360 + 360) % 360 / 22.5) & 15;
         break;

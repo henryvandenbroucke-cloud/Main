@@ -209,6 +209,7 @@ SHARED.push(function blocksModule(G) {
     reg(c + '_bed', { model: 'bed', layer: 0, opacity: 0, place: 'bed', sound: 'wood', tex: c + '_wool' });
     reg(c + '_shulker_box', { model: 'cube', place: 'facing6', tex: { side: c + '_shulker_box_side', top: c + '_shulker_box_top', bottom: c + '_shulker_box_bottom' }, sound: 'stone' });
     reg(c + '_banner', { model: 'banner', layer: 0, solid: false, opacity: 0, place: 'banner', sound: 'wood', tex: c + '_wool' });
+    reg(c + '_wall_banner', { model: 'wall_banner', layer: 0, solid: false, opacity: 0, item: false, sound: 'wood', tex: c + '_wool' });
   }
   reg('shulker_box', { place: 'facing6', tex: { side: 'shulker_box_side', top: 'shulker_box_top', bottom: 'shulker_box_bottom' } });
   reg('terracotta');

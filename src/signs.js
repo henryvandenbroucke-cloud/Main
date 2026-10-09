@@ -37,7 +37,7 @@ const Signs = (() => {
     });
     return c;
   }
-  function remove(k) { const g = meshes.get(k); if (!g) return; scene.remove(g); for (const m of g.children) { m.material.map.dispose(); m.material.dispose(); m.geometry.dispose(); } meshes.delete(k); }
+  function remove(k) { const g = meshes.get(k); if (!g) return; scene.remove(g); for (const m of g.children) { m.material.uniforms.map.value.dispose(); m.material.dispose(); m.geometry.dispose(); } meshes.delete(k); }
   function refresh(x, y, z) {
     const k = key(x, y, z); remove(k);
     const id = World.getBlock(x, y, z), be = World.getBE(x, y, z);

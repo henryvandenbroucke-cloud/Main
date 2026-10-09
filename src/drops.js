@@ -130,8 +130,11 @@ const Drops = (() => {
   }
   function dropBlock(id, state, tool, x, y, z) {
     if (!Game.rules.doTileDrops) return;
+    // banners keep their patterns
+    const tag = (BLOCKS[id].model === 'banner' || BLOCKS[id].model === 'wall_banner') && typeof Banners !== 'undefined' ? Banners.dropTag(x, y, z) : null;
     for (const [name, count] of forBlock(id, state, tool, x, y, z)) {
       if (count <= 0 || IID[name] === undefined) continue;
+      if (tag && name.endsWith('_banner')) { spawnItem(x + 0.5, y + 0.5, z + 0.5, stack(name, 1, { tag })); continue; }
       let left = count;
       while (left > 0) { const n = Math.min(left, ITEMS[IID[name]].stack); left -= n; spawnItem(x + 0.5 + (Math.random() - 0.5) * 0.5, y + 0.25 + Math.random() * 0.5, z + 0.5 + (Math.random() - 0.5) * 0.5, stack(name, n)); }
     }

@@ -35,6 +35,7 @@ const Blocks = (() => {
     if (d.fluid) Ticks.schedule(x, y, z, Fluids.delay(id));
     if (d.gravity) Ticks.schedule(x, y, z, 2);
     if (id === B.tripwire || id === B.tripwire_hook) Tripwire.placed(x, y, z, id, st);
+    if (d.model === 'banner' || d.model === 'wall_banner') Banners.placed(x, y, z, s);
     if (d.name === 'carved_pumpkin' || d.name === 'wither_skeleton_skull') Golems.check(x, y, z, p);
     if (d.name === 'fire') Portals.tryLight(x, y, z);
     if (d.name === 'sponge') Sponge.absorb(x, y, z);
