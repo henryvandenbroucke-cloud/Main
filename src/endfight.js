@@ -366,10 +366,68 @@ const EndFight = (() => {
     const d = dragon();
     if (d && p && Math.hypot(p.x, p.z) < 192) HUD.setBoss('dragon', 'Ender Dragon', Math.max(0, d.health / d.maxHealth));
     else HUD.setBoss('dragon', null, null);
+    respawnTick();
     CrystalBeams.update(d);
   }
   function spawnDragon() { const d = new EnderDragon('ender_dragon', 0.5, 128, 0.5); d.dim = 'end'; Entities.add(d); }
+  // ---------------------------------------------------------------- respawning the dragon (the game's DragonRespawnAnimation)
+  // four end crystals on the exit portal's edges start it; the portal goes out, the crystals beam into the sky,
+  // the dragon growls, each spike is blown up and rebuilt with a new crystal (40 ticks apiece), then the dragon
+  // returns and the four crystals explode
+  let respawn = null;
+  function portalCrystals() {
+    const p = st.podium, out = [];
+    for (const [dx, dz] of [[3, 0], [-3, 0], [0, 3], [0, -3]]) {
+      const c = Entities.list.find(e => e.type === 'end_crystal' && !e.removed && Math.abs(e.x - (p.x + dx + 0.5)) < 1.5 && Math.abs(e.z - (p.z + dz + 0.5)) < 1.5 && Math.abs(e.y - (p.y + 1)) < 1.6);
+      if (!c) return null; out.push(c);
+    }
+    return out;
+  }
+  function tryRespawn() {
+    if (!st || !st.killed || respawn || World.dim !== 'end' || dragon() || !st.podium) return false;
+    const cs = portalCrystals(); if (!cs) return false;
+    respawn = { stage: 'start', t: 0, crystals: cs };
+    buildPodium(false);
+    return true;
+  }
+  const SKY = { x: 0.5, y: 128, z: 0.5 };
+  function growl() { Sound.play('dragon_growl', null, { x: 0.5, y: 128, z: 0.5, global: true }); }
+  function rebuildSpike(sp) {
+    // clear round the old top, blow it up, and build it again (with its cage and a crystal)
+    for (let x = sp.x - 10; x <= sp.x + 10; x++) for (let z = sp.z - 10; z <= sp.z + 10; z++) for (let y = sp.h - 10; y <= sp.h + 10; y++) if (World.getBlock(x, y, z) && World.getBlock(x, y, z) !== B.end_stone) World.setBlock(x, y, z, 0, 0);
+    Explosions.explode(sp.x + 0.5, sp.h, sp.z + 0.5, 5, false, null, true);
+    for (let x = sp.x - sp.r; x <= sp.x + sp.r; x++) for (let z = sp.z - sp.r; z <= sp.z + sp.r; z++) if ((x - sp.x) ** 2 + (z - sp.z) ** 2 <= sp.r * sp.r + 1) for (let y = 45; y < sp.h; y++) World.setBlock(x, y, z, B.obsidian, 0);
+    if (sp.guarded) for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) for (let dy = 0; dy <= 3; dy++) if (Math.abs(dx) === 2 || Math.abs(dz) === 2 || dy === 3) World.setBlock(sp.x + dx, sp.h + dy, sp.z + dz, B.iron_bars, 0);
+    World.setBlock(sp.x, sp.h, sp.z, B.bedrock, 0); World.setBlock(sp.x, sp.h + 1, sp.z, B.fire, 0);
+    for (const e of Entities.list) if (e.type === 'end_crystal' && !e.removed && Math.abs(e.x - sp.x - 0.5) < 1 && Math.abs(e.z - sp.z - 0.5) < 1 && e.y > sp.h - 2) e.removed = true;
+    Entities.add(new EndCrystal(sp.x + 0.5, sp.h + 1, sp.z + 0.5, true));
+  }
+  function respawnTick() {
+    const r = respawn; if (!r) return;
+    const t = r.t++, next = s => { r.stage = s; r.t = 0; };
+    switch (r.stage) {
+      case 'start': for (const c of r.crystals) c.beam = SKY; if (t >= 100) next('preparing'); break;
+      case 'preparing': if (t < 100) { if (t === 0 || t === 50 || t === 51 || t === 52 || t >= 95) growl(); } else next('pillars'); break;
+      case 'pillars': {
+        const L = spikes(), j = Math.floor(t / 40);
+        if (t % 40 === 0 || t % 40 === 39) {
+          if (j < L.length) { const sp = L[j]; if (t % 40 === 0) for (const c of r.crystals) c.beam = { x: sp.x + 0.5, y: sp.h + 1, z: sp.z + 0.5 }; else rebuildSpike(sp); }
+          else if (t % 40 === 0) next('dragon');
+        }
+        break;
+      }
+      case 'dragon':
+        if (t >= 100) {
+          for (const c of r.crystals) { c.beam = null; if (!c.removed) { c.removed = true; Explosions.explode(c.x, c.y, c.z, 6, false, null, false); } }
+          respawn = null; st.killed = false; spawnDragon();
+          const d = dragon(); if (d) Advancements.fire('summoned_entity', { entity: d });
+        } else if (t >= 80) growl(); else if (t === 0) for (const c of r.crystals) c.beam = SKY; else if (t < 5) growl();
+        break;
+    }
+  }
   function crystalDestroyed(c, source, attacker) {
+    // breaking one of the four stops the respawning (the portal comes back)
+    if (respawn && respawn.crystals.includes(c)) { for (const q of respawn.crystals) q.beam = null; respawn = null; buildPodium(true); }
     const d = dragon();
     // breaking the crystal that heals the dragon hurts it (10, as an explosion at its head)
     if (d && d.crystal === c) { d.crystal = null; d.hurt(10, 'explosion', { x: d.headPos()[0], y: d.headPos()[1], z: d.headPos()[2], h: 0 }); }
@@ -454,7 +512,7 @@ const EndFight = (() => {
   }
   function save() { return st; }
   function load(d) { st = d || null; wantInit = false; pendingGateway = null; if (st && World.dim === 'end') wantInit = true; }
-  return { tick, onEnter, crystalsAlive, crystalDestroyed, dragonKilled, gateway, afterArrival, sees, immune, save, load, spikes, podium: () => st && st.podium, previouslyKilled: () => !!(st && st.previously), get state() { return st; } };
+  return { tryRespawn, get respawning() { return respawn && respawn.stage; }, tick, onEnter, crystalsAlive, crystalDestroyed, dragonKilled, gateway, afterArrival, sees, immune, save, load, spikes, podium: () => st && st.podium, previouslyKilled: () => !!(st && st.previously), get state() { return st; } };
 })();
 EnderDragon.prototype.strafe = function (p) { this.setPhase('strafe'); this.target = p; this.fireballCharge = 0; };
 
@@ -462,13 +520,16 @@ EnderDragon.prototype.strafe = function (p) { this.setPhase('strafe'); this.targ
 const CrystalBeams = (() => {
   const mat = new THREE.LineBasicMaterial({ color: 0xff88ff, transparent: true, opacity: 0.8 });
   let line = null;
+  const extra = [];
+  function lineAt(i) { let l = i < 0 ? line : extra[i]; if (!l) { l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), mat); l.frustumCulled = false; scene.add(l); if (i < 0) line = l; else extra[i] = l; } return l; }
+  function set(l, a, b) { l.visible = true; const pos = l.geometry.attributes.position; pos.setXYZ(0, a[0], a[1], a[2]); pos.setXYZ(1, b[0], b[1], b[2]); pos.needsUpdate = true; }
   function update(d) {
     const c = d && d.crystal && !d.crystal.removed ? d.crystal : null;
-    if (!c) { if (line) line.visible = false; return; }
-    if (!line) { line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), mat); line.frustumCulled = false; scene.add(line); }
-    line.visible = true;
-    const pos = line.geometry.attributes.position;
-    pos.setXYZ(0, c.x, c.y + 1, c.z); pos.setXYZ(1, d.x, d.y + 3, d.z); pos.needsUpdate = true;
+    if (c) set(lineAt(-1), [c.x, c.y + 1, c.z], [d.x, d.y + 3, d.z]); else if (line) line.visible = false;
+    // crystals given a target (respawning the dragon) beam to it
+    let i = 0;
+    for (const e of Entities.list) if (e.type === 'end_crystal' && !e.removed && e.beam) set(lineAt(i++), [e.x, e.y + 1, e.z], [e.beam.x, e.beam.y, e.beam.z]);
+    for (; i < extra.length; i++) if (extra[i]) extra[i].visible = false;
   }
   return { update };
 })();
