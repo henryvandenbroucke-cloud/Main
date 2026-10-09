@@ -257,6 +257,13 @@ const Sound = (() => {
     generic: { say: null, hurt: d => noise(d, T(), 0.15, 'bandpass', 900, 1, 0.3), death: d => noise(d, T(), 0.3, 'bandpass', 700, 1, 0.3) },
   };
   MOB.mooshroom = MOB.cow; MOB.husk = MOB.zombie; MOB.drowned = { say: d => voice(d, rp(80, 100), 0.9, { lp: 400, bp: 250, q: 2, vib: [3, 12], v: 0.35 }), hurt: MOB.zombie.hurt, death: MOB.zombie.death }; MOB.zombie_villager = MOB.zombie;
+  // the wither: a hollow, ghostly moan; shots, the spawn blast and breaking out
+  MOB.wither = { say: d => { voice(d, rp(70, 90), 1.4, { type: 'sawtooth', lp: 500, bp: 220, q: 3, vib: [5, 10], attack: 0.2, v: 0.35 }); noise(d, T(), 1.2, 'bandpass', 600, 2, 0.1, 0.3); },
+    hurt: d => { voice(d, rp(110, 140), 0.4, { type: 'sawtooth', lp: 900, bp: 300, q: 2, v: 0.4 }); },
+    death: d => { voice(d, 90, 3, { type: 'sawtooth', lp: 600, bp: 200, q: 2, vib: [3, 14], attack: 0.1, v: 0.5 }); noise(d, T(), 3, 'lowpass', 400, 1, 0.3, 0.2); } };
+  N.wither_shoot = d => { noise(d, T(), 0.25, 'bandpass', 700, 1.5, 0.35, 0.01); tone(d, T(), 'sawtooth', 160, 0.2, 0.15, { to: 90, lp: 800 }); };
+  N.wither_spawn = d => { noise(d, T(), 2.5, 'lowpass', 300, 1, 0.6, 0.05); voice(d, 60, 2.5, { type: 'sawtooth', lp: 500, bp: 150, q: 2, vib: [2, 8], attack: 0.3, v: 0.5 }); };
+  N.wither_break_block = d => { noise(d, T(), 0.4, 'lowpass', 1500, 1, 0.6, 0.005); tone(d, T(), 'square', 90, 0.3, 0.2, { to: 50, lp: 500 }); };
   MOB.warden = { say: d => { voice(d, rp(45, 60), 1.2, { type: 'sawtooth', lp: 300, bp: 120, q: 2, vib: [3, 6], attack: 0.15, v: 0.45 }); noise(d, T(), 1, 'lowpass', 200, 1, 0.12, 0.2); },
     hurt: d => { voice(d, 90, 0.4, { lp: 500, bp: 200, q: 2, to: 50, v: 0.5 }); noise(d, T(), 0.3, 'lowpass', 400, 1, 0.3); },
     death: d => { voice(d, 70, 2.2, { lp: 400, bp: 150, q: 2, to: 30, vib: [4, 10], v: 0.5 }); noise(d, T(), 2, 'lowpass', 300, 1, 0.25, 0.3); } };

@@ -114,7 +114,7 @@ const Raids = (() => {
       // after a win the village celebrates; after a loss the raiders do; 30 seconds later the raid is gone
       if (r.over === 'loss' && r.overT % 20 === 0) for (const m of r.raiders) { if (m.onGround && Math.random() < 0.3) m.vy = 0.42; if (Math.random() < 0.2) Sound.play(m.type + '_celebrate', m); }
       if (++r.overT > 600) { raids.splice(raids.indexOf(r), 1); if (p) HUD.setBoss('raid', null, null); }
-      else if (near) HUD.setBoss('raid', 'Raid - ' + (r.over === 'win' ? 'Victory' : 'Defeat'), r.over === 'win' ? 1 : 0);
+      else if (near) HUD.setBoss('raid', 'Raid - ' + (r.over === 'win' ? 'Victory' : 'Defeat'), r.over === 'win' ? 1 : 0, 'red');
       return;
     }
     if (r.ticks > 48000) { raids.splice(raids.indexOf(r), 1); HUD.setBoss('raid', null, null); return; }
@@ -122,14 +122,14 @@ const Raids = (() => {
     if (r.wave > 0 && villagersNear(r.cx, r.cy, r.cz, 64) === 0 && (now() % 40 === 0)) { r.over = 'loss'; return; }
     if (!r.raiders.length) {
       if (r.wave >= r.waves) { win(r); return; }
-      if (near) HUD.setBoss('raid', 'Raid', 1 - r.cooldown / 300);
+      if (near) HUD.setBoss('raid', 'Raid', 1 - r.cooldown / 300, 'red');
       if (--r.cooldown <= 0) { if (spawnWave(r)) r.cooldown = 300; else r.cooldown = 20; }
       return;
     }
     // raiders go for the village, and the bar shows how much of the wave is left
     for (const m of r.raiders) if (!m.target && !m.vehicle && (m.age % 40 === 0) && ((m.x - r.cx) ** 2 + (m.z - r.cz) ** 2 > 16 * 16 || m.nav.done())) m.nav.moveTo(r.cx + (Math.random() - 0.5) * 16, r.cy, r.cz + (Math.random() - 0.5) * 16, 1);
     const hp = r.raiders.reduce((s, m) => s + Math.max(0, m.health), 0);
-    if (near) HUD.setBoss('raid', 'Raid - Raiders Remaining: ' + r.raiders.length, Math.min(1, hp / Math.max(1, r.total)));
+    if (near) HUD.setBoss('raid', 'Raid - Raiders Remaining: ' + r.raiders.length, Math.min(1, hp / Math.max(1, r.total)), 'red');
   }
   function win(r) {
     r.over = 'win'; r.overT = 0;

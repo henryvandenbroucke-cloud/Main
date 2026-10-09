@@ -57,6 +57,9 @@ const GUI = (() => {
   { const [x, y] = alloc('xp_fg', 182, 5); fill(x + 1, y + 1, 180, 3, '#80ff20'); fill(x + 1, y + 1, 180, 1, '#c0ff80'); fill(x + 1, y + 3, 180, 1, '#4aa010'); for (let i = 1; i < 18; i++) fill(x + i * 10 + i * 0.1, y + 1, 1, 3, '#2a5a10'); }
   { const [x, y] = alloc('boss_bg', 182, 5); fill(x, y, 182, 5, '#2a0a2a'); fill(x + 1, y + 1, 180, 3, '#4a1a4a'); }
   { const [x, y] = alloc('boss_fg', 182, 5); fill(x, y, 182, 5, '#e830e8'); fill(x, y, 182, 1, '#ff9aff'); fill(x, y + 4, 182, 1, '#a01aa0'); }
+  // the other boss bar colours (the wither's purple, a raid's red)
+  { const [x, y] = alloc('boss_fg_purple', 182, 5); fill(x, y, 182, 5, '#9010d8'); fill(x, y, 182, 1, '#c87aff'); fill(x, y + 4, 182, 1, '#5a0896'); }
+  { const [x, y] = alloc('boss_fg_red', 182, 5); fill(x, y, 182, 5, '#e01818'); fill(x, y, 182, 1, '#ff7a7a'); fill(x, y + 4, 182, 1, '#940a0a'); }
   // furnace flame and arrow, brewing bubbles, crafting arrow
   art('flame_off', ['......#.......', '.....##.......', '....###.......', '....####......', '...#####...#..', '...######.##..', '..##########..', '..##########..', '.############.', '.############.', '.############.', '..##########..', '...########...', '....######....'], { '#': '#6b6b6b' });
   art('flame_on', ['......#.......', '.....##.......', '....#y#.......', '....#yy#......', '...#yyy#...#..', '...#yyyy#.##..', '..##yyooy###..', '..#yoooooyy#..', '.#yoorrooyy##.', '.#yorrrroyy#..', '.#oorrrrrooy#.', '..#orrrrroo#..', '...#orrrro#...', '....######....'], { '#': '#c84a10', y: '#ffd84a', o: '#f7a52e', r: '#e8441a' });

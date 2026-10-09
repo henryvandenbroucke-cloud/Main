@@ -100,7 +100,7 @@ const Game = {
     Portals.tick(p);
     Maps.tick(p);
     Leads.tick();
-    GameEvents.tick(); Sculk.tickPlayer(p); Raids.tick(); Dripstone.tick();
+    GameEvents.tick(); Sculk.tickPlayer(p); Raids.tick(); Dripstone.tick(); Withers.tick();
     if (World.dim === 'end') EndFight.afterArrival(p);
     EndFight.tick();
     Sound.tick(p);

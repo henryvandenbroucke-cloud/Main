@@ -158,7 +158,7 @@ const HUD = (() => {
     for (const [, b] of bossbars) {
       text(b.name, cx, y - 9 * S, '#ffffff', { center: true });
       sprite('boss_bg', cx - 91 * S, y);
-      GUI.draw(g, 'boss_fg', cx - 91 * S, y, S, Math.max(0, Math.round(182 * b.progress)), 5);
+      GUI.draw(g, b.color ? 'boss_fg_' + b.color : 'boss_fg', cx - 91 * S, y, S, Math.max(0, Math.round(182 * b.progress)), 5);
       y += 19 * S;
     }
   }
@@ -212,7 +212,7 @@ const HUD = (() => {
     actionBar(t) { action = t; actionTime = 60; },
     title(t, s, col) { title = t; sub = s || ''; titleColor = col || '#ffffff'; titleTime = 70; },
     toggleDebug() { debug = !debug; }, get debug() { return debug; },
-    setBoss(id, name, progress) { if (progress === null) bossbars.delete(id); else bossbars.set(id, { name, progress }); },
+    setBoss(id, name, progress, color) { if (progress === null) bossbars.delete(id); else bossbars.set(id, { name, progress, color }); },
     text, get ctx() { return g; },
   };
 })();

@@ -332,8 +332,10 @@ const Explosions = (() => {
           if (by < MINY || by > MAXY) break;
           const id = World.getBlock(bx, by, bz);
           const fl = BLOCKS[id].fluid ? 100 : 0;
-          if (id !== 0) h -= ((BLOCKS[id].fluid ? fl : resist(id)) + 0.3) * 0.3;
-          if (h > 0 && id !== 0 && !BLOCKS[id].fluid && resist(id) < 3600000) set.set(bx + ',' + by + ',' + bz, [bx, by, bz, id]);
+          // some explosions (a blue wither skull's) treat blocks as weaker than they are
+          const rc = id && source && source.resistCap ? source.resistCap(id) : null, rs = rc !== null && rc !== undefined ? Math.min(rc, resist(id)) : resist(id);
+          if (id !== 0) h -= ((BLOCKS[id].fluid ? fl : rs) + 0.3) * 0.3;
+          if (h > 0 && id !== 0 && !BLOCKS[id].fluid && resist(id) < 3600000 && !(source && source.resistCap && Withers.isImmune(id) && source.dangerous)) set.set(bx + ',' + by + ',' + bz, [bx, by, bz, id]);
           px += dx * 0.3; py += dy * 0.3; pz += dz * 0.3; h -= 0.22500001;
         }
       }
