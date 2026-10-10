@@ -15611,8 +15611,12 @@ const Slots = (() => {
       set(s, Object.assign({}, cursor, { count: cur + n })); left -= n;
     }
     setCursor(left > 0 ? Object.assign({}, cursor, { count: left }) : null);
+    changed(list);
     Screens.render();
   }
+  // slots changed by a drag, a double-click gather or a number key: let the screen react (a crafting grid
+  // works out its result again)
+  function changed(list) { for (const s of list) if (s && s.onChange) s.onChange(); const scr = Screens.current; if (scr && scr.update) scr.update(); }
   function click(s, button) {
     const t = get(s);
     if (s.output) { takeOutput(s, false); return; }
@@ -15656,6 +15660,7 @@ const Slots = (() => {
       const t = get(s); if (!t || !sameItem(t, c)) continue;
       if (pass === 0 && t.count >= maxStack(t)) continue;
       const n = Math.min(t.count, max - cursor.count); cursor.count += n; t.count -= n; set(s, t.count ? t : null);
+      changed([s]);
     }
     renderCursor();
   }
@@ -15676,14 +15681,14 @@ const Slots = (() => {
       const k = +e.code.slice(5) - 1; const hs = { inv: p.inv, i: k };
       if (s.output) { const r = get(s); if (r && !p.inv.get(k)) { p.inv.set(k, r); if (s.onTake) s.onTake(r); else set(s, null); } }
       else { const a = get(s), b = p.inv.get(k); if (b && !accepts(s, b)) return true; set(s, b); set(hs, a); }
-      Screens.render(); return true;
+      changed([s]); Screens.render(); return true;
     }
-    if (e.code === Input.BIND.swap) { const a = get(s), b = p.inv.get(40); if (s.output) return true; set(s, b); p.inv.set(40, a); Screens.render(); return true; }
+    if (e.code === Input.BIND.swap) { const a = get(s), b = p.inv.get(40); if (s.output) return true; set(s, b); p.inv.set(40, a); changed([s]); Screens.render(); return true; }
     if (e.code === Input.BIND.drop) {
       const t = get(s); if (!t) return true;
       if (s.output) { const r = t; if (s.onTake) s.onTake(r); else set(s, null); ItemUse.drop(p, r); Screens.render(); return true; }
       const n = e.ctrlKey ? t.count : 1; ItemUse.drop(p, Object.assign({}, t, { count: n }));
-      set(s, t.count - n > 0 ? Object.assign({}, t, { count: t.count - n }) : null); Screens.render(); return true;
+      set(s, t.count - n > 0 ? Object.assign({}, t, { count: t.count - n }) : null); changed([s]); Screens.render(); return true;
     }
     return false;
   }
