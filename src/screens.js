@@ -172,6 +172,7 @@ function tooltipHTML(s) {
   if (it.name === 'filled_map' && typeof Maps !== 'undefined') h += Maps.tooltip(s);
   if (it.name === 'written_book') h += Books.tooltip(s);
   if (it.name === 'decorated_pot') h += Pots.tooltip(s);
+  if (typeof Creatures !== 'undefined') h += Creatures.tooltip(s);
   if (it.name === 'firework_rocket' && s.tag && s.tag.flight) h += `<div style="color:#aaa">Flight Duration: ${s.tag.flight}</div>`;
   if (it.name.endsWith('shulker_box') && s.tag && s.tag.items) { const list = s.tag.items.filter(x => x).slice(0, 5); for (const x of list) h += `<div style="color:#fff">${escapeHTML(itemName(x))} x${x.count}</div>`; }
   if (it.armor && it.armor.pts) h += `<br><div style="color:#aaa">When on ${['Head', 'Body', 'Legs', 'Feet'][it.armor.slot]}:</div><div style="color:#5555ff">+${it.armor.pts} Armor</div>` + (it.armor.tough ? `<div style="color:#5555ff">+${it.armor.tough} Armor Toughness</div>` : '') + (it.armor.kb ? `<div style="color:#5555ff">+${Math.round(it.armor.kb * 10)} Knockback Resistance</div>` : '');

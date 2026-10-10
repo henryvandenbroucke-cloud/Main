@@ -595,15 +595,19 @@ const Vehicles = (() => {
       m.yaw = p.yaw; m.lookYaw = p.yaw; m.lookTarget = null;
       let f = p.forward > 0 ? 1 : p.forward < 0 ? -0.25 : 0;
       m.forward = f; m.strafe = (p.strafe > 0 ? 1 : p.strafe < 0 ? -1 : 0) * 0.5; m.speedMod = 1;
-      if (t === 'camel' && m.sitting) { m.forward = m.strafe = 0; if (f) m.sitting = false; }
-      // jumping: hold space to charge (horses) or dash (camels)
-      if (p.jumping) m.jumpCharge = Math.min(100, (m.jumpCharge || 0) + 10);
-      else if (m.jumpCharge > 0) {
-        const k = m.jumpCharge >= 90 ? 1 : 0.4 + 0.4 * m.jumpCharge / 90; m.jumpCharge = 0;
-        if (m.onGround && t !== 'camel') { m.vy = (m.jumpStrength || 0.5) * k; if (f > 0) { m.vx += -Math.sin(m.yaw) * 0.4 * k; m.vz += -Math.cos(m.yaw) * 0.4 * k; } }
-        if (t === 'camel' && m.onGround && (m.dashCool || 0) <= 0) { const sp = 22.2222 * k * (m.speed || 0.09) * 1; m.vx += -Math.sin(m.yaw) * sp; m.vz += -Math.cos(m.yaw) * sp; m.vy += 1.4285 * k * 0.42; m.dashCool = 55; }
-      }
-      if (m.dashCool > 0) m.dashCool--;
+      // a sitting camel gets up when its rider moves, and won't go anywhere while it does
+      if (t === 'camel' && m.riderMoves && m.riderMoves(f || m.strafe)) { m.forward = m.strafe = 0; }
+      // the game's riding jump: holding jump fills the bar over 10 ticks (then it eases back toward 0.8); letting go
+      // jumps with power floor(bar x 100), a full jump from 90 up, else 0.4 + 0.4 x power / 90. A camel dashes instead
+      if (p.jumping) {
+        if (!p.rideJumpHeld) { p.rideJumpHeld = true; p.jumpRidingTicks = 0; p.jumpRidingScale = 0; }
+        else { p.jumpRidingTicks++; p.jumpRidingScale = p.jumpRidingTicks < 10 ? p.jumpRidingTicks * 0.1 : 0.8 + 2 / (p.jumpRidingTicks - 9) * 0.1; }
+      } else if (p.rideJumpHeld) {
+        p.rideJumpHeld = false; const power = Math.floor(p.jumpRidingScale * 100); p.jumpRidingTicks = -10;
+        const k = power >= 90 ? 1 : 0.4 + 0.4 * power / 90;
+        if (power > 0 && m.onGround && t !== 'camel') { m.vy = (m.jumpStrength || 0.5) * k; if (f > 0) { m.vx += -Math.sin(m.yaw) * 0.4 * k; m.vz += -Math.cos(m.yaw) * 0.4 * k; } }
+        if (power > 0 && t === 'camel' && m.dash) m.dash(k);
+      } else if (p.jumpRidingTicks < 0 && ++p.jumpRidingTicks === 0) p.jumpRidingScale = 0;
       m.jumping = false;
       return true;
     }

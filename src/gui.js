@@ -54,6 +54,10 @@ const GUI = (() => {
   { const [x, y] = alloc('offhand', 22, 24); g.globalAlpha = 0.75; fill(x, y, 22, 24, '#000'); g.globalAlpha = 0.55; fill(x + 2, y + 2, 18, 20, '#8b8b8b'); g.globalAlpha = 1; }
   // experience bar
   { const [x, y] = alloc('xp_bg', 182, 5); fill(x, y, 182, 5, '#000'); fill(x + 1, y + 1, 180, 3, '#2a2a2a'); for (let i = 1; i < 18; i++) fill(x + i * 10 + i * 0.1, y + 1, 1, 3, '#000'); }
+  // the riding jump bar: a dark track, the charge in pale gold, and grey while a camel's dash cools down
+  { const [x, y] = alloc('jump_bg', 182, 5); fill(x, y, 182, 5, '#000'); fill(x + 1, y + 1, 180, 3, '#3a3a3a'); fill(x + 1, y + 1, 180, 1, '#555'); }
+  { const [x, y] = alloc('jump_fg', 182, 5); fill(x + 1, y + 1, 180, 3, '#d8c070'); fill(x + 1, y + 1, 180, 1, '#f4e6a8'); fill(x + 1, y + 3, 180, 1, '#a08a40'); }
+  { const [x, y] = alloc('jump_cool', 182, 5); fill(x + 1, y + 1, 180, 3, '#7a7a7a'); fill(x + 1, y + 1, 180, 1, '#9a9a9a'); }
   { const [x, y] = alloc('xp_fg', 182, 5); fill(x + 1, y + 1, 180, 3, '#80ff20'); fill(x + 1, y + 1, 180, 1, '#c0ff80'); fill(x + 1, y + 3, 180, 1, '#4aa010'); for (let i = 1; i < 18; i++) fill(x + i * 10 + i * 0.1, y + 1, 1, 3, '#2a5a10'); }
   { const [x, y] = alloc('boss_bg', 182, 5); fill(x, y, 182, 5, '#2a0a2a'); fill(x + 1, y + 1, 180, 3, '#4a1a4a'); }
   { const [x, y] = alloc('boss_fg', 182, 5); fill(x, y, 182, 5, '#e830e8'); fill(x, y, 182, 1, '#ff9aff'); fill(x, y + 4, 182, 1, '#a01aa0'); }

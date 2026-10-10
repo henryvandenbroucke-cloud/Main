@@ -461,6 +461,8 @@ const Sound = (() => {
   function thunder(x, y, z, near) { if (!ready) return; const d = out('ambient', x, y, z, near ? 1 : 0.6, 1e6); const t0 = T() + (near ? 0 : 0.6); noise(d, t0, 3.5, 'lowpass', near ? 900 : 300, 0.7, near ? 1.2 : 0.8, 0.02, (fl, t) => fl.frequency.exponentialRampToValueAtTime(70, t + 3)); tone(d, t0, 'sine', 45, 3, 0.6, { to: 25 }); }
   return {
     play, step, ui: () => play('ui'), volumes, music, playDisc, stopDisc, note, tick, thunder, subtitles: SUBS,
+    // for other modules adding their own sounds: N[name] = d => ..., MOB[type] = { say, hurt, death }
+    N, MOB, synth: { tone, noise, T, rp, voice },
     blockBreak: (id, x, y, z) => blockSound(id, x + 0.5, y + 0.5, z + 0.5, 'break'),
     blockHit: (id, x, y, z) => blockSound(id, x + 0.5, y + 0.5, z + 0.5, 'hit'),
     blockPlace: (id, x, y, z) => blockSound(id, x + 0.5, y + 0.5, z + 0.5, 'place'),

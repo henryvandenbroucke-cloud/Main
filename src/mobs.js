@@ -233,12 +233,12 @@ G.NearestAttackableTarget = class extends Goal {
   canUse() {
     const m = this.m; if (m.target && !m.target.dead) return false;
     if (this.prob > 1 && rnd(this.prob) !== 0) return false;
-    const c = m.nearest(e => e !== m && !e.dead && this.pred(e) && (!e.isPlayer || (!e.creative && !e.spectator && Game.difficulty !== 'peaceful')), this.range * (this.pred === TARGET_PLAYER && Game.player.sneaking ? 0.8 : 1));
+    const c = m.nearest(e => e !== m && !e.dead && !e.untargetable && this.pred(e) && (!e.isPlayer || (!e.creative && !e.spectator && Game.difficulty !== 'peaceful')), this.range * (this.pred === TARGET_PLAYER && Game.player.sneaking ? 0.8 : 1));
     if (!c || (this.mustSee && !m.canSee(c))) return false;
     this.c = c; return true;
   }
   start() { this.m.target = this.c; this.unseen = 0; }
-  canContinue() { const m = this.m, t = m.target; if (!t || t.dead || t.removed || (t.isPlayer && (t.creative || t.spectator))) return false; if (m.distTo(t) > this.range * 1.5) return false; if (this.mustSee) { if (m.canSee(t)) this.unseen = 0; else if (++this.unseen > 60) return false; } return true; }
+  canContinue() { const m = this.m, t = m.target; if (!t || t.dead || t.removed || t.untargetable || (t.isPlayer && (t.creative || t.spectator))) return false; if (m.distTo(t) > this.range * 1.5) return false; if (this.mustSee) { if (m.canSee(t)) this.unseen = 0; else if (++this.unseen > 60) return false; } return true; }
   stop() { this.m.target = null; }
 };
 const TARGET_PLAYER = e => e.isPlayer;
@@ -379,9 +379,11 @@ class Mob extends Living {
     if (this.persistent || this.dead || this.customName || this.leashed || this.passengers.length) return;
     const p = Game.player; if (!p) return;
     const d2 = this.dist2(p.x, p.y, p.z);
-    const canGo = this.hostile || this.group === 'ambient' || this.group === 'water_ambient' || this.despawnable;
+    // the game's categories: creatures and misc stay; monsters, bats, fish, squid, dolphins and axolotls go
+    const canGo = (this.hostile || this.group === 'ambient' || this.group === 'water_ambient' || this.group === 'water' || this.despawnable) && !this.fromBucket;
     if (!canGo) return;
-    if (d2 > 128 * 128) { this.removed = true; return; }
+    const far = this.group === 'water_ambient' ? 64 : 128;
+    if (d2 > far * far) { this.removed = true; return; }
     if (this.noActionTime > 600 && d2 > 32 * 32 && rnd(800) === 0) this.removed = true;
     else if (d2 < 32 * 32) this.noActionTime = 0;
     if (Game.difficulty === 'peaceful' && this.hostile && !this.peacefulOk) this.removed = true;

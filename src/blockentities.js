@@ -125,7 +125,7 @@ const BlockUse = (() => {
       case 'jukebox': {
         const be = World.getBE(x, y, z) || { type: 'jukebox', disc: null };
         if (be.disc) { Drops.spawnItem(x + 0.5, y + 1.2, z + 0.5, be.disc); be.disc = null; World.setBE(x, y, z, be); World.setBlock(x, y, z, id, 0); Sound.stopDisc(x, y, z); return true; }
-        if (hn.startsWith('music_disc_')) { be.disc = Object.assign({}, held, { count: 1 }); World.setBE(x, y, z, be); World.setBlock(x, y, z, id, 1); consume(p); Sound.playDisc(hn, x, y, z); HUD.actionBar('Now Playing: C418 - ' + ITEMS[IID[hn]].display.replace('Music Disc', '').trim()); return true; }
+        if (hn.startsWith('music_disc_')) { be.disc = Object.assign({}, held, { count: 1 }); World.setBE(x, y, z, be); World.setBlock(x, y, z, id, 1); consume(p); Sound.playDisc(hn, x, y, z); HUD.actionBar('Now Playing: ' + (typeof Creatures !== 'undefined' && Creatures.Jukebox.title(hn) || ITEMS[IID[hn]].display.replace('Music Disc', '').trim())); return true; }
         return false;
       }
       case 'flower_pot': {

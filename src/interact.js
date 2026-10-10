@@ -64,7 +64,7 @@ const Interact = (() => {
     if (be && be.loot) LootTables.unpackContainer(be, p);
     if (d.name === 'decorated_pot') Pots.unpack(be);
     if (be && be.items && !(d.name.endsWith('shulker_box'))) for (const s of be.items) if (s) Drops.spawnItem(x + 0.5, y + 0.5, z + 0.5, s, true);
-    if (be && be.type === 'jukebox' && be.disc) Drops.spawnItem(x + 0.5, y + 1, z + 0.5, be.disc);
+    if (be && be.type === 'jukebox' && be.disc) { Drops.spawnItem(x + 0.5, y + 1, z + 0.5, be.disc); Sound.stopDisc(x, y, z); }
     if (be && be.type === 'lectern' && be.book) Drops.spawnItem(x + 0.5, y + 1, z + 0.5, be.book);
     // hives: angry bees, unless broken with silk touch (which keeps the bees and honey in the item)
     const hive = (d.name === 'bee_nest' || d.name === 'beehive') ? Bees.broken(p, x, y, z, id, st, !!enchLevel(held, 'silk_touch')) : null;

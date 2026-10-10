@@ -77,9 +77,17 @@ const HUD = (() => {
   function survivalBars(p, cx, bottom, a) {
     // experience
     const xy = bottom - 29 * S;
-    sprite('xp_bg', cx - 91 * S, xy);
-    const prog = Math.floor(p.xpProgress * 182);
-    if (prog > 0) GUI.draw(g, 'xp_fg', cx - 91 * S, xy, S, prog, 5);
+    // riding a saddled horse or camel: the jump bar takes the experience bar's place (the camel's dash cooldown greys it)
+    const v = p.vehicle;
+    if (v && v.saddled && v.passengers[0] === p && ['horse', 'donkey', 'mule', 'skeleton_horse', 'zombie_horse', 'camel'].includes(v.type) && (v.tame || v.type === 'camel' || v.type === 'skeleton_horse')) {
+      sprite('jump_bg', cx - 91 * S, xy);
+      if (v.dashCool > 0) GUI.draw(g, 'jump_cool', cx - 91 * S, xy, S, 182, 5);
+      else { const jp = Math.floor((p.jumpRidingScale || 0) * 183); if (jp > 0) GUI.draw(g, 'jump_fg', cx - 91 * S, xy, S, Math.min(182, jp), 5); }
+    } else {
+      sprite('xp_bg', cx - 91 * S, xy);
+      const prog = Math.floor(p.xpProgress * 182);
+      if (prog > 0) GUI.draw(g, 'xp_fg', cx - 91 * S, xy, S, prog, 5);
+    }
     if (p.xpLevel > 0) text(String(p.xpLevel), cx, xy - 6 * S, '#80ff20', { center: true, outline: true });
     // hearts
     const maxH = Math.ceil(p.maxHealth / 2), absH = Math.ceil(p.absorption / 2), rows = Math.ceil((maxH + absH) / 10), rowGap = Math.max(10 - (rows - 2), 3);

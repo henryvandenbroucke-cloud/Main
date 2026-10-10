@@ -68,21 +68,25 @@ const ItemUse = (() => {
       }
       case 'water_bucket': case 'lava_bucket': case 'powder_snow_bucket': case 'cod_bucket': case 'salmon_bucket': case 'tropical_fish_bucket': case 'pufferfish_bucket': case 'axolotl_bucket': case 'tadpole_bucket': {
         const fluid = n === 'lava_bucket' ? B.lava : n === 'powder_snow_bucket' ? B.powder_snow : B.water;
+        // a bucket of fish, an axolotl or a tadpole lets its mob out, as it was when scooped up (the game's MobBucketItem)
+        const mob = ['water_bucket', 'lava_bucket', 'powder_snow_bucket'].includes(n) ? null : n.replace('_bucket', '');
+        const out = (bx, by, bz) => {
+          if (mob) { Mobs.spawn(mob, bx + 0.5, by, bz + 0.5, { force: true, fromBucket: (s.tag && s.tag.mob) || {} }); Sound.play(mob === 'axolotl' ? 'bucket_empty_axolotl' : mob === 'tadpole' ? 'bucket_empty_tadpole' : 'bucket_empty_fish', null, { x: bx, y: by, z: bz }); }
+          else if (fluid !== B.powder_snow) Sound.play(fluid === B.lava ? 'bucket_empty_lava' : 'bucket_empty', null, { x: bx, y: by, z: bz });
+          emptied(p, offhand, n); return true;
+        };
         // waterlog a block that takes water
-        if (fluid === B.water && d.waterlog && !(st & 128)) { World.setBlock(x, y, z, id, st | 128); Ticks.schedule(x, y, z, 5); emptied(p, offhand, n); return true; }
+        if (fluid === B.water && d.waterlog && !(st & 128)) { World.setBlock(x, y, z, id, st | 128); Ticks.schedule(x, y, z, 5); return out(x, y, z); }
         let tx = x, ty = y, tz = z;
         if (!d.replaceable) { tx += DX[hit.face]; ty += DY[hit.face]; tz += DZ[hit.face]; }
         const t = World.getBlock(tx, ty, tz), td = BLOCKS[t];
-        if (fluid === B.water && td.waterlog && !(World.getState(tx, ty, tz) & 128)) { World.setBlock(tx, ty, tz, t, World.getState(tx, ty, tz) | 128); emptied(p, offhand, n); return true; }
+        if (fluid === B.water && td.waterlog && !(World.getState(tx, ty, tz) & 128)) { World.setBlock(tx, ty, tz, t, World.getState(tx, ty, tz) | 128); return out(tx, ty, tz); }
         if (!(t === 0 || td.replaceable || td.fluid)) return false;
-        if (fluid === B.water && World.dim === 'nether') { Sound.play('fizz', null, { x: tx, y: ty, z: tz }); Particles.smoke(tx + 0.5, ty + 0.5, tz + 0.5, 8); emptied(p, offhand, n); return true; }
+        if (fluid === B.water && World.dim === 'nether') { Sound.play('fizz', null, { x: tx, y: ty, z: tz }); Particles.smoke(tx + 0.5, ty + 0.5, tz + 0.5, 8); if (mob) Mobs.spawn(mob, tx + 0.5, ty, tz + 0.5, { force: true, fromBucket: (s.tag && s.tag.mob) || {} }); emptied(p, offhand, n); return true; }
         if (t && !td.fluid && Game.rules.doTileDrops) Drops.dropBlock(t, World.getState(tx, ty, tz), null, tx, ty, tz);
         World.setBlock(tx, ty, tz, fluid, 0);
         if (fluid !== B.powder_snow) Ticks.schedule(tx, ty, tz, 1);
-        Sound.play(fluid === B.lava ? 'bucket_empty_lava' : 'bucket_empty', null, { x: tx, y: ty, z: tz });
-        if (n.endsWith('_bucket') && !['water_bucket', 'lava_bucket', 'powder_snow_bucket'].includes(n)) Mobs.spawn(n.replace('_bucket', ''), tx + 0.5, ty, tz + 0.5);
-        emptied(p, offhand, n);
-        return true;
+        return out(tx, ty, tz);
       }
       case 'bucket': return false; // handled in the air (it needs to see fluids)
       case 'glass_bottle': return false;

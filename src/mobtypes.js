@@ -584,16 +584,19 @@ const Mobs = (() => {
     if (type === 'sheep' && o.color) m.color = o.color;
     if (o.persistent) m.persistent = true;
     if (o.slimeSize && m.setSize) m.setSize(o.slimeSize);
+    // the game's finalizeSpawn: variants picked per spawn group; a mob out of a bucket keeps what the bucket held
+    if (m.finalizeSpawn && !o.fromBucket) m.finalizeSpawn(o.group || {}, o);
+    if (o.fromBucket) { m.fromBucket = true; m.persistent = true; const d = o.fromBucket; if (d.health) m.health = Math.min(m.maxHealth, d.health); if (d.name) m.customName = d.name; if (m.loadBucket) m.loadBucket(d); }
     Entities.add(m);
     return m;
   }
   // /summon, spawn eggs
   function spawn(type, x, y, z, o) { o = o || {}; const m = spawnEntity(type, x, y, z, Object.assign({ persistent: !!o.force }, o)); if (m && o.force) m.persistent = true; return m; }
   // ---------------------------------------------------------------- natural spawning
-  const CAPS = { monster: 70, creature: 10, ambient: 15, water: 5, underground_water: 5, axolotls: 5 };
+  const CAPS = { monster: 70, creature: 10, ambient: 15, water: 5, water_ambient: 20, underground_water: 5, axolotls: 5 };
   // glow squid and axolotls have their own spawn categories (and caps) in the game
   const CAT_OF = { glow_squid: 'underground_water', axolotl: 'axolotls' };
-  function counts() { const c = { monster: 0, creature: 0, ambient: 0, water: 0, underground_water: 0, axolotls: 0 }; for (const e of Entities.list) if (e instanceof Mob && !e.dead) { const g = CAT_OF[e.type] || (e.group === 'misc' ? null : e.group); if (g && c[g] !== undefined) c[g]++; } return c; }
+  function counts() { const c = { monster: 0, creature: 0, ambient: 0, water: 0, water_ambient: 0, underground_water: 0, axolotls: 0 }; for (const e of Entities.list) if (e instanceof Mob && !e.dead) { const g = CAT_OF[e.type] || (e.group === 'misc' ? null : e.group); if (g && c[g] !== undefined) c[g]++; } return c; }
   function pickWeighted(list) { let t = 0; for (const s of list) t += s[1]; let k = Math.random() * t; for (const s of list) { k -= s[1]; if (k < 0) return s; } return list[0]; }
   // may a monster spawn here? (light 0 for block light, darkness from the sky with a random allowance)
   function darkEnough(x, y, z) {
@@ -613,7 +616,7 @@ const Mobs = (() => {
       if (BLOCKS[World.getBlock(x, y - 1, z)].fluid !== 'water' || BLOCKS[World.getBlock(x, y, z)].fluid !== 'water' || !darkEnough(x, y, z)) return false;
       const bn = BIOMES[World.biomeAt3(x, y, z)].name; return bn === 'river' || bn === 'frozen_river' ? rnd(15) === 0 : rnd(40) === 0 && y < 58;
     }
-    if (group === 'water' || type === 'guardian') {
+    if (group === 'water' || group === 'water_ambient' || type === 'guardian') {
       if (BLOCKS[World.getBlock(x, y, z)].fluid !== 'water' || OPAQUE_SOLID(World.getBlock(x, y + 1, z))) return false;
       // glow squid: dark water at least 33 below sea level; axolotls: water over clay; others near the surface (lush caves' fish anywhere)
       if (type === 'glow_squid') return y <= 30 && World.getLight(x, y, z) === 0;
@@ -643,6 +646,7 @@ const Mobs = (() => {
     if (Game.gameTime % 400 === 0 && c.creature < CAPS.creature) cats.push('creature');
     if (c.ambient < CAPS.ambient && World.dim === 'overworld') cats.push('ambient');
     if (c.water < CAPS.water && World.dim === 'overworld') cats.push('water');
+    if (c.water_ambient < CAPS.water_ambient && World.dim === 'overworld') cats.push('water_ambient');
     if (World.dim === 'overworld') for (const k of ['underground_water', 'axolotls']) if (c[k] < CAPS[k]) cats.push(k);
     if (!cats.length) return;
     const pcx = Math.floor(p.x / 16), pcz = Math.floor(p.z / 16), R = Math.min(8, Settings.renderDist);
@@ -653,8 +657,10 @@ const Mobs = (() => {
       for (const cat of cats) spawnCluster(cat, ch, p);
     }
   }
+  // the fish are the water_ambient category in the game; squid and dolphins are water creatures
+  const FISH = new Set(['cod', 'salmon', 'tropical_fish', 'pufferfish']);
   function listFor(cat, b) {
-    return cat === 'monster' ? b.hostile : cat === 'creature' ? b.passive : cat === 'water' ? b.waterMobs : cat === 'ambient' ? b.ambient
+    return cat === 'monster' ? b.hostile : cat === 'creature' ? b.passive : cat === 'water' ? b.waterMobs.filter(m => !FISH.has(m[0])) : cat === 'water_ambient' ? b.waterMobs.filter(m => FISH.has(m[0])) : cat === 'ambient' ? b.ambient
       : cat === 'underground_water' ? (b.name === 'deep_dark' ? [] : [['glow_squid', 10, 4, 6]]) : b.name === 'lush_caves' ? [['axolotl', 10, 4, 6]] : [];
   }
   function spawnCluster(cat, ch, p) {
@@ -678,7 +684,7 @@ const Mobs = (() => {
     if (!list || !list.length) return;
     let x = x0, y = y0, z = z0, type = null, n = 0;
     for (let pack = 0; pack < 3; pack++) {
-      const g = pickWeighted(list);
+      const g = pickWeighted(list), grp = {};
       if (!MobTypes[g[0]] && !EntityModels.DEFS[g[0]]) continue;
       const size = g[2] + rnd(g[3] - g[2] + 1);
       for (let i = 0; i < size; i++) {
@@ -690,7 +696,7 @@ const Mobs = (() => {
         if (d2 < 24 * 24 || d2 > 128 * 128) continue;
         if (!spawnable(g[0], x, y, z)) continue;
         if (g[0] === 'slime' && !slimeOk(x, y, z)) continue;
-        const m = spawnEntity(g[0], x + 0.5, y, z + 0.5);
+        const m = spawnEntity(g[0], x + 0.5, y, z + 0.5, { group: grp });
         if (m) n++;
         type = g[0];
         if (n >= (cat === 'monster' ? 4 : 8)) return;
@@ -712,13 +718,13 @@ const Mobs = (() => {
     const x0 = c.cx * 16 + rnd(16), z0 = c.cz * 16 + rnd(16), b = BIOMES[c.biomes[(x0 & 15) + (z0 & 15) * 16]];
     const list = b.passive; if (!list || !list.length) return;
     const g = pickWeighted(list); if (!MobTypes[g[0]] && !EntityModels.DEFS[g[0]]) return;
-    const size = g[2] + rnd(g[3] - g[2] + 1);
+    const size = g[2] + rnd(g[3] - g[2] + 1), grp = {};
     for (let i = 0; i < size; i++) {
       const x = x0 + rnd(5) - 2, z = z0 + rnd(5) - 2;
       if ((x >> 4) !== c.cx || (z >> 4) !== c.cz) continue;
       const y = c.height[(x & 15) + (z & 15) * 16] + 1;
       if (!spawnable(g[0], x, y, z)) continue;
-      const m = spawnEntity(g[0], x + 0.5, y, z + 0.5, { noEquip: true }); if (m) m.persistent = true;
+      const m = spawnEntity(g[0], x + 0.5, y, z + 0.5, { noEquip: true, group: grp }); if (m) m.persistent = true;
     }
   }
   World.listeners.chunkLoaded.push(c => { if (Game.running && Game.structures !== undefined) chunkAnimals(c); });

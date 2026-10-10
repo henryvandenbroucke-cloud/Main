@@ -18,11 +18,17 @@ class Projectile extends Entity {
     for (const e of Entities.list.concat(Game.player ? [Game.player] : [])) {
       if (e === this || e.removed || e.dead || !e.hurt || e === this.owner && this.life < 5 || e.isPlayer && e.spectator || e instanceof Projectile || e.type === 'item' || e.type === 'xp_orb') continue;
       if (this.pierced && this.pierced.has(e)) continue;
+      if (e === this.lastDeflectedBy) continue;
       const hw = e.w / 2 + 0.3;
       const r = Phys.rayBox(this.x, this.y, this.z, this.vx / len, this.vy / len, this.vz / len, e.x - hw, e.y - 0.3, e.z - hw, e.x + hw, e.y + e.h + 0.3, e.z + hw);
       if (r && r.t < et) { et = r.t; ent = e; }
     }
-    if (ent) { this.x += this.vx * (et / len); this.y += this.vy * (et / len); this.z += this.vz * (et / len); if (this.onEntity(ent) !== false) return; }
+    if (ent) {
+      this.x += this.vx * (et / len); this.y += this.vy * (et / len); this.z += this.vz * (et / len);
+      // the game's ProjectileDeflection.REVERSE (breezes): turned back at half speed, its owner unchanged
+      if (ent.deflects && ent.deflects(this)) { this.vx *= -0.5; this.vy *= -0.5; this.vz *= -0.5; this.lastDeflectedBy = ent; if (ent.onDeflect) ent.onDeflect(this); return; }
+      if (this.onEntity(ent) !== false) return;
+    }
     else if (hit) { this.x = this.x + this.vx * (hit.t / len) - this.vx / len * 0.05; this.y = this.y + this.vy * (hit.t / len) - this.vy / len * 0.05; this.z = this.z + this.vz * (hit.t / len) - this.vz / len * 0.05; this.onBlock(hit); if (this.removed || this.inGround) return; }
     else { this.x = nx; this.y = ny; this.z = nz; }
     // the projectile points the way it flies
@@ -137,7 +143,9 @@ class ThrownItem extends Projectile {
       Sound.play('splash_potion', this);
       Drops.spawnXp(x, y, z, 3 + rnd(5) + rnd(5));
     } else if (k === 'wind_charge') {
-      Explosions.wind && Explosions.wind(x, y, z, this.owner);
+      // a breeze's charge bursts wider (radius 3) with plain knockback; a thrown one is radius 1.2, knockback 1.22
+      if (this.data.breeze) Explosions.wind && Explosions.wind(x, y, z, this.owner, 3, 1);
+      else Explosions.wind && Explosions.wind(x, y, z, this.owner);
     }
   }
 }
