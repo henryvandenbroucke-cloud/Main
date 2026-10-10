@@ -188,7 +188,7 @@ const HUD = (() => {
     if (p.fireTicks > 0 && p.view === 0 && !p.fireImmune) { const t = performance.now() / 80; for (let i = 0; i < 12; i++) { const x = W * (i / 12), h = H * (0.25 + 0.08 * Math.sin(t + i * 1.7)); const gr = g.createLinearGradient(0, H, 0, H - h); gr.addColorStop(0, 'rgba(255,140,20,0.85)'); gr.addColorStop(1, 'rgba(255,220,80,0)'); g.fillStyle = gr; g.fillRect(x, H - h, W / 12 + 2, h); } }
     if (p.eyesInWater) { g.fillStyle = 'rgba(20,40,110,0.18)'; g.fillRect(0, 0, W, H); }
     // freezing: frost creeps in from the edges of the screen
-    if (p.freeze > 0 && p.view === 0) { g.save(); g.globalAlpha = Math.min(1, p.freeze / 140); g.imageSmoothingEnabled = false; g.drawImage(frostOverlay(), 0, 0, W, H); g.restore(); }
+    if (p.freeze > 0) { g.save(); g.globalAlpha = Math.min(1, p.freeze / 140); g.imageSmoothingEnabled = false; g.drawImage(frostOverlay(), 0, 0, W, H); g.restore(); }
     if (p.using && ITEMS[p.using.id].name === 'spyglass') { g.fillStyle = '#000'; const r = Math.min(W, H) * 0.45; g.beginPath(); g.rect(0, 0, W, H); g.arc(W / 2, H / 2, r, 0, Math.PI * 2, true); g.fill(); }
     if (p.hurtTime > 0 && p.dead) { g.fillStyle = 'rgba(160,0,0,0.25)'; g.fillRect(0, 0, W, H); }
     if (totemTime > 0) { totemTime--; Icons.draw(g, IID.totem_of_undying, W / 2 - 40 * S * (1 + (40 - totemTime) / 40), H / 2 - 40 * S, 80 * S * (1 + (40 - totemTime) / 40)); }

@@ -3,7 +3,7 @@
 A browser recreation of plain vanilla **Minecraft: Java Edition 1.21**, written in JavaScript on Three.js.
 
 - It runs offline, with no build step and no install.
-- It has no shaders: the look is the vanilla one, with textured blocks, per-face shading, smooth lighting with ambient occlusion, fog, a flat sky and blocky clouds.
+- By default it has no shaders: the look is the vanilla one, with textured blocks, per-face shading, smooth lighting with ambient occlusion, fog, a flat sky and blocky clouds. **Options → Video Settings → Shaders** turns on optional waving water with ripples, sky reflections and sun glints (off by default; slower on weak computers).
 - The game's rules come from the game's own data: recipes, loot tables, tags, hardness, drops, biomes, spawn lists, structure placement, trial spawner configs and advancements.
 - Behaviour was checked against the game's code and the Minecraft Wiki.
 - Textures, models, sounds and music are all made in code. No Mojang files are included.
@@ -76,10 +76,14 @@ To rebuild the single file after changing the code, run `python3 tools/build_sin
 - allays that collect items and deliver them to a player or a note block, dance to jukeboxes and duplicate;
 - breezes that leap and turn projectiles back, camels with two riders and a dash, sniffers that dig up seeds, and armadillos that roll up;
 - bees and bogged;
-- the Warden, the Wither and the Ender Dragon, including respawning the dragon.
+- the Warden, the Wither and the Ender Dragon, including respawning the dragon;
+- the game's idle animations: wolves shake themselves dry, polar bears rear up before they swipe, horses graze, rear and swish their tails, parrots dance to jukeboxes, witches' noses twitch, and mobs that are turning into something else (a zombie under water, a skeleton in powder snow, a zombie villager being cured) shiver;
+- mobs named Dinnerbone or Grumm are drawn upside down.
 
 **Survival.**
-- **Health and food:** hunger and saturation, fall damage, drowning, fire and freezing.
+- **Health and food:** hunger and saturation, fall damage, drowning and fire.
+- **Powder snow:** you sink in and freeze (frost creeps over the screen, then it hurts); any leather armour keeps you warm, and leather boots let you walk on it.
+- **The world's floor:** the bedrock at the bottom of the world (and the Nether's floor and roof) can't be broken in any game mode, so you can't dig into the void.
 - **Effects:** potions and status effects.
 - **Combat:** armour and enchantments, 1.9+ combat with the attack cooldown, critical hits and sweeping, shields, and the mace and its smash attack.
 - **Movement:** elytra flight, swimming and crawling.
