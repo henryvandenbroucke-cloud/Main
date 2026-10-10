@@ -6,6 +6,23 @@
 const HUD = (() => {
   const cv = document.createElement('canvas'); cv.id = 'hudCanvas'; document.body.appendChild(cv);
   const g = cv.getContext('2d');
+  // a frosty border, thick at the edges and clear in the middle (the powder snow outline)
+  let frostCanvas = null;
+  function frostOverlay() {
+    if (frostCanvas) return frostCanvas;
+    const w = 192, h = 108, c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'), img = g.createImageData(w, h);
+    let seed = 1234567; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const d = Math.min(x, w - 1 - x, y * 1.2, (h - 1 - y) * 1.2) / (h * 0.42), e = Math.max(0, 1 - d), n = r();
+      const a = e * e * 1.15 + (n - 0.5) * 0.5 * e;
+      if (a < 0.12) continue;
+      const k = (y * w + x) * 4, f = n * 0.6 + e * 0.4;
+      img.data[k] = 165 + 85 * f; img.data[k + 1] = 205 + 45 * f; img.data[k + 2] = 240 + 15 * f; img.data[k + 3] = Math.min(235, a * 255);
+    }
+    g.putImageData(img, 0, 0);
+    return (frostCanvas = c);
+  }
   let W = 0, H = 0, S = 2;
   let heldName = '', heldTime = 0, lastHeld = null, action = '', actionTime = 0, title = null, titleTime = 0, sub = '';
   let lastHealth = 20, healthFlash = 0, regenWave = -1, debug = false, totemTime = 0, bossbars = new Map();
@@ -109,7 +126,7 @@ const HUD = (() => {
     if (p.health < lastHealth && p.invul > 0) healthFlash = p.invul;
     lastHealth = p.health;
     const poison = p.effect('poison'), wither = p.effect('wither');
-    const kind = wither ? 'wither' : poison ? 'poison' : p.freeze > 140 ? 'frozen' : 'full';
+    const kind = wither ? 'wither' : poison ? 'poison' : p.freeze >= 140 ? 'frozen' : 'full';
     const low = p.health <= 4;
     if (p.effect('regeneration') && p.age % 20 === 0) regenWave = 0;
     for (let i = maxH + absH - 1; i >= 0; i--) {
@@ -170,7 +187,8 @@ const HUD = (() => {
     }
     if (p.fireTicks > 0 && p.view === 0 && !p.fireImmune) { const t = performance.now() / 80; for (let i = 0; i < 12; i++) { const x = W * (i / 12), h = H * (0.25 + 0.08 * Math.sin(t + i * 1.7)); const gr = g.createLinearGradient(0, H, 0, H - h); gr.addColorStop(0, 'rgba(255,140,20,0.85)'); gr.addColorStop(1, 'rgba(255,220,80,0)'); g.fillStyle = gr; g.fillRect(x, H - h, W / 12 + 2, h); } }
     if (p.eyesInWater) { g.fillStyle = 'rgba(20,40,110,0.18)'; g.fillRect(0, 0, W, H); }
-    if (p.freeze > 0) { g.fillStyle = `rgba(200,230,255,${Math.min(0.6, p.freeze / 140 * 0.6)})`; g.fillRect(0, 0, W, H); }
+    // freezing: frost creeps in from the edges of the screen
+    if (p.freeze > 0 && p.view === 0) { g.save(); g.globalAlpha = Math.min(1, p.freeze / 140); g.imageSmoothingEnabled = false; g.drawImage(frostOverlay(), 0, 0, W, H); g.restore(); }
     if (p.using && ITEMS[p.using.id].name === 'spyglass') { g.fillStyle = '#000'; const r = Math.min(W, H) * 0.45; g.beginPath(); g.rect(0, 0, W, H); g.arc(W / 2, H / 2, r, 0, Math.PI * 2, true); g.fill(); }
     if (p.hurtTime > 0 && p.dead) { g.fillStyle = 'rgba(160,0,0,0.25)'; g.fillRect(0, 0, W, H); }
     if (totemTime > 0) { totemTime--; Icons.draw(g, IID.totem_of_undying, W / 2 - 40 * S * (1 + (40 - totemTime) / 40), H / 2 - 40 * S, 80 * S * (1 + (40 - totemTime) / 40)); }

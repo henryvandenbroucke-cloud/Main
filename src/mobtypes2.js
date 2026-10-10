@@ -49,18 +49,42 @@
   }
   reg('fox', Fox);
   class Horse extends Animal {
-    constructor(t, x, y, z) { super(t, x, y, z); this.tame = false; this.temper = 0; this.saddled = false; const k = MOB_STATS[t]; this.maxHealth = this.health = 15 + rnd(8) + rnd(9); this.speed = 0.1125 + Math.random() * 0.1125 + Math.random() * 0.1125 + Math.random() * 0.1125 * 0; this.jumpStrength = 0.4 + Math.random() * 0.2 + Math.random() * 0.2 + Math.random() * 0.2; void k; }
+    constructor(t, x, y, z) { super(t, x, y, z); this.tame = false; this.temper = 0; this.saddled = false; this.tailT = this.grazeT = this.mouthT = this.standT = 0; this.grazing = false; this.eatAnim = this.eatAnimO = this.standAnim = this.standAnimO = this.mouthAnim = this.mouthAnimO = 0; const k = MOB_STATS[t]; this.maxHealth = this.health = 15 + rnd(8) + rnd(9); this.speed = 0.1125 + Math.random() * 0.1125 + Math.random() * 0.1125 + Math.random() * 0.1125 * 0; this.jumpStrength = 0.4 + Math.random() * 0.2 + Math.random() * 0.2 + Math.random() * 0.2; void k; }
     get food() { return ['golden_apple', 'enchanted_golden_apple', 'golden_carrot']; }
     onInteract(p, s) {
       const n = s ? ITEMS[s.id].name : '';
-      if (['wheat', 'sugar', 'apple', 'hay_block', 'golden_carrot', 'golden_apple'].includes(n) && this.health < this.maxHealth) { this.heal({ wheat: 2, sugar: 1, apple: 3, hay_block: 20, golden_carrot: 4, golden_apple: 10 }[n]); this.temper = Math.min(100, this.temper + ({ sugar: 3, wheat: 3, apple: 3, golden_carrot: 5, golden_apple: 10 }[n] || 0)); this.useFood(p, s); Sound.play('horse_eat', this); return true; }
+      if (['wheat', 'sugar', 'apple', 'hay_block', 'golden_carrot', 'golden_apple'].includes(n) && this.health < this.maxHealth) { this.heal({ wheat: 2, sugar: 1, apple: 3, hay_block: 20, golden_carrot: 4, golden_apple: 10 }[n]); this.temper = Math.min(100, this.temper + ({ sugar: 3, wheat: 3, apple: 3, golden_carrot: 5, golden_apple: 10 }[n] || 0)); this.useFood(p, s); Sound.play('horse_eat', this); this.mouthT = 1; return true; }
       if (this.tame && n === 'saddle' && !this.saddled && this.type !== 'donkey' && this.type !== 'mule' || (this.tame && n === 'saddle' && !this.saddled)) { this.saddled = true; if (!p.creative) { s.count--; if (!s.count) p.inv.held = null; } Sound.play('saddle', this); return true; }
       if (!this.baby && !p.vehicle) { Vehicles.mount && Vehicles.mount(p, this); return true; }
       return false;
     }
     saveExtra(d) { d.tame = this.tame; d.saddled = this.saddled; d.temper = this.temper; d.speed = this.speed; d.jumpStrength = this.jumpStrength; d.maxHealth = this.maxHealth; } loadExtra(d) { Object.assign(this, { tame: !!d.tame, saddled: !!d.saddled, temper: d.temper || 0 }); if (d.speed) this.speed = d.speed; if (d.jumpStrength) this.jumpStrength = d.jumpStrength; if (d.maxHealth) this.maxHealth = d.maxHealth; }
     extraDrops() { if (this.saddled) Drops.spawnItem(this.x, this.y + 1, this.z, stack('saddle')); }
-    animState(s) { s.eat = this.eatT > 0; }
+    // the game's horse animations: a swish of the tail now and then, grazing when on grass, rearing up when
+    // hurt or restless, the mouth working while it eats
+    tick() {
+      super.tick();
+      if (this.dead) return;
+      if (rnd(200) === 0) this.tailT = 1;
+      if (this.tailT > 0 && ++this.tailT > 8) this.tailT = 0;
+      if (!this.passengers.length && !this.grazing && !this.standT && rnd(300) === 0 && World.getBlock(Math.floor(this.x), Math.floor(this.y) - 1, Math.floor(this.z)) === BID.grass_block) this.grazing = true;
+      if (this.grazing && ++this.grazeT > 50) { this.grazeT = 0; this.grazing = false; }
+      if (this.mouthT > 0 && ++this.mouthT > 30) this.mouthT = 0;
+      if (this.standT > 0 && ++this.standT > 20) this.standT = 0;
+      const ea = this.eatAnim; this.eatAnimO = ea;
+      this.eatAnim = this.grazing ? Math.min(1, ea + (1 - ea) * 0.4 + 0.05) : Math.max(0, ea - ea * 0.4 - 0.05);
+      const sa = this.standAnim; this.standAnimO = sa;
+      if (this.standT > 0) { this.eatAnim = this.eatAnimO = 0; this.standAnim = Math.min(1, sa + (1 - sa) * 0.4 + 0.05); }
+      else this.standAnim = Math.max(0, sa + (0.8 * sa * sa * sa - sa) * 0.6 - 0.05);
+      const ma = this.mouthAnim; this.mouthAnimO = ma;
+      this.mouthAnim = this.mouthT > 0 ? Math.min(1, ma + (1 - ma) * 0.7 + 0.05) : Math.max(0, ma - ma * 0.7 - 0.05);
+    }
+    // grazing or rearing, it stands still
+    aiStep() { if (this.grazing || this.standT > 0) { this.nav.stop(); this.forward = this.strafe = 0; this.jumping = false; } }
+    stand() { this.standT = 1; this.grazing = false; this.grazeT = 0; }
+    onHurt() { if (rnd(3) === 0) this.stand(); }
+    onAmbient() { if (rnd(10) === 0 && !this.grazing && !this.standT) this.stand(); }
+    animState(s, a) { s.eat = this.eatAnimO + (this.eatAnim - this.eatAnimO) * a; s.stand = this.standAnimO + (this.standAnim - this.standAnimO) * a; s.mouth = this.mouthAnimO + (this.mouthAnim - this.mouthAnimO) * a; s.tailSwish = this.tailT > 0; }
   }
   for (const n of ['horse', 'donkey', 'mule', 'skeleton_horse', 'zombie_horse']) reg(n, class extends Horse { constructor(t, x, y, z) { super(n, x, y, z); } });
   class Llama extends Animal {
@@ -81,9 +105,27 @@
   class Panda extends Animal { constructor(t, x, y, z) { super('panda', x, y, z); this.sitting = false; } get food() { return ['bamboo']; } registerGoals() { super.registerGoals(); this.targets.add(1, new G.HurtByTarget(this)); this.goals.add(2, new G.MeleeAttack(this, 1.2, true)); } aiStep() { if (rnd(400) === 0 && !this.target) this.sitting = !this.sitting; if (this.sitting) this.nav.stop(); } animState(s) { s.sitting = this.sitting; } }
   reg('panda', Panda);
   class PolarBear extends Animal {
-    constructor(t, x, y, z) { super('polar_bear', x, y, z); }
+    constructor(t, x, y, z) { super('polar_bear', x, y, z); this.standing = false; this.standAnim = this.oStand = 0; this.warnT = 0; }
     get food() { return []; }
-    registerGoals() { const g = this.goals, t = this.targets; g.add(0, new G.Float(this)); g.add(1, new G.MeleeAttack(this, 1.25, true)); g.add(4, new G.FollowParent(this, 1.25)); g.add(5, new G.RandomStroll(this, 1)); g.add(6, new G.LookAtPlayer(this, 6)); g.add(7, new G.RandomLookAround(this)); t.add(1, new G.HurtByTarget(this, true)); t.add(2, new G.NearestAttackableTarget(this, e => e.isPlayer && this.nearest(o => o.type === 'polar_bear' && o.baby, 8), 20)); t.add(3, new G.NearestAttackableTarget(this, e => e.type === 'fox', 10)); }
+    // in the last half second before each swipe it rears up on its hind legs with a warning growl
+    aiStep() {
+      const t = this.target, mg = this.melee; let stand = false;
+      if (t && !t.dead && mg) {
+        const r = t.w + 3, dx = t.x - this.x, dz = t.z - this.z;
+        if (dx * dx + (t.y - this.y) ** 2 + dz * dz < r * r) {
+          const reach = dx * dx + dz * dz <= Math.pow(this.w * 2, 2) + t.w && Math.abs(t.y - this.y) < 2.5;
+          if (mg.cool <= 0 && !reach) mg.cool = 20;
+          stand = mg.cool <= 10;
+        }
+      }
+      if (stand && !this.standing && this.warnT <= 0) { Sound.play('polar_bear_warning', this); this.warnT = 40; }
+      if (this.warnT > 0) this.warnT--;
+      this.standing = stand;
+    }
+    tick() { super.tick(); this.oStand = this.standAnim; this.standAnim = Math.max(0, Math.min(6, this.standAnim + (this.standing && !this.dead ? 1 : -1))); }
+    doHurtTarget(t) { this.standing = false; return super.doHurtTarget(t); }
+    animState(s, a) { s.stand = (this.oStand + (this.standAnim - this.oStand) * a) / 6; }
+    registerGoals() { const g = this.goals, t = this.targets; g.add(0, new G.Float(this)); this.melee = g.add(1, new G.MeleeAttack(this, 1.25, true)); g.add(4, new G.FollowParent(this, 1.25)); g.add(5, new G.RandomStroll(this, 1)); g.add(6, new G.LookAtPlayer(this, 6)); g.add(7, new G.RandomLookAround(this)); t.add(1, new G.HurtByTarget(this, true)); t.add(2, new G.NearestAttackableTarget(this, e => e.isPlayer && this.nearest(o => o.type === 'polar_bear' && o.baby, 8), 20)); t.add(3, new G.NearestAttackableTarget(this, e => e.type === 'fox', 10)); }
   }
   reg('polar_bear', PolarBear);
   class Frog extends Animal {
@@ -137,7 +179,9 @@
     constructor(t, x, y, z) { super('parrot', x, y, z); this.tame = false; this.flap = 0; this.flySpeed = 0.15; }
     aiFly() { if (this.onGround && rnd(80) !== 0 && !this.dest) { this.noGravity = false; return; } this.noGravity = true; this.flap += 0.3; }
     onInteract(p, s) { const n = s ? ITEMS[s.id].name : ''; if (!this.tame && SEEDS.includes(n)) { this.useFood(p, s); if (rnd(10) === 0) { this.tame = true; Advancements.fire('tame_animal', { entity: this }); this.persistent = true; Particles.heart(this, 7); } else Particles.smoke(this); return true; } if (n === 'cookie') { this.useFood(p, s); this.addEffect('poison', 900, 0); this.hurt(100, 'magic', p); return true; } return false; }
-    animState(s) { s.flying = !this.onGround; s.flap = Math.abs(Math.sin(this.flap)) * 0.6; }
+    // a playing jukebox within 3.46 blocks gets it dancing
+    tick() { super.tick(); if (this.age % 10 === 0) this.party = typeof Creatures !== 'undefined' && !!Creatures.Jukebox.near(this.x, this.y, this.z, 3.46); }
+    animState(s) { s.flying = !this.onGround; s.flap = Math.abs(Math.sin(this.flap)) * 0.6; s.party = !!this.party; }
   }
   reg('parrot', Parrot);
   class Allay extends Flyer { constructor(t, x, y, z) { super('allay', x, y, z); this.persistent = true; this.flySpeed = 0.1; } aiFly() { const p = Game.player; if (p && this.distTo(p) > 4 && this.liked) this.flyTo(p.x, p.y + 1.5, p.z, 1); } onInteract(p, s) { this.liked = true; return true; } }
@@ -214,6 +258,8 @@
   reg('blaze', Blaze);
   const GOLD_ARMOR = s => s && /^golden_/.test(ITEMS[s.id].name) && ITEMS[s.id].armor;
   class Piglin extends Monster {
+    // outside the nether it shakes while it turns into a zombified piglin
+    isShaking() { return (World.dim !== 'nether' && this.zombify > 0) || super.isShaking(); }
     constructor(t, x, y, z) { super(t || 'piglin', x, y, z); this.equip.main = this.type === 'piglin_brute' ? stack('golden_axe') : stack(Math.random() < 0.5 ? 'golden_sword' : 'crossbow'); this.admire = 0; this.admireItem = null; }
     registerGoals() { const g = this.goals, t = this.targets; g.add(0, new G.Float(this)); g.add(2, new G.MeleeAttack(this, 1, false)); g.add(7, new G.RandomStroll(this, 0.8)); g.add(8, new G.LookAtPlayer(this, 8)); t.add(1, new G.HurtByTarget(this, true)); t.add(2, new G.NearestAttackableTarget(this, e => e.isPlayer && (this.type === 'piglin_brute' || ![0, 1, 2, 3].some(i => GOLD_ARMOR(e.inv.armor(i)))), 16)); t.add(3, new G.NearestAttackableTarget(this, e => e.type === 'wither_skeleton', 16)); }
     aiStep() {
@@ -238,6 +284,7 @@
   }
   reg('zombified_piglin', ZombifiedPiglin);
   class Hoglin extends Animal {
+    isShaking() { return (this.type === 'hoglin' && World.dim !== 'nether' && this.zombify > 0) || super.isShaking(); }
     constructor(t, x, y, z) { super(t || 'hoglin', x, y, z); this.hostile = true; this.attackT = 0; this.kbResist = 0.6; this.attackKnockback = 1; }
     get food() { return this.type === 'hoglin' ? ['crimson_fungus'] : []; }
     registerGoals() { const g = this.goals, t = this.targets; g.add(0, new G.Float(this)); g.add(1, new G.AvoidEntity(this, () => false, 1, 1, 1)); g.add(2, new G.MeleeAttack(this, 1, true)); g.add(3, new G.Breed(this, 1)); g.add(5, new G.RandomStroll(this, 0.6)); g.add(6, new G.LookAtPlayer(this, 8)); t.add(1, new G.HurtByTarget(this, true)); t.add(2, new G.NearestAttackableTarget(this, e => e.isPlayer || (this.type === 'zoglin' && e.living && e.type !== 'zoglin' && e.type !== 'creeper'), 16)); }

@@ -9,14 +9,24 @@
   // ---------------------------------------------------------------- animations
   A.rabbit = (m, s) => { look(m, s); const L = m.parts; for (const n of ['left_ear', 'right_ear', 'nose']) { L[n].ry = s.headYaw + (n === 'left_ear' ? PI / 12 : n === 'right_ear' ? -PI / 12 : 0); L[n].rx = s.pitch; } const j = s.jump || 0; L.left_haunch.rx = L.right_haunch.rx = (j * 50 - 21) * PI / 180; L.left_hind_foot.rx = L.right_hind_foot.rx = j * 50 * PI / 180; L.left_front_leg.rx = L.right_front_leg.rx = (j * -40 - 11) * PI / 180; };
   A.fox = (m, s) => { A.quadruped(m, s); const L = m.parts; L.head.rz = s.headTilt || 0; if (s.sitting) { L.body.rx = PI / 6; L.body.y -= 7; L.body.z += 3; L.tail.rx = PI / 4; L.tail.z += 2; L.tail.y -= 2.65; L.head.y -= 6.5; L.head.z += 2.75; L.right_hind_leg.rx = L.left_hind_leg.rx = -PI / 2; L.right_hind_leg.z += 4; L.left_hind_leg.z += 4; L.right_hind_leg.y += 2.5; L.left_hind_leg.y += 2.5; L.right_front_leg.rx = L.left_front_leg.rx = -PI / 12; } if (s.sleeping) { L.body.rz = -PI / 2; L.body.y += 5; L.tail.rx = -PI * 5 / 6; L.head.y += 5; L.head.rz = -PI / 2; } };
+  // the game's horse animation: grazing, rearing up, the head bobbing at a trot and the tail swishing at flies
   A.horse = (m, s) => {
-    const L = m.parts, ls = s.ls, la = s.la;
-    L.head_parts.rx = PI / 6 + s.pitch; L.head_parts.ry = s.headYaw;
-    if (s.eat) { L.head_parts.rx = PI / 6 + 2.18; L.head_parts.y += 9; }
-    if (s.stand) { L.body.rx = -PI / 4 * s.stand; L.head_parts.y -= 6 * s.stand; L.head_parts.z += 4 * s.stand; }
-    const f = Math.cos(ls * 0.6662 + PI) * la * 1.4 * 0.8;
-    L.left_hind_leg.rx = f; L.right_hind_leg.rx = -f; L.left_front_leg.rx = -f; L.right_front_leg.rx = f;
-    L.tail.rx = PI / 6 + la * 0.75; L.tail.y = -1 + la; L.tail.z = 2 + la * 2;
+    const L = m.parts, ls = s.ls, la = s.la, t = s.t;
+    const yaw = Math.max(-0.349, Math.min(0.349, s.headYaw));
+    let j = s.pitch; if (la > 0.2) j += Math.cos(ls * 0.8) * 0.15 * la;
+    const k = s.eat || 0, l = s.stand || 0, mm = 1 - l, n = s.mouth || 0, M = 1 - Math.max(l, k);
+    const q = Math.cos((s.e && s.e.inWater ? 0.2 : 1) * ls * 0.6662 + PI), r = q * 0.8 * la;
+    const hp = L.head_parts;
+    hp.rx = l * (PI / 12 + j) + k * (2.1816616 + Math.sin(t) * 0.05) + M * (PI / 6 + j + n * Math.sin(t) * 0.05);
+    hp.ry = (l + M) * yaw;
+    hp.y = l * -4 + k * 11 + M * 4; hp.z = l * -4 + k * -12 + M * -12;
+    L.body.rx = l * -PI / 4;
+    const u = Math.cos(t * 0.6 + PI);
+    for (const f of [L.left_front_leg, L.right_front_leg]) { f.y = f.by + (2 * l + 14 * mm - 14); f.z = f.bz + (-6 * l - 10 * mm + 10); }
+    L.left_hind_leg.rx = PI / 12 * l - q * 0.5 * la * mm; L.right_hind_leg.rx = PI / 12 * l + q * 0.5 * la * mm;
+    L.left_front_leg.rx = (-PI / 3 + u) * l + r * mm; L.right_front_leg.rx = (-PI / 3 - u) * l - r * mm;
+    L.tail.rx = PI / 6 + la * 0.75; L.tail.y = -5 + la; L.tail.z = 2 + la * 2;
+    L.tail.ry = s.tailSwish ? Math.cos(t * 0.7) : 0;
   };
   A.llama = (m, s) => { look(m, s); const L = m.parts, ls = s.ls * 0.6662, la = s.la; L.right_hind_leg.rx = Math.cos(ls) * 1.4 * la; L.left_hind_leg.rx = Math.cos(ls + PI) * 1.4 * la; L.right_front_leg.rx = Math.cos(ls + PI) * 1.4 * la; L.left_front_leg.rx = Math.cos(ls) * 1.4 * la; };
   A.bee = (m, s) => { const L = m.parts; const t = s.t; L.right_wing.ry = 0; L.right_wing.rz = Math.cos(t * 2.1) * PI * 0.15; L.left_wing.rz = -L.right_wing.rz; L.bone.rx = 0; L.bone.y = 19 - Math.cos(t * 0.18) * 0.9; for (const n of ['front_legs', 'middle_legs', 'back_legs']) L[n].rx = PI / 4; };
@@ -25,7 +35,26 @@
   A.squid = (m, s) => { const L = m.parts; for (let i = 0; i < 8; i++) L['tentacle' + i].rx = s.tentacle || 0; L.body.rx = 0; m.body.rotation.x = s.tilt || 0; };
   A.fish = (m, s) => { const L = m.parts; const f = s.inWater ? 1 : 1.5; const t = s.t; if (L.tail_fin) L.tail_fin.ry = -f * 0.45 * Math.sin(0.6 * t); if (L.body_back) L.body_back.ry = -f * 0.25 * Math.sin(0.6 * t); if (L.tail) L.tail.ry = -f * 0.45 * Math.sin(0.6 * t); m.root.rotation.z = s.inWater ? 0 : PI / 2; };
   A.dolphin = (m, s) => { const L = m.parts; L.body.rx = s.pitch; L.body.ry = s.headYaw * 0.5; if (s.moving) { L.body.rx += -0.05 - 0.05 * Math.cos(s.t * 0.3); L.tail.rx = -0.1 * Math.cos(s.t * 0.3); L.tail_fin.rx = -0.2 * Math.cos(s.t * 0.3); } };
-  A.parrot = (m, s) => { const L = m.parts; L.head.rx = s.pitch; L.head.ry = s.headYaw; if (s.flying) { L.left_wing.rz = -0.0873 - s.flap; L.right_wing.rz = 0.0873 + s.flap; L.left_leg.rx += PI * 2 / 9; L.right_leg.rx += PI * 2 / 9; } else { const ls = s.ls * 0.6662; L.left_leg.rx = Math.cos(ls) * 1.4 * s.la; L.right_leg.rx = Math.cos(ls + PI) * 1.4 * s.la; } };
+  A.parrot = (m, s) => { const L = m.parts; if (s.party) { A.partyParrot(m, s); return; } L.head.rx = s.pitch; L.head.ry = s.headYaw; if (s.flying) { L.left_wing.rz = -0.0873 - s.flap; L.right_wing.rz = 0.0873 + s.flap; L.left_leg.rx += PI * 2 / 9; L.right_leg.rx += PI * 2 / 9; } else { const ls = s.ls * 0.6662; L.left_leg.rx = Math.cos(ls) * 1.4 * s.la; L.right_leg.rx = Math.cos(ls + PI) * 1.4 * s.la; } };
+  // a parrot by a playing jukebox dances, bobbing round in a little circle each tick
+  A.partyParrot = (m, s) => {
+    const L = m.parts, t = Math.floor(s.t), f = Math.cos(t), g = Math.sin(t), w = s.flap || 0;
+    L.head.x = f; L.head.y = 15.69 + g; L.head.rx = 0; L.head.ry = 0; L.head.rz = Math.sin(t) * 0.4;
+    L.body.x = f; L.body.y = 16.5 + g;
+    L.left_wing.rz = -0.0873 - w; L.left_wing.x = 1.5 + f; L.left_wing.y = 16.94 + g;
+    L.right_wing.rz = 0.0873 + w; L.right_wing.x = -1.5 + f; L.right_wing.y = 16.94 + g;
+    L.tail.x = f; L.tail.y = 21.07 + g;
+  };
+  // a polar bear rears up on its hind legs just before it swipes
+  A.polar_bear = (m, s) => {
+    A.quadruped(m, s);
+    let g = s.stand || 0; if (!g) return;
+    g *= g; const h = 1 - g, L = m.parts;
+    L.body.rx = PI / 2 - g * PI * 0.35; L.body.y = 9 * h + 11 * g;
+    for (const n of ['right_front_leg', 'left_front_leg']) { L[n].y = 14 * h - 6 * g; L[n].z = -8 * h - 4 * g; L[n].rx -= g * PI * 0.45; }
+    if (s.e && s.e.baby) { L.head.y = 10 * h - 9 * g; L.head.z = -16 * h - 7 * g; } else { L.head.y = 10 * h - 14 * g; L.head.z = -16 * h - 3 * g; }
+    L.head.rx += g * PI * 0.15;
+  };
   A.bat = (m, s) => { const L = m.parts; if (s.resting) { m.body.rotation.x = PI; L.right_wing.ry = 1.2566371; L.left_wing.ry = -1.2566371; L.right_wing_tip.ry = 1.7278761; L.left_wing_tip.ry = -1.7278761; } else { m.body.rotation.x = 0; L.right_wing.ry = Math.cos(s.t * 74.48451 * PI / 180) * PI * 0.25; L.left_wing.ry = -L.right_wing.ry; L.right_wing_tip.ry = L.right_wing.ry * 0.5; L.left_wing_tip.ry = -L.right_wing.ry * 0.5; L.head.rx = s.pitch; L.head.ry = s.headYaw; } };
   A.ghast = (m, s) => { const L = m.parts; for (let i = 0; i < 9; i++) L['tentacle' + i].rx = 0.2 * Math.sin(s.t * 0.3 + i) + 0.4; };
   A.blaze = (m, s) => {
@@ -112,7 +141,7 @@
   } });
   // ---------------------------------------------------------------- horses, donkeys and mules
   const horseParts = (donkey) => [
-    P('body', [0, 11, 5], 0, [[0, 32, -5, -8, -17, 10, 10, 22, 0.05]]),
+    P('body', [0, 11, 5], 0, [[0, 32, -5, -8, -17, 10, 10, 22, 0.05]], [P('tail', [0, -5, 2], [PI / 6, 0, 0], [[42, 36, -1.5, 0, 0, 3, 14, 4]])]),
     P('head_parts', [0, 4, -12], [PI / 6, 0, 0], [[0, 35, -2.05, -6, -2, 4, 12, 7]], [
       P('head', [0, 0, 0], 0, [[0, 13, -3, -11, -2, 6, 5, 7]]), P('mane', [0, 0, 0], 0, [[56, 36, -1, -11, 5.01, 2, 16, 2]]),
       P('upper_mouth', [0, 0, 0], 0, [[0, 25, -2, -11, -7, 4, 5, 5]]),
@@ -121,7 +150,6 @@
     ]),
     P('left_hind_leg', [4, 14, 7], 0, [[48, 21, -3, -1.01, -1, 4, 11, 4, 0, true]]), P('right_hind_leg', [-4, 14, 7], 0, [[48, 21, -1, -1.01, -1, 4, 11, 4]]),
     P('left_front_leg', [4, 14, -12], 0, [[48, 21, -3, -1.01, -1.9, 4, 11, 4, 0, true]]), P('right_front_leg', [-4, 14, -12], 0, [[48, 21, -1, -1.01, -1.9, 4, 11, 4]]),
-    P('tail', [0, 4, 11], [PI / 6, 0, 0], [[42, 36, -1.5, 0, 0, 3, 14, 4]]),
   ];
   const horseSkin = (body, mane, o) => s => {
     o = o || {};
@@ -181,7 +209,7 @@
     P('body', [-2, 9, 12], [PI / 2, 0, 0], [[0, 19, -5, -13, -7, 14, 14, 11], [39, 0, -4, -25, -7, 12, 12, 10]]),
     P('right_hind_leg', [-4.5, 14, 6], 0, [[50, 22, -2, 0, -2, 4, 10, 8]]), P('left_hind_leg', [4.5, 14, 6], 0, [[50, 22, -2, 0, -2, 4, 10, 8]]),
     P('right_front_leg', [-3.5, 14, -8], 0, [[50, 40, -2, 0, -2, 4, 10, 6]]), P('left_front_leg', [3.5, 14, -8], 0, [[50, 40, -2, 0, -2, 4, 10, 6]]),
-  ], { anim: 'quadruped', babyHead: 4, skin: s => { const w = 0xf4f4f0; const H = furBox(s, 0, 0, 7, 7, 7, w, 0.05); s.px(H.front[0] + 1, H.front[1] + 2, 0x111111); s.px(H.front[0] + 5, H.front[1] + 2, 0x111111); const N = furBox(s, 0, 44, 5, 3, 3, 0xe8e8e0, 0.04); s.fill(N.front[0] + 1, N.front[1], 3, 1, 0x222222, 0); furBox(s, 26, 0, 2, 2, 1, w); furBox(s, 0, 19, 14, 14, 11, w, 0.06); furBox(s, 39, 0, 12, 12, 10, w, 0.06); furBox(s, 50, 22, 4, 10, 8, w); furBox(s, 50, 40, 4, 10, 6, w); } });
+  ], { anim: 'polar_bear', babyHead: 4, skin: s => { const w = 0xf4f4f0; const H = furBox(s, 0, 0, 7, 7, 7, w, 0.05); s.px(H.front[0] + 1, H.front[1] + 2, 0x111111); s.px(H.front[0] + 5, H.front[1] + 2, 0x111111); const N = furBox(s, 0, 44, 5, 3, 3, 0xe8e8e0, 0.04); s.fill(N.front[0] + 1, N.front[1], 3, 1, 0x222222, 0); furBox(s, 26, 0, 2, 2, 1, w); furBox(s, 0, 19, 14, 14, 11, w, 0.06); furBox(s, 39, 0, 12, 12, 10, w, 0.06); furBox(s, 50, 22, 4, 10, 8, w); furBox(s, 50, 40, 4, 10, 6, w); } });
   // ---------------------------------------------------------------- squid, fish and dolphins
   const squidParts = () => { const t = []; for (let i = 0; i < 8; i++) { const a = i * PI * 2 / 8; t.push(P('tentacle' + i, [Math.cos(a) * 5, 15, Math.sin(a) * 5], [0, i * PI * -2 / 8 + PI / 2, 0], [[48, 0, -1, 0, -1, 2, 18, 2]])); } return [P('body', [0, 8, 0], 0, [[0, 0, -6, -8, -6, 12, 16, 12]])].concat(t); };
   def('squid', 64, 32, squidParts(), { anim: 'squid', skin: s => { const c = 0x2a3a6a; const B = furBox(s, 0, 0, 12, 16, 12, c, 0.1); s.fill(B.front[0] + 2, B.front[1] + 10, 2, 2, 0xffffff, 0); s.px(B.front[0] + 3, B.front[1] + 11, 0x000000); s.fill(B.front[0] + 8, B.front[1] + 10, 2, 2, 0xffffff, 0); s.px(B.front[0] + 8, B.front[1] + 11, 0x000000); furBox(s, 48, 0, 2, 18, 2, sc(c, 0.9), 0.1); } });

@@ -206,6 +206,10 @@ const Sound = (() => {
   N.hoe_till = d => blockSoundTo(d, BID.dirt, 'place'); N.shovel_flatten = d => blockSoundTo(d, BID.grass_block, 'place'); N.axe_strip = d => blockSoundTo(d, BID.oak_log, 'place');
   N.bone_meal = d => { for (let i = 0; i < 3; i++) noise(d, T() + i * 0.04, 0.05, 'highpass', 3000, 1, 0.2); };
   N.craft = d => {};
+  // a wolf shaking itself dry: a fast rattle of fur and spray
+  N.wolf_shake = d => { for (let i = 0; i < 6; i++) noise(d, T() + i * 0.07, 0.06, 'bandpass', 1800 + i * 150, 1.5, 0.25); };
+  // a polar bear's warning: a deep rising growl
+  N.polar_bear_warning = d => { tone(d, T(), 'sawtooth', 70, 0.7, 0.35, { lp: 600, to: 110 }); noise(d, T(), 0.7, 'lowpass', 400, 1, 0.25); };
   N.shear = d => { noise(d, T(), 0.05, 'highpass', 4000, 2, 0.3); noise(d, T() + 0.07, 0.05, 'highpass', 4500, 2, 0.3); };
   N.saddle = N.equip; N.berry_pick = N.pop; N.pumpkin_carve = d => blockSoundTo(d, BID.pumpkin, 'hit');
   N.composter_fill = d => noise(d, T(), 0.1, 'lowpass', 900, 1, 0.3); N.composter_fill_success = d => { N.composter_fill(d); tone(d, T() + 0.05, 'sine', 700, 0.1, 0.1); }; N.composter_empty = N.composter_fill;
@@ -446,7 +450,7 @@ const Sound = (() => {
     const now = performance.now();
     if (musicMode && !musicPlaying && now > nextMusic) { playPiece(); nextMusic = now + (musicMode === 'menu' ? rp(20, 60) : rp(600, 1200)) * 1000; }
     // mob calls now and then (the game's ambient sound timer: 1 in 1000 chance each tick after the interval)
-    for (const e of Entities.list) if (e.living && !e.dead && e.age % 80 === 0 && Math.random() < 0.15 && e.dist2(p.x, p.y, p.z) < 256) { const v = MOB[e.type]; if (v && v.say) play(e.type + '_ambient', e); }
+    for (const e of Entities.list) if (e.living && !e.dead && e.age % 80 === 0 && Math.random() < 0.15 && e.dist2(p.x, p.y, p.z) < 256) { const v = MOB[e.type]; if (v && v.say) play(e.type + '_ambient', e); if (e.onAmbient) e.onAmbient(); }
     // rain on the surface
     const raining = Weather.rain > 0.2 && World.dim === 'overworld';
     if (raining && !rainNode) { const g = ac.createGain(); g.gain.value = 0; const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true; const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1200; s.connect(f); f.connect(g); g.connect(cats.ambient); s.start(); rainNode = { g, s }; }

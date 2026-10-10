@@ -93,14 +93,21 @@ reg('chicken', Chicken);
 // ---------------------------------------------------------------- undead
 const ZOMBIE_TARGETS = e => e.isPlayer || e.type === 'villager' || e.type === 'wandering_trader' || e.type === 'iron_golem' || (e.type === 'turtle' && e.baby);
 class Zombie extends Monster {
-  constructor(t, x, y, z) { super(t || 'zombie', x, y, z); this.attackKnockback = 0; this.opensDoors = false; }
+  constructor(t, x, y, z) { super(t || 'zombie', x, y, z); this.attackKnockback = 0; this.opensDoors = false; this.underwater = 0; this.drownConvert = 0; }
   get undead() { return true; }
   registerGoals() {
     const g = this.goals, t = this.targets;
     g.add(0, new G.Float(this)); g.add(2, new G.MeleeAttack(this, 1, false)); g.add(7, new G.RandomStroll(this, 1)); g.add(8, new G.LookAtPlayer(this, 8)); g.add(8, new G.RandomLookAround(this));
     t.add(1, new G.HurtByTarget(this, true)); t.add(2, new G.NearestAttackableTarget(this, TARGET_PLAYER, 35)); t.add(3, new G.NearestAttackableTarget(this, e => e.type === 'villager' || e.type === 'wandering_trader', 35, false)); t.add(3, new G.NearestAttackableTarget(this, e => e.type === 'iron_golem', 35));
   }
-  aiStep() { super.aiStep(); if (this.burns !== false) this.burnsInDay(); if (this.type === 'zombie' && this.eyesInWater) { if (++this.underwater > 600) this.convert('drowned'); } else this.underwater = 0; }
+  // 30 seconds under water and a zombie starts turning into a drowned (a husk into a zombie): 15 more seconds of shaking
+  aiStep() {
+    super.aiStep(); if (this.burns !== false) this.burnsInDay();
+    if (this.type !== 'zombie' && this.type !== 'husk') return;
+    if (this.drownConvert > 0) { if (--this.drownConvert === 0) { Sound.play(this.type === 'husk' ? 'husk_converted_to_zombie' : 'zombie_converted_to_drowned', this); this.convert(this.type === 'husk' ? 'zombie' : 'drowned'); } }
+    else if (this.eyesInWater) { if (++this.underwater >= 600) this.drownConvert = 300; } else this.underwater = 0;
+  }
+  isShaking() { return this.drownConvert > 0 || super.isShaking(); }
   onAttack(t) { if (this.type === 'husk' && t.addEffect) t.addEffect('hunger', 140 * (Game.difficulty === 'hard' ? 2 : 1), 0); }
   convert(to) { const z = Mobs.spawnEntity(to, this.x, this.y, this.z); if (z) { z.yaw = z.bodyYaw = this.yaw; z.equip = this.equip; if (this.baby) z.setBaby(); z.persistent = this.persistent; } this.removed = true; }
   onDeath(src, a) { if (a && a.type === 'zombie' || false) return; }
@@ -120,6 +127,7 @@ reg('drowned', Drowned);
 class ZombieVillager extends Zombie {
   constructor(t, x, y, z) { super('zombie_villager', x, y, z); this.curing = 0; }
   onInteract(p, s) { if (s && ITEMS[s.id].name === 'golden_apple' && this.effect('weakness') && !this.curing) { this.curing = 3600 + rnd(2400); this.curer = p; if (!p.creative) { s.count--; if (!s.count) p.inv.held = null; } this.persistent = true; Sound.play('zombie_villager_cure', this); return true; } return false; }
+  isShaking() { return this.curing > 0 || super.isShaking(); }
   aiStep() { super.aiStep(); if (this.curing > 0 && --this.curing === 0) { const v = Mobs.spawnEntity('villager', this.x, this.y, this.z); if (v) { v.addEffect('nausea', 200, 0); v.profession = this.profession || null; if (this.curer && this.curer.isPlayer) { Trading.gossip(v, 'major_positive', 20); Trading.gossip(v, 'minor_positive', 25); Advancements.fire('cured_zombie_villager', { zombie: this, villager: v }); } } this.removed = true; } }
 }
 reg('zombie_villager', ZombieVillager);
@@ -147,7 +155,18 @@ class AbstractSkeleton extends Monster {
   }
   animState(s) { s.holdingBow = this.holdingBow(); s.aggressive = this.aggressive; }
 }
-class Skeleton extends AbstractSkeleton { constructor(t, x, y, z) { super(t || 'skeleton', x, y, z); this.equip.main = stack('bow'); } }
+class Skeleton extends AbstractSkeleton {
+  constructor(t, x, y, z) { super(t || 'skeleton', x, y, z); this.equip.main = stack('bow'); this.snowTime = 0; this.freezeConvert = 0; }
+  // 7 seconds in powder snow and a skeleton starts to freeze into a stray, shaking for 15 seconds
+  aiStep() {
+    super.aiStep();
+    if (this.type !== 'skeleton') return;
+    if (!this.inPowderSnow) { this.snowTime = 0; this.freezeConvert = 0; return; }
+    if (this.freezeConvert > 0) { if (--this.freezeConvert === 0) { Sound.play('skeleton_converted_to_stray', this); const z = Mobs.spawnEntity('stray', this.x, this.y, this.z); if (z) { z.yaw = z.bodyYaw = this.yaw; z.equip = this.equip; z.persistent = this.persistent; } this.removed = true; } }
+    else if (++this.snowTime >= 140) this.freezeConvert = 300;
+  }
+  isShaking() { return this.freezeConvert > 0 || super.isShaking(); }
+}
 reg('skeleton', Skeleton);
 class Stray extends Skeleton { constructor(t, x, y, z) { super('stray', x, y, z); } arrowKind() { return { potion: 'slowness', dur: 600 }; } }
 reg('stray', Stray);
@@ -417,6 +436,7 @@ class Witch extends Monster {
     if (d) { this.drink = d; this.drinking = 32; this.equip.main = stack('potion', 1, { tag: { potion: d } }); Sound.play('witch_drink', this); }
   }
   hurt(n, s, a) { if (s === 'magic' && a === this) n *= 0.15; return super.hurt(n, s, a); }
+  animState(s) { s.holding = this.drinking > 0; }
 }
 class PotionAttack extends Goal {
   constructor(m) { super(m, 'ML'); this.cool = 0; }
@@ -478,8 +498,19 @@ class Wolf extends Tameable {
     }
     return false;
   }
-  animState(s) { s.sitting = this.sitting; s.angry = this.angry; s.tail = this.tame ? (0.55 - (this.maxHealth - this.health) * 0.02) * Math.PI : this.angry ? 1.5393804 : Math.PI / 5; }
-  get tint() { return null; }
+  // out of the water (or rain), a wet wolf stops on dry ground and shakes itself off, flinging drops about
+  aiStep() {
+    if (this.inWater || Weather.rainingAt(this.x, this.y + 1, this.z)) { this.isWet = true; this.shaking = false; this.shakeAnim = this.shakeAnimO = 0; return; }
+    if (this.shaking) {
+      if (this.shakeAnim === 0) Sound.play('wolf_shake', this);
+      this.shakeAnimO = this.shakeAnim; this.shakeAnim += 0.05;
+      if (this.shakeAnimO >= 2) { this.isWet = this.shaking = false; this.shakeAnim = this.shakeAnimO = 0; return; }
+      if (this.shakeAnim > 0.4) { const n = Math.floor(Math.sin((this.shakeAnim - 0.4) * Math.PI) * 7); for (let i = 0; i < n; i++) Particles.splash(this.x + (Math.random() * 2 - 1) * this.w * 0.5, this.y + 0.8, this.z + (Math.random() * 2 - 1) * this.w * 0.5); }
+    } else if (this.isWet && this.onGround && this.nav.done()) { this.shaking = true; this.shakeAnim = this.shakeAnimO = 0; }
+  }
+  animState(s, a) { s.sitting = this.sitting; s.angry = this.angry; s.tail = this.tame ? (0.55 - (this.maxHealth - this.health) * 0.02) * Math.PI : this.angry ? 1.5393804 : Math.PI / 5; if (this.shaking) s.shake = this.shakeAnimO + (this.shakeAnim - this.shakeAnimO) * a; }
+  // wet fur looks darker until it is shaken dry
+  get tint() { if (!this.isWet) return null; const f = Math.min(1, 0.75 + (this.shakeAnim || 0) / 2 * 0.25); return [f, f, f]; }
 }
 class OwnerHurtTarget extends Goal {
   constructor(m) { super(m, 'T'); this.last = -1; }

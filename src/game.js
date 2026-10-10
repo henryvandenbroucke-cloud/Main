@@ -158,9 +158,10 @@ const Loop = (() => {
     U.uFlicker.value = 1.0 + (Math.random() - 0.5) * 0.02;
     const nv = p.effect('night_vision'); U.uNV.value = nv ? (nv.dur > 200 ? 1 : 0.7 + Math.sin((nv.dur - a) * Math.PI * 0.2) * 0.3) : 0;
     const dist = Settings.renderDist * 16;
-    const under = p.eyesInWater ? 'water' : p.eyesInLava ? 'lava' : null;
+    const under = p.eyesInWater ? 'water' : p.eyesInLava ? 'lava' : p.view === 0 && World.getBlock(Math.floor(p.x), Math.floor(p.eyeY), Math.floor(p.z)) === BID.powder_snow && !p.spectator ? 'powder_snow' : null;
     if (under === 'water') { U.uFogStart.value = -8; U.uFogEnd.value = 48 * (p.effect('water_breathing') || p.effect('conduit_power') ? 1.5 : 1); }
     else if (under === 'lava') { U.uFogStart.value = p.effect('fire_resistance') ? 0 : 0.25; U.uFogEnd.value = p.effect('fire_resistance') ? 5 : 1; }
+    else if (under === 'powder_snow') { U.uFogStart.value = 0; U.uFogEnd.value = 2; }
     else if (World.dim === 'nether') { U.uFogStart.value = dist * 0.05; U.uFogEnd.value = Math.min(96, dist * 0.5); }
     else if (p.effect('blindness')) { U.uFogStart.value = 0; U.uFogEnd.value = 5; }
     else { U.uFogStart.value = dist - Math.max(4, Math.min(64, dist / 10)) * 2.5; U.uFogEnd.value = dist; }

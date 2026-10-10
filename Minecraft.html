@@ -424,7 +424,7 @@ SHARED.push(function blocksModule(G) {
   reg('snow_block', { tex: 'snow', sound: 'snow' });
   // snow layer: bits 0-2 = layers - 1
   reg('snow', { model: 'layer', tex: 'snow', opacity: 0, replaceable: true, sound: 'snow', ticks: true });
-  reg('powder_snow', { solid: false, sound: 'snow' });
+  reg('powder_snow', { solid: false, sound: 'snow', opacity: 1, cullSame: true });
   reg('moss_block', { sound: 'moss' }); reg('moss_carpet', { model: 'carpet', tex: 'moss_block', sound: 'moss' });
   reg('magma_block', { light: 3, tex: 'magma', sound: 'stone' });
   reg('amethyst_block', { sound: 'amethyst' }); reg('budding_amethyst', { sound: 'amethyst', ticks: true });
@@ -7136,6 +7136,7 @@ const SkyRender = (() => {
     }
     if (under === 'water') fogC.setRGB(0.02, 0.05, 0.2).lerp(new THREE.Color(0.05, 0.12, 0.35), Sky.skyFactor);
     if (under === 'lava') fogC.setRGB(0.6, 0.1, 0);
+    if (under === 'powder_snow') fogC.setRGB(0.623, 0.734, 0.785);
     domeMat.uniforms.top.value.copy(skyC); domeMat.uniforms.hor.value.copy(fogC);
     U.uSkyTop.value.copy(skyC); U.uSunDir.value.set(-Math.sin(ang), Math.cos(ang), 0);
     U.uFogColor.value.copy(fogC);
@@ -7540,6 +7541,14 @@ const Phys = (() => {
       if (!World.loaded(x, z)) { boxes.push([x, by0, z, x + 1, by1 + 1, z + 1]); continue; } // unloaded ground holds you up
       for (let y = by0; y <= by1; y++) {
         const id = World.getBlock(x, y, z);
+        // powder snow: you sink in, unless you land on it from a height or stand on top in leather boots
+        if (id === BID.powder_snow) {
+          if (ent && ent.type === 'falling_block') { boxes.push([x, y, z, x + 1, y + 1, z + 1]); continue; }
+          if (!ent || !ent.canWalkOnPowderSnow) continue;
+          if (ent.fallDistance > 2.5) boxes.push([x, y, z, x + 1, y + 0.9, z + 1]);
+          else if (ent.y > y + 1 - 1e-5 && !ent.sneaking && ent.canWalkOnPowderSnow()) boxes.push([x, y, z, x + 1, y + 1, z + 1]);
+          continue;
+        }
         if (!SOLID[id]) continue;
         const sh = Models.shape(id, World.getState(x, y, z), x, y, z, true);
         if (!sh) continue;
@@ -7704,6 +7713,10 @@ class Entity {
   lookVec() { const cp = Math.cos(this.pitch); return [-Math.sin(this.yaw) * cp, -Math.sin(this.pitch), -Math.cos(this.yaw) * cp]; }
 }
 
+const STUCK = { web: [0.25, 0.05], berry: [0.8, 0.75], snow: [0.9, 1.5] };
+const FREEZE_IMMUNE = new Set(['stray', 'polar_bear', 'snow_golem', 'wither', 'skeleton']), FREEZE_EXTRA = new Set(['strider', 'blaze', 'magma_cube']);
+const SNOW_WALKERS = new Set(['rabbit', 'fox', 'silverfish', 'endermite']);
+const LEATHER_ARMOR = new Set(['leather_helmet', 'leather_chestplate', 'leather_leggings', 'leather_boots']);
 class Living extends Entity {
   constructor(type, x, y, z) {
     super(type, x, y, z);
@@ -7714,7 +7727,7 @@ class Living extends Entity {
     this.armorPts = 0; this.toughness = 0; this.kbResist = 0; this.attackStrength = 1;
     this.walkDist = 0; this.pwalkDist = 0; this.limbSwing = 0; this.limbAmount = 0; this.plimbAmount = 0; this.jumpCooldown = 0;
     this.bodyYaw = 0; this.pbodyYaw = 0; this.headYaw = 0; this.pheadYaw = 0; this.swing = 0; this.pswing = 0; this.swinging = false; this.swingTime = 0;
-    this.air = 300; this.lastHurtBy = null; this.lastHurtTime = 0;
+    this.air = 300; this.lastHurtBy = null; this.lastHurtTime = 0; this.freeze = 0;
   }
   effect(name) { return this.effects.get(name); }
   addEffect(name, dur, amp, o) {
@@ -7740,7 +7753,8 @@ class Living extends Entity {
   }
   heal(n) { if (this.dead) return; this.health = Math.min(this.maxHealth, this.health + n); }
   get speedAttr() {
-    let s = this.speed;
+    // the cold of powder snow slows you, up to half a player's walking speed
+    let s = this.freeze > 0 ? Math.max(0, this.speed - 0.05 * this.freeze / 140) : this.speed;
     const sp = this.effect('speed'), sl = this.effect('slowness');
     if (sp) s *= 1 + 0.2 * (sp.amp + 1);
     if (sl) s *= Math.max(0, 1 - 0.15 * (sl.amp + 1));
@@ -7810,11 +7824,13 @@ class Living extends Entity {
         this.vy = Math.max(this.vy, -0.15);
         if (this.vy < 0 && this.sneaking && this.isPlayer) this.vy = 0;
       }
-      // cobwebs slow everything to a crawl
-      if (this.inWeb) { this.vx *= 0.25; this.vy *= 0.05; this.vz *= 0.25; }
+      // cobwebs, berry bushes and powder snow hold you back (the game's stuck multipliers)
+      const st = this.stuck;
+      if (st) { this.vx *= st[0]; this.vy *= st[1]; this.vz *= st[0]; }
       Phys.move(this, this.vx, this.vy, this.vz);
-      if (this.inWeb) { this.vx = this.vy = this.vz = 0; this.fallDistance = 0; }
-      if ((this.hitH || this.jumping) && climb) this.vy = 0.2;
+      if (st) { this.vx = this.vy = this.vz = 0; this.fallDistance = 0; }
+      // leather boots climb up out of powder snow
+      if ((this.hitH || this.jumping) && (climb || (this.snowAtFeet && this.canWalkOnPowderSnow()))) this.vy = 0.2;
       const lev = this.effect('levitation');
       if (lev) this.vy += (0.05 * (lev.amp + 1) - this.vy) * 0.2;
       else if (!this.noGravity && !flying) this.vy -= (this.vy <= 0 && this.effect('slow_falling')) ? 0.01 : 0.08;
@@ -7865,11 +7881,45 @@ class Living extends Entity {
     } else if (dy < 0) this.fallDistance -= dy;
     if (this.inWater || this.flying || this.onClimbable()) this.fallDistance = 0;
   }
+  // what the entity stands in: cobwebs, sweet berry bushes and powder snow slow it; powder snow freezes it
+  tickStuck() {
+    let stuck = null, snow = false;
+    Phys.touching(this, id => {
+      if (id === BID.cobweb) stuck = STUCK.web;
+      else if (id === BID.sweet_berry_bush) { if (!stuck && this.type !== 'fox' && this.type !== 'bee') stuck = STUCK.berry; }
+      else if (id === BID.powder_snow) snow = true;
+      return false;
+    });
+    const fx = Math.floor(this.x), fy = Math.floor(this.y), fz = Math.floor(this.z);
+    this.snowAtFeet = snow && World.getBlock(fx, fy, fz) === BID.powder_snow;
+    if (this.snowAtFeet && !stuck) stuck = STUCK.snow;
+    this.stuck = stuck; this.inWeb = !!stuck; this.inPowderSnow = snow;
+    if (this.dead) return;
+    // the cold builds up over 7 seconds, then hurts every 2 seconds
+    if (snow && this.canFreeze()) this.freeze = Math.min(140, this.freeze + 1); else if (this.freeze > 0) this.freeze = Math.max(0, this.freeze - 2);
+    if (this.freeze >= 140 && this.age % 40 === 0 && this.canFreeze()) this.hurt(FREEZE_EXTRA.has(this.type) ? 5 : 1, 'freeze');
+    // powder snow puts out fire, and melts away
+    if (snow && this.fireTicks > 0) {
+      this.fireTicks = 0;
+      if (Game.rules.mobGriefing || this.isPlayer) Phys.touching(this, (id, x, y, z) => { if (id === BID.powder_snow) { World.setBlock(x, y, z, 0, 0); Sound.play('fizz', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 }); return true; } return false; });
+    }
+  }
+  wornArmor() { return this.isPlayer ? [0, 1, 2, 3].map(i => this.inv.armor(i)) : this.equip ? [this.equip.head, this.equip.chest, this.equip.legs, this.equip.feet] : []; }
+  // any piece of leather armour keeps the cold out; strays, polar bears, snow golems and the wither never freeze
+  canFreeze() {
+    if (this.spectator || (this.isPlayer && this.creative) || FREEZE_IMMUNE.has(this.type)) return false;
+    return !this.wornArmor().some(s => s && LEATHER_ARMOR.has(ITEMS[s.id].name));
+  }
+  // leather boots (and light-footed rabbits, foxes, silverfish and endermites) stand on powder snow
+  canWalkOnPowderSnow() { if (SNOW_WALKERS.has(this.type)) return true; const f = this.wornArmor()[3]; return !!f && ITEMS[f.id].name === 'leather_boots'; }
+  get fullyFrozen() { return this.freeze >= 140; }
+  // the jitter of a mob that is converting into another (or frozen solid)
+  isShaking() { return this.fullyFrozen; }
   tickLiving() {
     if (this.hurtTime > 0) this.hurtTime--;
     if (this.invul > 0) this.invul--;
     this.tickEffects();
-    this.inWeb = Phys.touching(this, id => id === BID.cobweb || id === BID.sweet_berry_bush || id === BID.powder_snow);
+    this.tickStuck();
     if (this.jumpCooldown > 0) this.jumpCooldown--;
     if (this.jumping) {
       if (this.inWater || this.inLava) { this.vy += 0.04; this.swimmingUp = true; }
@@ -10124,6 +10174,10 @@ const Sound = (() => {
   N.hoe_till = d => blockSoundTo(d, BID.dirt, 'place'); N.shovel_flatten = d => blockSoundTo(d, BID.grass_block, 'place'); N.axe_strip = d => blockSoundTo(d, BID.oak_log, 'place');
   N.bone_meal = d => { for (let i = 0; i < 3; i++) noise(d, T() + i * 0.04, 0.05, 'highpass', 3000, 1, 0.2); };
   N.craft = d => {};
+  // a wolf shaking itself dry: a fast rattle of fur and spray
+  N.wolf_shake = d => { for (let i = 0; i < 6; i++) noise(d, T() + i * 0.07, 0.06, 'bandpass', 1800 + i * 150, 1.5, 0.25); };
+  // a polar bear's warning: a deep rising growl
+  N.polar_bear_warning = d => { tone(d, T(), 'sawtooth', 70, 0.7, 0.35, { lp: 600, to: 110 }); noise(d, T(), 0.7, 'lowpass', 400, 1, 0.25); };
   N.shear = d => { noise(d, T(), 0.05, 'highpass', 4000, 2, 0.3); noise(d, T() + 0.07, 0.05, 'highpass', 4500, 2, 0.3); };
   N.saddle = N.equip; N.berry_pick = N.pop; N.pumpkin_carve = d => blockSoundTo(d, BID.pumpkin, 'hit');
   N.composter_fill = d => noise(d, T(), 0.1, 'lowpass', 900, 1, 0.3); N.composter_fill_success = d => { N.composter_fill(d); tone(d, T() + 0.05, 'sine', 700, 0.1, 0.1); }; N.composter_empty = N.composter_fill;
@@ -10364,7 +10418,7 @@ const Sound = (() => {
     const now = performance.now();
     if (musicMode && !musicPlaying && now > nextMusic) { playPiece(); nextMusic = now + (musicMode === 'menu' ? rp(20, 60) : rp(600, 1200)) * 1000; }
     // mob calls now and then (the game's ambient sound timer: 1 in 1000 chance each tick after the interval)
-    for (const e of Entities.list) if (e.living && !e.dead && e.age % 80 === 0 && Math.random() < 0.15 && e.dist2(p.x, p.y, p.z) < 256) { const v = MOB[e.type]; if (v && v.say) play(e.type + '_ambient', e); }
+    for (const e of Entities.list) if (e.living && !e.dead && e.age % 80 === 0 && Math.random() < 0.15 && e.dist2(p.x, p.y, p.z) < 256) { const v = MOB[e.type]; if (v && v.say) play(e.type + '_ambient', e); if (e.onAmbient) e.onAmbient(); }
     // rain on the surface
     const raining = Weather.rain > 0.2 && World.dim === 'overworld';
     if (raining && !rainNode) { const g = ac.createGain(); g.gain.value = 0; const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true; const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1200; s.connect(f); f.connect(g); g.connect(cats.ambient); s.start(); rainNode = { g, s }; }
@@ -11381,14 +11435,21 @@ reg('chicken', Chicken);
 // ---------------------------------------------------------------- undead
 const ZOMBIE_TARGETS = e => e.isPlayer || e.type === 'villager' || e.type === 'wandering_trader' || e.type === 'iron_golem' || (e.type === 'turtle' && e.baby);
 class Zombie extends Monster {
-  constructor(t, x, y, z) { super(t || 'zombie', x, y, z); this.attackKnockback = 0; this.opensDoors = false; }
+  constructor(t, x, y, z) { super(t || 'zombie', x, y, z); this.attackKnockback = 0; this.opensDoors = false; this.underwater = 0; this.drownConvert = 0; }
   get undead() { return true; }
   registerGoals() {
     const g = this.goals, t = this.targets;
     g.add(0, new G.Float(this)); g.add(2, new G.MeleeAttack(this, 1, false)); g.add(7, new G.RandomStroll(this, 1)); g.add(8, new G.LookAtPlayer(this, 8)); g.add(8, new G.RandomLookAround(this));
     t.add(1, new G.HurtByTarget(this, true)); t.add(2, new G.NearestAttackableTarget(this, TARGET_PLAYER, 35)); t.add(3, new G.NearestAttackableTarget(this, e => e.type === 'villager' || e.type === 'wandering_trader', 35, false)); t.add(3, new G.NearestAttackableTarget(this, e => e.type === 'iron_golem', 35));
   }
-  aiStep() { super.aiStep(); if (this.burns !== false) this.burnsInDay(); if (this.type === 'zombie' && this.eyesInWater) { if (++this.underwater > 600) this.convert('drowned'); } else this.underwater = 0; }
+  // 30 seconds under water and a zombie starts turning into a drowned (a husk into a zombie): 15 more seconds of shaking
+  aiStep() {
+    super.aiStep(); if (this.burns !== false) this.burnsInDay();
+    if (this.type !== 'zombie' && this.type !== 'husk') return;
+    if (this.drownConvert > 0) { if (--this.drownConvert === 0) { Sound.play(this.type === 'husk' ? 'husk_converted_to_zombie' : 'zombie_converted_to_drowned', this); this.convert(this.type === 'husk' ? 'zombie' : 'drowned'); } }
+    else if (this.eyesInWater) { if (++this.underwater >= 600) this.drownConvert = 300; } else this.underwater = 0;
+  }
+  isShaking() { return this.drownConvert > 0 || super.isShaking(); }
   onAttack(t) { if (this.type === 'husk' && t.addEffect) t.addEffect('hunger', 140 * (Game.difficulty === 'hard' ? 2 : 1), 0); }
   convert(to) { const z = Mobs.spawnEntity(to, this.x, this.y, this.z); if (z) { z.yaw = z.bodyYaw = this.yaw; z.equip = this.equip; if (this.baby) z.setBaby(); z.persistent = this.persistent; } this.removed = true; }
   onDeath(src, a) { if (a && a.type === 'zombie' || false) return; }
@@ -11408,6 +11469,7 @@ reg('drowned', Drowned);
 class ZombieVillager extends Zombie {
   constructor(t, x, y, z) { super('zombie_villager', x, y, z); this.curing = 0; }
   onInteract(p, s) { if (s && ITEMS[s.id].name === 'golden_apple' && this.effect('weakness') && !this.curing) { this.curing = 3600 + rnd(2400); this.curer = p; if (!p.creative) { s.count--; if (!s.count) p.inv.held = null; } this.persistent = true; Sound.play('zombie_villager_cure', this); return true; } return false; }
+  isShaking() { return this.curing > 0 || super.isShaking(); }
   aiStep() { super.aiStep(); if (this.curing > 0 && --this.curing === 0) { const v = Mobs.spawnEntity('villager', this.x, this.y, this.z); if (v) { v.addEffect('nausea', 200, 0); v.profession = this.profession || null; if (this.curer && this.curer.isPlayer) { Trading.gossip(v, 'major_positive', 20); Trading.gossip(v, 'minor_positive', 25); Advancements.fire('cured_zombie_villager', { zombie: this, villager: v }); } } this.removed = true; } }
 }
 reg('zombie_villager', ZombieVillager);
@@ -11435,7 +11497,18 @@ class AbstractSkeleton extends Monster {
   }
   animState(s) { s.holdingBow = this.holdingBow(); s.aggressive = this.aggressive; }
 }
-class Skeleton extends AbstractSkeleton { constructor(t, x, y, z) { super(t || 'skeleton', x, y, z); this.equip.main = stack('bow'); } }
+class Skeleton extends AbstractSkeleton {
+  constructor(t, x, y, z) { super(t || 'skeleton', x, y, z); this.equip.main = stack('bow'); this.snowTime = 0; this.freezeConvert = 0; }
+  // 7 seconds in powder snow and a skeleton starts to freeze into a stray, shaking for 15 seconds
+  aiStep() {
+    super.aiStep();
+    if (this.type !== 'skeleton') return;
+    if (!this.inPowderSnow) { this.snowTime = 0; this.freezeConvert = 0; return; }
+    if (this.freezeConvert > 0) { if (--this.freezeConvert === 0) { Sound.play('skeleton_converted_to_stray', this); const z = Mobs.spawnEntity('stray', this.x, this.y, this.z); if (z) { z.yaw = z.bodyYaw = this.yaw; z.equip = this.equip; z.persistent = this.persistent; } this.removed = true; } }
+    else if (++this.snowTime >= 140) this.freezeConvert = 300;
+  }
+  isShaking() { return this.freezeConvert > 0 || super.isShaking(); }
+}
 reg('skeleton', Skeleton);
 class Stray extends Skeleton { constructor(t, x, y, z) { super('stray', x, y, z); } arrowKind() { return { potion: 'slowness', dur: 600 }; } }
 reg('stray', Stray);
@@ -11705,6 +11778,7 @@ class Witch extends Monster {
     if (d) { this.drink = d; this.drinking = 32; this.equip.main = stack('potion', 1, { tag: { potion: d } }); Sound.play('witch_drink', this); }
   }
   hurt(n, s, a) { if (s === 'magic' && a === this) n *= 0.15; return super.hurt(n, s, a); }
+  animState(s) { s.holding = this.drinking > 0; }
 }
 class PotionAttack extends Goal {
   constructor(m) { super(m, 'ML'); this.cool = 0; }
@@ -11766,8 +11840,19 @@ class Wolf extends Tameable {
     }
     return false;
   }
-  animState(s) { s.sitting = this.sitting; s.angry = this.angry; s.tail = this.tame ? (0.55 - (this.maxHealth - this.health) * 0.02) * Math.PI : this.angry ? 1.5393804 : Math.PI / 5; }
-  get tint() { return null; }
+  // out of the water (or rain), a wet wolf stops on dry ground and shakes itself off, flinging drops about
+  aiStep() {
+    if (this.inWater || Weather.rainingAt(this.x, this.y + 1, this.z)) { this.isWet = true; this.shaking = false; this.shakeAnim = this.shakeAnimO = 0; return; }
+    if (this.shaking) {
+      if (this.shakeAnim === 0) Sound.play('wolf_shake', this);
+      this.shakeAnimO = this.shakeAnim; this.shakeAnim += 0.05;
+      if (this.shakeAnimO >= 2) { this.isWet = this.shaking = false; this.shakeAnim = this.shakeAnimO = 0; return; }
+      if (this.shakeAnim > 0.4) { const n = Math.floor(Math.sin((this.shakeAnim - 0.4) * Math.PI) * 7); for (let i = 0; i < n; i++) Particles.splash(this.x + (Math.random() * 2 - 1) * this.w * 0.5, this.y + 0.8, this.z + (Math.random() * 2 - 1) * this.w * 0.5); }
+    } else if (this.isWet && this.onGround && this.nav.done()) { this.shaking = true; this.shakeAnim = this.shakeAnimO = 0; }
+  }
+  animState(s, a) { s.sitting = this.sitting; s.angry = this.angry; s.tail = this.tame ? (0.55 - (this.maxHealth - this.health) * 0.02) * Math.PI : this.angry ? 1.5393804 : Math.PI / 5; if (this.shaking) s.shake = this.shakeAnimO + (this.shakeAnim - this.shakeAnimO) * a; }
+  // wet fur looks darker until it is shaken dry
+  get tint() { if (!this.isWet) return null; const f = Math.min(1, 0.75 + (this.shakeAnim || 0) / 2 * 0.25); return [f, f, f]; }
 }
 class OwnerHurtTarget extends Goal {
   constructor(m) { super(m, 'T'); this.last = -1; }
@@ -12514,18 +12599,42 @@ const Explosions = (() => {
   }
   reg('fox', Fox);
   class Horse extends Animal {
-    constructor(t, x, y, z) { super(t, x, y, z); this.tame = false; this.temper = 0; this.saddled = false; const k = MOB_STATS[t]; this.maxHealth = this.health = 15 + rnd(8) + rnd(9); this.speed = 0.1125 + Math.random() * 0.1125 + Math.random() * 0.1125 + Math.random() * 0.1125 * 0; this.jumpStrength = 0.4 + Math.random() * 0.2 + Math.random() * 0.2 + Math.random() * 0.2; void k; }
+    constructor(t, x, y, z) { super(t, x, y, z); this.tame = false; this.temper = 0; this.saddled = false; this.tailT = this.grazeT = this.mouthT = this.standT = 0; this.grazing = false; this.eatAnim = this.eatAnimO = this.standAnim = this.standAnimO = this.mouthAnim = this.mouthAnimO = 0; const k = MOB_STATS[t]; this.maxHealth = this.health = 15 + rnd(8) + rnd(9); this.speed = 0.1125 + Math.random() * 0.1125 + Math.random() * 0.1125 + Math.random() * 0.1125 * 0; this.jumpStrength = 0.4 + Math.random() * 0.2 + Math.random() * 0.2 + Math.random() * 0.2; void k; }
     get food() { return ['golden_apple', 'enchanted_golden_apple', 'golden_carrot']; }
     onInteract(p, s) {
       const n = s ? ITEMS[s.id].name : '';
-      if (['wheat', 'sugar', 'apple', 'hay_block', 'golden_carrot', 'golden_apple'].includes(n) && this.health < this.maxHealth) { this.heal({ wheat: 2, sugar: 1, apple: 3, hay_block: 20, golden_carrot: 4, golden_apple: 10 }[n]); this.temper = Math.min(100, this.temper + ({ sugar: 3, wheat: 3, apple: 3, golden_carrot: 5, golden_apple: 10 }[n] || 0)); this.useFood(p, s); Sound.play('horse_eat', this); return true; }
+      if (['wheat', 'sugar', 'apple', 'hay_block', 'golden_carrot', 'golden_apple'].includes(n) && this.health < this.maxHealth) { this.heal({ wheat: 2, sugar: 1, apple: 3, hay_block: 20, golden_carrot: 4, golden_apple: 10 }[n]); this.temper = Math.min(100, this.temper + ({ sugar: 3, wheat: 3, apple: 3, golden_carrot: 5, golden_apple: 10 }[n] || 0)); this.useFood(p, s); Sound.play('horse_eat', this); this.mouthT = 1; return true; }
       if (this.tame && n === 'saddle' && !this.saddled && this.type !== 'donkey' && this.type !== 'mule' || (this.tame && n === 'saddle' && !this.saddled)) { this.saddled = true; if (!p.creative) { s.count--; if (!s.count) p.inv.held = null; } Sound.play('saddle', this); return true; }
       if (!this.baby && !p.vehicle) { Vehicles.mount && Vehicles.mount(p, this); return true; }
       return false;
     }
     saveExtra(d) { d.tame = this.tame; d.saddled = this.saddled; d.temper = this.temper; d.speed = this.speed; d.jumpStrength = this.jumpStrength; d.maxHealth = this.maxHealth; } loadExtra(d) { Object.assign(this, { tame: !!d.tame, saddled: !!d.saddled, temper: d.temper || 0 }); if (d.speed) this.speed = d.speed; if (d.jumpStrength) this.jumpStrength = d.jumpStrength; if (d.maxHealth) this.maxHealth = d.maxHealth; }
     extraDrops() { if (this.saddled) Drops.spawnItem(this.x, this.y + 1, this.z, stack('saddle')); }
-    animState(s) { s.eat = this.eatT > 0; }
+    // the game's horse animations: a swish of the tail now and then, grazing when on grass, rearing up when
+    // hurt or restless, the mouth working while it eats
+    tick() {
+      super.tick();
+      if (this.dead) return;
+      if (rnd(200) === 0) this.tailT = 1;
+      if (this.tailT > 0 && ++this.tailT > 8) this.tailT = 0;
+      if (!this.passengers.length && !this.grazing && !this.standT && rnd(300) === 0 && World.getBlock(Math.floor(this.x), Math.floor(this.y) - 1, Math.floor(this.z)) === BID.grass_block) this.grazing = true;
+      if (this.grazing && ++this.grazeT > 50) { this.grazeT = 0; this.grazing = false; }
+      if (this.mouthT > 0 && ++this.mouthT > 30) this.mouthT = 0;
+      if (this.standT > 0 && ++this.standT > 20) this.standT = 0;
+      const ea = this.eatAnim; this.eatAnimO = ea;
+      this.eatAnim = this.grazing ? Math.min(1, ea + (1 - ea) * 0.4 + 0.05) : Math.max(0, ea - ea * 0.4 - 0.05);
+      const sa = this.standAnim; this.standAnimO = sa;
+      if (this.standT > 0) { this.eatAnim = this.eatAnimO = 0; this.standAnim = Math.min(1, sa + (1 - sa) * 0.4 + 0.05); }
+      else this.standAnim = Math.max(0, sa + (0.8 * sa * sa * sa - sa) * 0.6 - 0.05);
+      const ma = this.mouthAnim; this.mouthAnimO = ma;
+      this.mouthAnim = this.mouthT > 0 ? Math.min(1, ma + (1 - ma) * 0.7 + 0.05) : Math.max(0, ma - ma * 0.7 - 0.05);
+    }
+    // grazing or rearing, it stands still
+    aiStep() { if (this.grazing || this.standT > 0) { this.nav.stop(); this.forward = this.strafe = 0; this.jumping = false; } }
+    stand() { this.standT = 1; this.grazing = false; this.grazeT = 0; }
+    onHurt() { if (rnd(3) === 0) this.stand(); }
+    onAmbient() { if (rnd(10) === 0 && !this.grazing && !this.standT) this.stand(); }
+    animState(s, a) { s.eat = this.eatAnimO + (this.eatAnim - this.eatAnimO) * a; s.stand = this.standAnimO + (this.standAnim - this.standAnimO) * a; s.mouth = this.mouthAnimO + (this.mouthAnim - this.mouthAnimO) * a; s.tailSwish = this.tailT > 0; }
   }
   for (const n of ['horse', 'donkey', 'mule', 'skeleton_horse', 'zombie_horse']) reg(n, class extends Horse { constructor(t, x, y, z) { super(n, x, y, z); } });
   class Llama extends Animal {
@@ -12546,9 +12655,27 @@ const Explosions = (() => {
   class Panda extends Animal { constructor(t, x, y, z) { super('panda', x, y, z); this.sitting = false; } get food() { return ['bamboo']; } registerGoals() { super.registerGoals(); this.targets.add(1, new G.HurtByTarget(this)); this.goals.add(2, new G.MeleeAttack(this, 1.2, true)); } aiStep() { if (rnd(400) === 0 && !this.target) this.sitting = !this.sitting; if (this.sitting) this.nav.stop(); } animState(s) { s.sitting = this.sitting; } }
   reg('panda', Panda);
   class PolarBear extends Animal {
-    constructor(t, x, y, z) { super('polar_bear', x, y, z); }
+    constructor(t, x, y, z) { super('polar_bear', x, y, z); this.standing = false; this.standAnim = this.oStand = 0; this.warnT = 0; }
     get food() { return []; }
-    registerGoals() { const g = this.goals, t = this.targets; g.add(0, new G.Float(this)); g.add(1, new G.MeleeAttack(this, 1.25, true)); g.add(4, new G.FollowParent(this, 1.25)); g.add(5, new G.RandomStroll(this, 1)); g.add(6, new G.LookAtPlayer(this, 6)); g.add(7, new G.RandomLookAround(this)); t.add(1, new G.HurtByTarget(this, true)); t.add(2, new G.NearestAttackableTarget(this, e => e.isPlayer && this.nearest(o => o.type === 'polar_bear' && o.baby, 8), 20)); t.add(3, new G.NearestAttackableTarget(this, e => e.type === 'fox', 10)); }
+    // in the last half second before each swipe it rears up on its hind legs with a warning growl
+    aiStep() {
+      const t = this.target, mg = this.melee; let stand = false;
+      if (t && !t.dead && mg) {
+        const r = t.w + 3, dx = t.x - this.x, dz = t.z - this.z;
+        if (dx * dx + (t.y - this.y) ** 2 + dz * dz < r * r) {
+          const reach = dx * dx + dz * dz <= Math.pow(this.w * 2, 2) + t.w && Math.abs(t.y - this.y) < 2.5;
+          if (mg.cool <= 0 && !reach) mg.cool = 20;
+          stand = mg.cool <= 10;
+        }
+      }
+      if (stand && !this.standing && this.warnT <= 0) { Sound.play('polar_bear_warning', this); this.warnT = 40; }
+      if (this.warnT > 0) this.warnT--;
+      this.standing = stand;
+    }
+    tick() { super.tick(); this.oStand = this.standAnim; this.standAnim = Math.max(0, Math.min(6, this.standAnim + (this.standing && !this.dead ? 1 : -1))); }
+    doHurtTarget(t) { this.standing = false; return super.doHurtTarget(t); }
+    animState(s, a) { s.stand = (this.oStand + (this.standAnim - this.oStand) * a) / 6; }
+    registerGoals() { const g = this.goals, t = this.targets; g.add(0, new G.Float(this)); this.melee = g.add(1, new G.MeleeAttack(this, 1.25, true)); g.add(4, new G.FollowParent(this, 1.25)); g.add(5, new G.RandomStroll(this, 1)); g.add(6, new G.LookAtPlayer(this, 6)); g.add(7, new G.RandomLookAround(this)); t.add(1, new G.HurtByTarget(this, true)); t.add(2, new G.NearestAttackableTarget(this, e => e.isPlayer && this.nearest(o => o.type === 'polar_bear' && o.baby, 8), 20)); t.add(3, new G.NearestAttackableTarget(this, e => e.type === 'fox', 10)); }
   }
   reg('polar_bear', PolarBear);
   class Frog extends Animal {
@@ -12602,7 +12729,9 @@ const Explosions = (() => {
     constructor(t, x, y, z) { super('parrot', x, y, z); this.tame = false; this.flap = 0; this.flySpeed = 0.15; }
     aiFly() { if (this.onGround && rnd(80) !== 0 && !this.dest) { this.noGravity = false; return; } this.noGravity = true; this.flap += 0.3; }
     onInteract(p, s) { const n = s ? ITEMS[s.id].name : ''; if (!this.tame && SEEDS.includes(n)) { this.useFood(p, s); if (rnd(10) === 0) { this.tame = true; Advancements.fire('tame_animal', { entity: this }); this.persistent = true; Particles.heart(this, 7); } else Particles.smoke(this); return true; } if (n === 'cookie') { this.useFood(p, s); this.addEffect('poison', 900, 0); this.hurt(100, 'magic', p); return true; } return false; }
-    animState(s) { s.flying = !this.onGround; s.flap = Math.abs(Math.sin(this.flap)) * 0.6; }
+    // a playing jukebox within 3.46 blocks gets it dancing
+    tick() { super.tick(); if (this.age % 10 === 0) this.party = typeof Creatures !== 'undefined' && !!Creatures.Jukebox.near(this.x, this.y, this.z, 3.46); }
+    animState(s) { s.flying = !this.onGround; s.flap = Math.abs(Math.sin(this.flap)) * 0.6; s.party = !!this.party; }
   }
   reg('parrot', Parrot);
   class Allay extends Flyer { constructor(t, x, y, z) { super('allay', x, y, z); this.persistent = true; this.flySpeed = 0.1; } aiFly() { const p = Game.player; if (p && this.distTo(p) > 4 && this.liked) this.flyTo(p.x, p.y + 1.5, p.z, 1); } onInteract(p, s) { this.liked = true; return true; } }
@@ -12679,6 +12808,8 @@ const Explosions = (() => {
   reg('blaze', Blaze);
   const GOLD_ARMOR = s => s && /^golden_/.test(ITEMS[s.id].name) && ITEMS[s.id].armor;
   class Piglin extends Monster {
+    // outside the nether it shakes while it turns into a zombified piglin
+    isShaking() { return (World.dim !== 'nether' && this.zombify > 0) || super.isShaking(); }
     constructor(t, x, y, z) { super(t || 'piglin', x, y, z); this.equip.main = this.type === 'piglin_brute' ? stack('golden_axe') : stack(Math.random() < 0.5 ? 'golden_sword' : 'crossbow'); this.admire = 0; this.admireItem = null; }
     registerGoals() { const g = this.goals, t = this.targets; g.add(0, new G.Float(this)); g.add(2, new G.MeleeAttack(this, 1, false)); g.add(7, new G.RandomStroll(this, 0.8)); g.add(8, new G.LookAtPlayer(this, 8)); t.add(1, new G.HurtByTarget(this, true)); t.add(2, new G.NearestAttackableTarget(this, e => e.isPlayer && (this.type === 'piglin_brute' || ![0, 1, 2, 3].some(i => GOLD_ARMOR(e.inv.armor(i)))), 16)); t.add(3, new G.NearestAttackableTarget(this, e => e.type === 'wither_skeleton', 16)); }
     aiStep() {
@@ -12703,6 +12834,7 @@ const Explosions = (() => {
   }
   reg('zombified_piglin', ZombifiedPiglin);
   class Hoglin extends Animal {
+    isShaking() { return (this.type === 'hoglin' && World.dim !== 'nether' && this.zombify > 0) || super.isShaking(); }
     constructor(t, x, y, z) { super(t || 'hoglin', x, y, z); this.hostile = true; this.attackT = 0; this.kbResist = 0.6; this.attackKnockback = 1; }
     get food() { return this.type === 'hoglin' ? ['crimson_fungus'] : []; }
     registerGoals() { const g = this.goals, t = this.targets; g.add(0, new G.Float(this)); g.add(1, new G.AvoidEntity(this, () => false, 1, 1, 1)); g.add(2, new G.MeleeAttack(this, 1, true)); g.add(3, new G.Breed(this, 1)); g.add(5, new G.RandomStroll(this, 0.6)); g.add(6, new G.LookAtPlayer(this, 8)); t.add(1, new G.HurtByTarget(this, true)); t.add(2, new G.NearestAttackableTarget(this, e => e.isPlayer || (this.type === 'zoglin' && e.living && e.type !== 'zoglin' && e.type !== 'creeper'), 16)); }
@@ -18558,6 +18690,23 @@ const Cauldron = (() => {
 const HUD = (() => {
   const cv = document.createElement('canvas'); cv.id = 'hudCanvas'; document.body.appendChild(cv);
   const g = cv.getContext('2d');
+  // a frosty border, thick at the edges and clear in the middle (the powder snow outline)
+  let frostCanvas = null;
+  function frostOverlay() {
+    if (frostCanvas) return frostCanvas;
+    const w = 192, h = 108, c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'), img = g.createImageData(w, h);
+    let seed = 1234567; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const d = Math.min(x, w - 1 - x, y * 1.2, (h - 1 - y) * 1.2) / (h * 0.42), e = Math.max(0, 1 - d), n = r();
+      const a = e * e * 1.15 + (n - 0.5) * 0.5 * e;
+      if (a < 0.12) continue;
+      const k = (y * w + x) * 4, f = n * 0.6 + e * 0.4;
+      img.data[k] = 165 + 85 * f; img.data[k + 1] = 205 + 45 * f; img.data[k + 2] = 240 + 15 * f; img.data[k + 3] = Math.min(235, a * 255);
+    }
+    g.putImageData(img, 0, 0);
+    return (frostCanvas = c);
+  }
   let W = 0, H = 0, S = 2;
   let heldName = '', heldTime = 0, lastHeld = null, action = '', actionTime = 0, title = null, titleTime = 0, sub = '';
   let lastHealth = 20, healthFlash = 0, regenWave = -1, debug = false, totemTime = 0, bossbars = new Map();
@@ -18661,7 +18810,7 @@ const HUD = (() => {
     if (p.health < lastHealth && p.invul > 0) healthFlash = p.invul;
     lastHealth = p.health;
     const poison = p.effect('poison'), wither = p.effect('wither');
-    const kind = wither ? 'wither' : poison ? 'poison' : p.freeze > 140 ? 'frozen' : 'full';
+    const kind = wither ? 'wither' : poison ? 'poison' : p.freeze >= 140 ? 'frozen' : 'full';
     const low = p.health <= 4;
     if (p.effect('regeneration') && p.age % 20 === 0) regenWave = 0;
     for (let i = maxH + absH - 1; i >= 0; i--) {
@@ -18722,7 +18871,8 @@ const HUD = (() => {
     }
     if (p.fireTicks > 0 && p.view === 0 && !p.fireImmune) { const t = performance.now() / 80; for (let i = 0; i < 12; i++) { const x = W * (i / 12), h = H * (0.25 + 0.08 * Math.sin(t + i * 1.7)); const gr = g.createLinearGradient(0, H, 0, H - h); gr.addColorStop(0, 'rgba(255,140,20,0.85)'); gr.addColorStop(1, 'rgba(255,220,80,0)'); g.fillStyle = gr; g.fillRect(x, H - h, W / 12 + 2, h); } }
     if (p.eyesInWater) { g.fillStyle = 'rgba(20,40,110,0.18)'; g.fillRect(0, 0, W, H); }
-    if (p.freeze > 0) { g.fillStyle = `rgba(200,230,255,${Math.min(0.6, p.freeze / 140 * 0.6)})`; g.fillRect(0, 0, W, H); }
+    // freezing: frost creeps in from the edges of the screen
+    if (p.freeze > 0 && p.view === 0) { g.save(); g.globalAlpha = Math.min(1, p.freeze / 140); g.imageSmoothingEnabled = false; g.drawImage(frostOverlay(), 0, 0, W, H); g.restore(); }
     if (p.using && ITEMS[p.using.id].name === 'spyglass') { g.fillStyle = '#000'; const r = Math.min(W, H) * 0.45; g.beginPath(); g.rect(0, 0, W, H); g.arc(W / 2, H / 2, r, 0, Math.PI * 2, true); g.fill(); }
     if (p.hurtTime > 0 && p.dead) { g.fillStyle = 'rgba(160,0,0,0.25)'; g.fillRect(0, 0, W, H); }
     if (totemTime > 0) { totemTime--; Icons.draw(g, IID.totem_of_undying, W / 2 - 40 * S * (1 + (40 - totemTime) / 40), H / 2 - 40 * S, 80 * S * (1 + (40 - totemTime) / 40)); }
@@ -19055,7 +19205,7 @@ const Save = (() => {
       health: p.health, maxHealth: p.maxHealth, absorption: p.absorption, food: p.food, saturation: p.saturation, exhaustion: p.exhaustion,
       xpLevel: p.xpLevel, xpProgress: p.xpProgress, xpTotal: p.xpTotal, score: p.score, enchSeed: p.enchSeed, gamemode: p.gamemode, flying: p.flying,
       inv: p.inv.slots, selected: p.inv.selected, ender: p.enderChest.slots, effects: [...p.effects], spawn: p.spawn,
-      fire: p.fireTicks, air: p.air, fall: p.fallDistance, dead: p.dead, onGround: p.onGround, frozen: p.frozenTicks || 0,
+      fire: p.fireTicks, air: p.air, fall: p.fallDistance, dead: p.dead, onGround: p.onGround, frozen: p.freeze || 0,
       recipes: p.knownRecipes ? [...p.knownRecipes] : null, seenCredits: !!p.seenCredits, stats: typeof Stats.save === 'function' ? Stats.save() : null,
       adv: typeof Advancements.save === 'function' ? Advancements.save() : null,
     });
@@ -19070,7 +19220,7 @@ const Save = (() => {
     p.setGamemode(d.gamemode || 'survival'); p.flying = !!d.flying && p.mayFly;
     p.inv.load(d.inv); p.inv.selected = d.selected || 0; p.enderChest.load(d.ender);
     p.effects = new Map(d.effects || []); p.spawn = d.spawn || null;
-    p.fireTicks = d.fire || 0; p.air = d.air ?? 300; p.fallDistance = d.fall || 0; p.frozenTicks = d.frozen || 0;
+    p.fireTicks = d.fire || 0; p.air = d.air ?? 300; p.fallDistance = d.fall || 0; p.freeze = d.frozen || 0;
     if (d.recipes) p.knownRecipes = new Set(d.recipes);
     p.seenCredits = !!d.seenCredits;
     if (d.stats && typeof Stats.load === 'function') Stats.load(d.stats);
@@ -19659,9 +19809,10 @@ const Loop = (() => {
     U.uFlicker.value = 1.0 + (Math.random() - 0.5) * 0.02;
     const nv = p.effect('night_vision'); U.uNV.value = nv ? (nv.dur > 200 ? 1 : 0.7 + Math.sin((nv.dur - a) * Math.PI * 0.2) * 0.3) : 0;
     const dist = Settings.renderDist * 16;
-    const under = p.eyesInWater ? 'water' : p.eyesInLava ? 'lava' : null;
+    const under = p.eyesInWater ? 'water' : p.eyesInLava ? 'lava' : p.view === 0 && World.getBlock(Math.floor(p.x), Math.floor(p.eyeY), Math.floor(p.z)) === BID.powder_snow && !p.spectator ? 'powder_snow' : null;
     if (under === 'water') { U.uFogStart.value = -8; U.uFogEnd.value = 48 * (p.effect('water_breathing') || p.effect('conduit_power') ? 1.5 : 1); }
     else if (under === 'lava') { U.uFogStart.value = p.effect('fire_resistance') ? 0 : 0.25; U.uFogEnd.value = p.effect('fire_resistance') ? 5 : 1; }
+    else if (under === 'powder_snow') { U.uFogStart.value = 0; U.uFogEnd.value = 2; }
     else if (World.dim === 'nether') { U.uFogStart.value = dist * 0.05; U.uFogEnd.value = Math.min(96, dist * 0.5); }
     else if (p.effect('blindness')) { U.uFogStart.value = 0; U.uFogEnd.value = 5; }
     else { U.uFogStart.value = dist - Math.max(4, Math.min(64, dist / 10)) * 2.5; U.uFogEnd.value = dist; }
@@ -19899,6 +20050,15 @@ const EntityModels = (() => {
     if (s.creepy) { L.head.y -= 5; L.hat.y = 5; } else L.hat.y = 0;
   };
   A.villager = (m, s) => { look(m, s); const L = m.parts, ls = s.ls * 0.6662, la = s.la; L.right_leg.rx = Math.cos(ls) * 1.4 * la * 0.5; L.left_leg.rx = Math.cos(ls + PI) * 1.4 * la * 0.5; if (s.unhappy) { L.head.rz = 0.3 * Math.sin(0.45 * s.t); L.head.rx = 0.4; } };
+  // the witch's nose twitches; it tips up out of the way while she drinks
+  A.witch = (m, s) => {
+    A.villager(m, s);
+    const n = m.parts.nose, t = Math.floor(s.t), f = 0.01 * ((s.e ? s.e.id : 0) % 10);
+    n.x = 0; n.y = -2; n.z = 0; n.rx = Math.sin(t * f) * 4.5 * PI / 180; n.ry = 0; n.rz = Math.cos(t * f) * 2.5 * PI / 180;
+    if (s.holding) { n.y = 1; n.z = -1.5; n.rx = -0.9; }
+  };
+  // the snow golem's top half turns a little with its head, taking the arms along
+  A.snow_golem = (m, s) => { look(m, s); m.parts.upper_body.ry = s.headYaw * 0.25; };
   A.golem = (m, s) => {
     look(m, s);
     const L = m.parts, ls = s.ls, la = s.la, tri = (x, k) => (Math.abs(((x % k) + k) % k - k * 0.5) - k * 0.25) / (k * 0.25);
@@ -19913,6 +20073,11 @@ const EntityModels = (() => {
     const L = m.parts; L.tail.rx = s.tail !== undefined ? s.tail : PI / 5; L.tail.ry = Math.cos(s.ls * 0.6662) * 1.4 * s.la * (s.angry ? 0 : 1);
     if (s.sitting) { L.upper_body.rx = PI * 2 / 5; L.upper_body.y = 16; L.body.rx = PI / 4; L.body.y = 18; L.body.z = 0; L.tail.y = 21; L.tail.z = 6; L.right_hind_leg.rx = PI * 1.5; L.right_hind_leg.y = 22.7; L.right_hind_leg.z = 2; L.left_hind_leg.rx = PI * 1.5; L.left_hind_leg.y = 22.7; L.left_hind_leg.z = 2; L.right_front_leg.rx = 5.811947; L.right_front_leg.x = -2.49; L.right_front_leg.y = 17; L.right_front_leg.z = -4; L.left_front_leg.rx = 5.811947; L.left_front_leg.x = 0.51; L.left_front_leg.y = 17; L.left_front_leg.z = -4; }
     L.head.rz = s.headTilt || 0;
+    // shaking off water: a roll that runs from the head back to the tail
+    if (s.shake !== undefined) {
+      const roll = o => { const f = Math.max(0, Math.min(1, (s.shake + o) / 1.8)); return Math.sin(f * PI) * Math.sin(f * PI * 11) * 0.15 * PI; };
+      L.head.rz += roll(0); L.upper_body.rz = roll(-0.08); L.body.rz = roll(-0.16); L.tail.rz = roll(-0.2);
+    }
   };
   A.cat = (m, s) => {
     look(m, s);
@@ -20229,7 +20394,7 @@ const EntityModels = (() => {
   };
   for (const k in PROF) { const [robe, trim, o, rim] = PROF[k]; def('villager_' + k, 64, 64, villagerParts({ rim: !!rim }), { anim: 'villager', skin: s => robeSkin(s, robe, trim, o), scale: 0.9375, babyHead: 3 }); }
   def('witch', 64, 128, villagerParts({ rim: false }).map(p => { if (p.n === 'head') p.c.push(P('witch_hat', [-5, -10.03125, -5], 0, [[0, 64, 0, 0, 0, 10, 2, 10]], [P('hat2', [1.75, -4, 2], [-0.05235988, 0, 0.02617994], [[0, 76, 0, 0, 0, 7, 4, 7]], [P('hat3', [1.75, -4, 2], [-0.10471976, 0, 0.05235988], [[0, 87, 0, 0, 0, 4, 4, 4]], [P('hat4', [1.75, -2, 2], [-0.20943952, 0, 0.10471976], [[0, 95, 0, 0, 0, 1, 2, 1, 0.25]])])])])); return p; }),
-    { anim: 'villager', skin: s => { SK.witch(s); s.box(0, 64, 10, 2, 10, 0x2a2a3a, 0.08); s.box(0, 76, 7, 4, 7, 0x2a2a3a, 0.08); s.box(0, 87, 4, 4, 4, 0x2a2a3a, 0.08); s.box(0, 95, 1, 2, 1, 0x2a2a3a, 0.08); const H2 = s.faces(0, 76, 7, 4, 7); s.fill(H2.front[0], H2.front[1] + 3, 7, 1, 0x4a8a2a, 0); }, scale: 0.9375 });
+    { anim: 'witch', skin: s => { SK.witch(s); s.box(0, 64, 10, 2, 10, 0x2a2a3a, 0.08); s.box(0, 76, 7, 4, 7, 0x2a2a3a, 0.08); s.box(0, 87, 4, 4, 4, 0x2a2a3a, 0.08); s.box(0, 95, 1, 2, 1, 0x2a2a3a, 0.08); const H2 = s.faces(0, 76, 7, 4, 7); s.fill(H2.front[0], H2.front[1] + 3, 7, 1, 0x4a8a2a, 0); }, scale: 0.9375 });
   def('iron_golem', 128, 128, [
     P('head', [0, -7, -2], 0, [[0, 0, -4, -12, -5.5, 8, 10, 8], [24, 0, -1, -5, -7.5, 2, 4, 2]]),
     P('body', [0, -7, 0], 0, [[0, 40, -9, -2, -6, 18, 12, 11], [0, 70, -4.5, 10, -3, 9, 5, 6, 0.5]]),
@@ -20238,9 +20403,10 @@ const EntityModels = (() => {
   ], { anim: 'golem', skin: SK.iron_golem });
   def('snow_golem', 64, 64, [
     P('head', [0, 4, 0], 0, [[0, 0, -4, -8, -4, 8, 8, 8, -0.5]]),
-    P('upper_body', [0, 13, 0], 0, [[0, 16, -5, -10, -5, 10, 10, 10, -0.5]]), P('lower_body', [0, 24, 0], 0, [[0, 36, -6, -12, -6, 12, 12, 12, -0.5]]),
-    P('right_arm', [-5, 6, 1], [0, 0, 1], [[32, 0, -1, 0, -1, 12, 2, 2, -0.5]]), P('left_arm', [5, 6, -1], [0, PI, -1], [[32, 0, -1, 0, -1, 12, 2, 2, -0.5]]),
-  ], { anim: null, skin: s => { SK.snow_golem(s); s.box(32, 0, 12, 2, 2, 0x6a4a2a, 0.06); } });
+    P('upper_body', [0, 13, 0], 0, [[0, 16, -5, -10, -5, 10, 10, 10, -0.5]], [
+      P('right_arm', [-5, -7, 1], [0, 0, 1], [[32, 0, -1, 0, -1, 12, 2, 2, -0.5]]), P('left_arm', [5, -7, -1], [0, PI, -1], [[32, 0, -1, 0, -1, 12, 2, 2, -0.5]])]),
+    P('lower_body', [0, 24, 0], 0, [[0, 36, -6, -12, -6, 12, 12, 12, -0.5]]),
+  ], { anim: 'snow_golem', skin: s => { SK.snow_golem(s); s.box(32, 0, 12, 2, 2, 0x6a4a2a, 0.06); } });
   def('slime', 64, 32, [
     P('cube', [0, 0, 0], 0, [[0, 16, -3, 17, -3, 6, 6, 6]]),
     P('right_eye', [0, 0, 0], 0, [[32, 0, -3.25, 18, -3.5, 2, 2, 2]]), P('left_eye', [0, 0, 0], 0, [[32, 4, 1.25, 18, -3.5, 2, 2, 2]]), P('mouth', [0, 0, 0], 0, [[32, 8, 0, 21, -3.5, 1, 1, 1]]),
@@ -20277,14 +20443,24 @@ const EntityModels = (() => {
   // ---------------------------------------------------------------- animations
   A.rabbit = (m, s) => { look(m, s); const L = m.parts; for (const n of ['left_ear', 'right_ear', 'nose']) { L[n].ry = s.headYaw + (n === 'left_ear' ? PI / 12 : n === 'right_ear' ? -PI / 12 : 0); L[n].rx = s.pitch; } const j = s.jump || 0; L.left_haunch.rx = L.right_haunch.rx = (j * 50 - 21) * PI / 180; L.left_hind_foot.rx = L.right_hind_foot.rx = j * 50 * PI / 180; L.left_front_leg.rx = L.right_front_leg.rx = (j * -40 - 11) * PI / 180; };
   A.fox = (m, s) => { A.quadruped(m, s); const L = m.parts; L.head.rz = s.headTilt || 0; if (s.sitting) { L.body.rx = PI / 6; L.body.y -= 7; L.body.z += 3; L.tail.rx = PI / 4; L.tail.z += 2; L.tail.y -= 2.65; L.head.y -= 6.5; L.head.z += 2.75; L.right_hind_leg.rx = L.left_hind_leg.rx = -PI / 2; L.right_hind_leg.z += 4; L.left_hind_leg.z += 4; L.right_hind_leg.y += 2.5; L.left_hind_leg.y += 2.5; L.right_front_leg.rx = L.left_front_leg.rx = -PI / 12; } if (s.sleeping) { L.body.rz = -PI / 2; L.body.y += 5; L.tail.rx = -PI * 5 / 6; L.head.y += 5; L.head.rz = -PI / 2; } };
+  // the game's horse animation: grazing, rearing up, the head bobbing at a trot and the tail swishing at flies
   A.horse = (m, s) => {
-    const L = m.parts, ls = s.ls, la = s.la;
-    L.head_parts.rx = PI / 6 + s.pitch; L.head_parts.ry = s.headYaw;
-    if (s.eat) { L.head_parts.rx = PI / 6 + 2.18; L.head_parts.y += 9; }
-    if (s.stand) { L.body.rx = -PI / 4 * s.stand; L.head_parts.y -= 6 * s.stand; L.head_parts.z += 4 * s.stand; }
-    const f = Math.cos(ls * 0.6662 + PI) * la * 1.4 * 0.8;
-    L.left_hind_leg.rx = f; L.right_hind_leg.rx = -f; L.left_front_leg.rx = -f; L.right_front_leg.rx = f;
-    L.tail.rx = PI / 6 + la * 0.75; L.tail.y = -1 + la; L.tail.z = 2 + la * 2;
+    const L = m.parts, ls = s.ls, la = s.la, t = s.t;
+    const yaw = Math.max(-0.349, Math.min(0.349, s.headYaw));
+    let j = s.pitch; if (la > 0.2) j += Math.cos(ls * 0.8) * 0.15 * la;
+    const k = s.eat || 0, l = s.stand || 0, mm = 1 - l, n = s.mouth || 0, M = 1 - Math.max(l, k);
+    const q = Math.cos((s.e && s.e.inWater ? 0.2 : 1) * ls * 0.6662 + PI), r = q * 0.8 * la;
+    const hp = L.head_parts;
+    hp.rx = l * (PI / 12 + j) + k * (2.1816616 + Math.sin(t) * 0.05) + M * (PI / 6 + j + n * Math.sin(t) * 0.05);
+    hp.ry = (l + M) * yaw;
+    hp.y = l * -4 + k * 11 + M * 4; hp.z = l * -4 + k * -12 + M * -12;
+    L.body.rx = l * -PI / 4;
+    const u = Math.cos(t * 0.6 + PI);
+    for (const f of [L.left_front_leg, L.right_front_leg]) { f.y = f.by + (2 * l + 14 * mm - 14); f.z = f.bz + (-6 * l - 10 * mm + 10); }
+    L.left_hind_leg.rx = PI / 12 * l - q * 0.5 * la * mm; L.right_hind_leg.rx = PI / 12 * l + q * 0.5 * la * mm;
+    L.left_front_leg.rx = (-PI / 3 + u) * l + r * mm; L.right_front_leg.rx = (-PI / 3 - u) * l - r * mm;
+    L.tail.rx = PI / 6 + la * 0.75; L.tail.y = -5 + la; L.tail.z = 2 + la * 2;
+    L.tail.ry = s.tailSwish ? Math.cos(t * 0.7) : 0;
   };
   A.llama = (m, s) => { look(m, s); const L = m.parts, ls = s.ls * 0.6662, la = s.la; L.right_hind_leg.rx = Math.cos(ls) * 1.4 * la; L.left_hind_leg.rx = Math.cos(ls + PI) * 1.4 * la; L.right_front_leg.rx = Math.cos(ls + PI) * 1.4 * la; L.left_front_leg.rx = Math.cos(ls) * 1.4 * la; };
   A.bee = (m, s) => { const L = m.parts; const t = s.t; L.right_wing.ry = 0; L.right_wing.rz = Math.cos(t * 2.1) * PI * 0.15; L.left_wing.rz = -L.right_wing.rz; L.bone.rx = 0; L.bone.y = 19 - Math.cos(t * 0.18) * 0.9; for (const n of ['front_legs', 'middle_legs', 'back_legs']) L[n].rx = PI / 4; };
@@ -20293,7 +20469,26 @@ const EntityModels = (() => {
   A.squid = (m, s) => { const L = m.parts; for (let i = 0; i < 8; i++) L['tentacle' + i].rx = s.tentacle || 0; L.body.rx = 0; m.body.rotation.x = s.tilt || 0; };
   A.fish = (m, s) => { const L = m.parts; const f = s.inWater ? 1 : 1.5; const t = s.t; if (L.tail_fin) L.tail_fin.ry = -f * 0.45 * Math.sin(0.6 * t); if (L.body_back) L.body_back.ry = -f * 0.25 * Math.sin(0.6 * t); if (L.tail) L.tail.ry = -f * 0.45 * Math.sin(0.6 * t); m.root.rotation.z = s.inWater ? 0 : PI / 2; };
   A.dolphin = (m, s) => { const L = m.parts; L.body.rx = s.pitch; L.body.ry = s.headYaw * 0.5; if (s.moving) { L.body.rx += -0.05 - 0.05 * Math.cos(s.t * 0.3); L.tail.rx = -0.1 * Math.cos(s.t * 0.3); L.tail_fin.rx = -0.2 * Math.cos(s.t * 0.3); } };
-  A.parrot = (m, s) => { const L = m.parts; L.head.rx = s.pitch; L.head.ry = s.headYaw; if (s.flying) { L.left_wing.rz = -0.0873 - s.flap; L.right_wing.rz = 0.0873 + s.flap; L.left_leg.rx += PI * 2 / 9; L.right_leg.rx += PI * 2 / 9; } else { const ls = s.ls * 0.6662; L.left_leg.rx = Math.cos(ls) * 1.4 * s.la; L.right_leg.rx = Math.cos(ls + PI) * 1.4 * s.la; } };
+  A.parrot = (m, s) => { const L = m.parts; if (s.party) { A.partyParrot(m, s); return; } L.head.rx = s.pitch; L.head.ry = s.headYaw; if (s.flying) { L.left_wing.rz = -0.0873 - s.flap; L.right_wing.rz = 0.0873 + s.flap; L.left_leg.rx += PI * 2 / 9; L.right_leg.rx += PI * 2 / 9; } else { const ls = s.ls * 0.6662; L.left_leg.rx = Math.cos(ls) * 1.4 * s.la; L.right_leg.rx = Math.cos(ls + PI) * 1.4 * s.la; } };
+  // a parrot by a playing jukebox dances, bobbing round in a little circle each tick
+  A.partyParrot = (m, s) => {
+    const L = m.parts, t = Math.floor(s.t), f = Math.cos(t), g = Math.sin(t), w = s.flap || 0;
+    L.head.x = f; L.head.y = 15.69 + g; L.head.rx = 0; L.head.ry = 0; L.head.rz = Math.sin(t) * 0.4;
+    L.body.x = f; L.body.y = 16.5 + g;
+    L.left_wing.rz = -0.0873 - w; L.left_wing.x = 1.5 + f; L.left_wing.y = 16.94 + g;
+    L.right_wing.rz = 0.0873 + w; L.right_wing.x = -1.5 + f; L.right_wing.y = 16.94 + g;
+    L.tail.x = f; L.tail.y = 21.07 + g;
+  };
+  // a polar bear rears up on its hind legs just before it swipes
+  A.polar_bear = (m, s) => {
+    A.quadruped(m, s);
+    let g = s.stand || 0; if (!g) return;
+    g *= g; const h = 1 - g, L = m.parts;
+    L.body.rx = PI / 2 - g * PI * 0.35; L.body.y = 9 * h + 11 * g;
+    for (const n of ['right_front_leg', 'left_front_leg']) { L[n].y = 14 * h - 6 * g; L[n].z = -8 * h - 4 * g; L[n].rx -= g * PI * 0.45; }
+    if (s.e && s.e.baby) { L.head.y = 10 * h - 9 * g; L.head.z = -16 * h - 7 * g; } else { L.head.y = 10 * h - 14 * g; L.head.z = -16 * h - 3 * g; }
+    L.head.rx += g * PI * 0.15;
+  };
   A.bat = (m, s) => { const L = m.parts; if (s.resting) { m.body.rotation.x = PI; L.right_wing.ry = 1.2566371; L.left_wing.ry = -1.2566371; L.right_wing_tip.ry = 1.7278761; L.left_wing_tip.ry = -1.7278761; } else { m.body.rotation.x = 0; L.right_wing.ry = Math.cos(s.t * 74.48451 * PI / 180) * PI * 0.25; L.left_wing.ry = -L.right_wing.ry; L.right_wing_tip.ry = L.right_wing.ry * 0.5; L.left_wing_tip.ry = -L.right_wing.ry * 0.5; L.head.rx = s.pitch; L.head.ry = s.headYaw; } };
   A.ghast = (m, s) => { const L = m.parts; for (let i = 0; i < 9; i++) L['tentacle' + i].rx = 0.2 * Math.sin(s.t * 0.3 + i) + 0.4; };
   A.blaze = (m, s) => {
@@ -20380,7 +20575,7 @@ const EntityModels = (() => {
   } });
   // ---------------------------------------------------------------- horses, donkeys and mules
   const horseParts = (donkey) => [
-    P('body', [0, 11, 5], 0, [[0, 32, -5, -8, -17, 10, 10, 22, 0.05]]),
+    P('body', [0, 11, 5], 0, [[0, 32, -5, -8, -17, 10, 10, 22, 0.05]], [P('tail', [0, -5, 2], [PI / 6, 0, 0], [[42, 36, -1.5, 0, 0, 3, 14, 4]])]),
     P('head_parts', [0, 4, -12], [PI / 6, 0, 0], [[0, 35, -2.05, -6, -2, 4, 12, 7]], [
       P('head', [0, 0, 0], 0, [[0, 13, -3, -11, -2, 6, 5, 7]]), P('mane', [0, 0, 0], 0, [[56, 36, -1, -11, 5.01, 2, 16, 2]]),
       P('upper_mouth', [0, 0, 0], 0, [[0, 25, -2, -11, -7, 4, 5, 5]]),
@@ -20389,7 +20584,6 @@ const EntityModels = (() => {
     ]),
     P('left_hind_leg', [4, 14, 7], 0, [[48, 21, -3, -1.01, -1, 4, 11, 4, 0, true]]), P('right_hind_leg', [-4, 14, 7], 0, [[48, 21, -1, -1.01, -1, 4, 11, 4]]),
     P('left_front_leg', [4, 14, -12], 0, [[48, 21, -3, -1.01, -1.9, 4, 11, 4, 0, true]]), P('right_front_leg', [-4, 14, -12], 0, [[48, 21, -1, -1.01, -1.9, 4, 11, 4]]),
-    P('tail', [0, 4, 11], [PI / 6, 0, 0], [[42, 36, -1.5, 0, 0, 3, 14, 4]]),
   ];
   const horseSkin = (body, mane, o) => s => {
     o = o || {};
@@ -20449,7 +20643,7 @@ const EntityModels = (() => {
     P('body', [-2, 9, 12], [PI / 2, 0, 0], [[0, 19, -5, -13, -7, 14, 14, 11], [39, 0, -4, -25, -7, 12, 12, 10]]),
     P('right_hind_leg', [-4.5, 14, 6], 0, [[50, 22, -2, 0, -2, 4, 10, 8]]), P('left_hind_leg', [4.5, 14, 6], 0, [[50, 22, -2, 0, -2, 4, 10, 8]]),
     P('right_front_leg', [-3.5, 14, -8], 0, [[50, 40, -2, 0, -2, 4, 10, 6]]), P('left_front_leg', [3.5, 14, -8], 0, [[50, 40, -2, 0, -2, 4, 10, 6]]),
-  ], { anim: 'quadruped', babyHead: 4, skin: s => { const w = 0xf4f4f0; const H = furBox(s, 0, 0, 7, 7, 7, w, 0.05); s.px(H.front[0] + 1, H.front[1] + 2, 0x111111); s.px(H.front[0] + 5, H.front[1] + 2, 0x111111); const N = furBox(s, 0, 44, 5, 3, 3, 0xe8e8e0, 0.04); s.fill(N.front[0] + 1, N.front[1], 3, 1, 0x222222, 0); furBox(s, 26, 0, 2, 2, 1, w); furBox(s, 0, 19, 14, 14, 11, w, 0.06); furBox(s, 39, 0, 12, 12, 10, w, 0.06); furBox(s, 50, 22, 4, 10, 8, w); furBox(s, 50, 40, 4, 10, 6, w); } });
+  ], { anim: 'polar_bear', babyHead: 4, skin: s => { const w = 0xf4f4f0; const H = furBox(s, 0, 0, 7, 7, 7, w, 0.05); s.px(H.front[0] + 1, H.front[1] + 2, 0x111111); s.px(H.front[0] + 5, H.front[1] + 2, 0x111111); const N = furBox(s, 0, 44, 5, 3, 3, 0xe8e8e0, 0.04); s.fill(N.front[0] + 1, N.front[1], 3, 1, 0x222222, 0); furBox(s, 26, 0, 2, 2, 1, w); furBox(s, 0, 19, 14, 14, 11, w, 0.06); furBox(s, 39, 0, 12, 12, 10, w, 0.06); furBox(s, 50, 22, 4, 10, 8, w); furBox(s, 50, 40, 4, 10, 6, w); } });
   // ---------------------------------------------------------------- squid, fish and dolphins
   const squidParts = () => { const t = []; for (let i = 0; i < 8; i++) { const a = i * PI * 2 / 8; t.push(P('tentacle' + i, [Math.cos(a) * 5, 15, Math.sin(a) * 5], [0, i * PI * -2 / 8 + PI / 2, 0], [[48, 0, -1, 0, -1, 2, 18, 2]])); } return [P('body', [0, 8, 0], 0, [[0, 0, -6, -8, -6, 12, 16, 12]])].concat(t); };
   def('squid', 64, 32, squidParts(), { anim: 'squid', skin: s => { const c = 0x2a3a6a; const B = furBox(s, 0, 0, 12, 16, 12, c, 0.1); s.fill(B.front[0] + 2, B.front[1] + 10, 2, 2, 0xffffff, 0); s.px(B.front[0] + 3, B.front[1] + 11, 0x000000); s.fill(B.front[0] + 8, B.front[1] + 10, 2, 2, 0xffffff, 0); s.px(B.front[0] + 8, B.front[1] + 11, 0x000000); furBox(s, 48, 0, 2, 18, 2, sc(c, 0.9), 0.1); } });
@@ -21247,7 +21441,7 @@ const Vehicles = (() => {
       if (!m.tame && t !== 'camel' && t !== 'skeleton_horse') {
         if (rnd(25) === 0) {
           if (rnd(100) < (m.temper || 0)) { m.tame = true; m.owner = 'player'; Advancements.fire('tame_animal', { entity: m }); Particles.heart(m, 7); }
-          else { m.temper = Math.min(100, (m.temper || 0) + 5); dismount(p); Sound.play(t + '_hurt', m); Particles.smoke(m); return true; }
+          else { m.temper = Math.min(100, (m.temper || 0) + 5); dismount(p); m.stand && m.stand(); Sound.play(t + '_hurt', m); Particles.smoke(m); return true; }
         }
         m.forward = 0; return true;
       }
@@ -21582,7 +21776,9 @@ EntityRender = (() => {
       const x = lerp(e.px, e.x, a), y = lerp(e.py, e.y, a), z = lerp(e.pz, e.z, a);
       this.obj.position.set(x, y + (e.renderYOffset || 0), z);
       const by = lerpAng(e.pbodyYaw !== undefined ? e.pbodyYaw : e.pyaw, e.bodyYaw !== undefined ? e.bodyYaw : e.yaw, a);
-      this.obj.rotation.set(0, by, 0);
+      // converting (or frozen solid): the game's shiver of the body
+      const shake = e.isShaking && e.isShaking() ? Math.cos(Math.floor(e.age || 0) * 3.25) * Math.PI * 0.4 * Math.PI / 180 : 0;
+      this.obj.rotation.set(0, by + shake, 0);
       let k = (d.scale || 1) * (e.scale || 1) * (e.baby ? 0.5 : 1);
       this.inst.root.scale.setScalar(k);
       // dying: tip over onto the side over a second
@@ -21590,9 +21786,14 @@ EntityRender = (() => {
       // gliding, swimming and crawling lay the body down
       const tl = e.tilt ? e.tilt(a) : null;
       this.inst.root.rotation.x = tl ? tl[0] : 0; this.inst.root.rotation.y = tl ? tl[1] : 0; this.inst.root.position.set(0, tl ? tl[2] : 0, tl ? tl[3] : 0);
+      // named Dinnerbone or Grumm: upside down
+      if (e.customName === 'Dinnerbone' || e.customName === 'Grumm') { this.inst.root.rotation.z += Math.PI; this.inst.root.position.y += (e.h || 1) + 0.1; }
       const [sl, bl] = lightAt(x, y + e.h * 0.85, z);
       const flash = (e.hurtTime > 0 || (e.dead && e.deathTime > 0)) ? 1 : 0;
-      for (const m of [this.mat, this.matT].concat(this.layers.map(l => l.mat))) if (m) { m.uniforms.uEnv.value.set(e.glow ? 1 : sl, e.glow ? 1 : bl); m.uniforms.uFlash.value = flash; if (e.tint && m === this.mat) m.uniforms.uTint.value.setRGB(e.tint[0], e.tint[1], e.tint[2]); }
+      // a tint (a creeper's flashing, a wet wolf) goes back to white when it ends
+      const tn = e.tint;
+      for (const m of [this.mat, this.matT].concat(this.layers.map(l => l.mat))) if (m) { m.uniforms.uEnv.value.set(e.glow ? 1 : sl, e.glow ? 1 : bl); m.uniforms.uFlash.value = flash; if (m === this.mat && (tn || this.tinted)) m.uniforms.uTint.value.setRGB(tn ? tn[0] : 1, tn ? tn[1] : 1, tn ? tn[2] : 1); }
+      this.tinted = !!tn;
       // glowing layers (the warden's spots and heart) ignore the light
       for (const l of this.layers) if (l.L.glow) l.mat.uniforms.uEnv.value.set(1, 1);
       this.anim(this.inst, s);

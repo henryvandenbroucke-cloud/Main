@@ -82,7 +82,7 @@ SHARED.push(function blocksModule(G) {
   reg('snow_block', { tex: 'snow', sound: 'snow' });
   // snow layer: bits 0-2 = layers - 1
   reg('snow', { model: 'layer', tex: 'snow', opacity: 0, replaceable: true, sound: 'snow', ticks: true });
-  reg('powder_snow', { solid: false, sound: 'snow' });
+  reg('powder_snow', { solid: false, sound: 'snow', opacity: 1, cullSame: true });
   reg('moss_block', { sound: 'moss' }); reg('moss_carpet', { model: 'carpet', tex: 'moss_block', sound: 'moss' });
   reg('magma_block', { light: 3, tex: 'magma', sound: 'stone' });
   reg('amethyst_block', { sound: 'amethyst' }); reg('budding_amethyst', { sound: 'amethyst', ticks: true });

@@ -10,6 +10,14 @@ const Phys = (() => {
       if (!World.loaded(x, z)) { boxes.push([x, by0, z, x + 1, by1 + 1, z + 1]); continue; } // unloaded ground holds you up
       for (let y = by0; y <= by1; y++) {
         const id = World.getBlock(x, y, z);
+        // powder snow: you sink in, unless you land on it from a height or stand on top in leather boots
+        if (id === BID.powder_snow) {
+          if (ent && ent.type === 'falling_block') { boxes.push([x, y, z, x + 1, y + 1, z + 1]); continue; }
+          if (!ent || !ent.canWalkOnPowderSnow) continue;
+          if (ent.fallDistance > 2.5) boxes.push([x, y, z, x + 1, y + 0.9, z + 1]);
+          else if (ent.y > y + 1 - 1e-5 && !ent.sneaking && ent.canWalkOnPowderSnow()) boxes.push([x, y, z, x + 1, y + 1, z + 1]);
+          continue;
+        }
         if (!SOLID[id]) continue;
         const sh = Models.shape(id, World.getState(x, y, z), x, y, z, true);
         if (!sh) continue;

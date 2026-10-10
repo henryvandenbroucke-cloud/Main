@@ -192,6 +192,15 @@ const EntityModels = (() => {
     if (s.creepy) { L.head.y -= 5; L.hat.y = 5; } else L.hat.y = 0;
   };
   A.villager = (m, s) => { look(m, s); const L = m.parts, ls = s.ls * 0.6662, la = s.la; L.right_leg.rx = Math.cos(ls) * 1.4 * la * 0.5; L.left_leg.rx = Math.cos(ls + PI) * 1.4 * la * 0.5; if (s.unhappy) { L.head.rz = 0.3 * Math.sin(0.45 * s.t); L.head.rx = 0.4; } };
+  // the witch's nose twitches; it tips up out of the way while she drinks
+  A.witch = (m, s) => {
+    A.villager(m, s);
+    const n = m.parts.nose, t = Math.floor(s.t), f = 0.01 * ((s.e ? s.e.id : 0) % 10);
+    n.x = 0; n.y = -2; n.z = 0; n.rx = Math.sin(t * f) * 4.5 * PI / 180; n.ry = 0; n.rz = Math.cos(t * f) * 2.5 * PI / 180;
+    if (s.holding) { n.y = 1; n.z = -1.5; n.rx = -0.9; }
+  };
+  // the snow golem's top half turns a little with its head, taking the arms along
+  A.snow_golem = (m, s) => { look(m, s); m.parts.upper_body.ry = s.headYaw * 0.25; };
   A.golem = (m, s) => {
     look(m, s);
     const L = m.parts, ls = s.ls, la = s.la, tri = (x, k) => (Math.abs(((x % k) + k) % k - k * 0.5) - k * 0.25) / (k * 0.25);
@@ -206,6 +215,11 @@ const EntityModels = (() => {
     const L = m.parts; L.tail.rx = s.tail !== undefined ? s.tail : PI / 5; L.tail.ry = Math.cos(s.ls * 0.6662) * 1.4 * s.la * (s.angry ? 0 : 1);
     if (s.sitting) { L.upper_body.rx = PI * 2 / 5; L.upper_body.y = 16; L.body.rx = PI / 4; L.body.y = 18; L.body.z = 0; L.tail.y = 21; L.tail.z = 6; L.right_hind_leg.rx = PI * 1.5; L.right_hind_leg.y = 22.7; L.right_hind_leg.z = 2; L.left_hind_leg.rx = PI * 1.5; L.left_hind_leg.y = 22.7; L.left_hind_leg.z = 2; L.right_front_leg.rx = 5.811947; L.right_front_leg.x = -2.49; L.right_front_leg.y = 17; L.right_front_leg.z = -4; L.left_front_leg.rx = 5.811947; L.left_front_leg.x = 0.51; L.left_front_leg.y = 17; L.left_front_leg.z = -4; }
     L.head.rz = s.headTilt || 0;
+    // shaking off water: a roll that runs from the head back to the tail
+    if (s.shake !== undefined) {
+      const roll = o => { const f = Math.max(0, Math.min(1, (s.shake + o) / 1.8)); return Math.sin(f * PI) * Math.sin(f * PI * 11) * 0.15 * PI; };
+      L.head.rz += roll(0); L.upper_body.rz = roll(-0.08); L.body.rz = roll(-0.16); L.tail.rz = roll(-0.2);
+    }
   };
   A.cat = (m, s) => {
     look(m, s);
@@ -522,7 +536,7 @@ const EntityModels = (() => {
   };
   for (const k in PROF) { const [robe, trim, o, rim] = PROF[k]; def('villager_' + k, 64, 64, villagerParts({ rim: !!rim }), { anim: 'villager', skin: s => robeSkin(s, robe, trim, o), scale: 0.9375, babyHead: 3 }); }
   def('witch', 64, 128, villagerParts({ rim: false }).map(p => { if (p.n === 'head') p.c.push(P('witch_hat', [-5, -10.03125, -5], 0, [[0, 64, 0, 0, 0, 10, 2, 10]], [P('hat2', [1.75, -4, 2], [-0.05235988, 0, 0.02617994], [[0, 76, 0, 0, 0, 7, 4, 7]], [P('hat3', [1.75, -4, 2], [-0.10471976, 0, 0.05235988], [[0, 87, 0, 0, 0, 4, 4, 4]], [P('hat4', [1.75, -2, 2], [-0.20943952, 0, 0.10471976], [[0, 95, 0, 0, 0, 1, 2, 1, 0.25]])])])])); return p; }),
-    { anim: 'villager', skin: s => { SK.witch(s); s.box(0, 64, 10, 2, 10, 0x2a2a3a, 0.08); s.box(0, 76, 7, 4, 7, 0x2a2a3a, 0.08); s.box(0, 87, 4, 4, 4, 0x2a2a3a, 0.08); s.box(0, 95, 1, 2, 1, 0x2a2a3a, 0.08); const H2 = s.faces(0, 76, 7, 4, 7); s.fill(H2.front[0], H2.front[1] + 3, 7, 1, 0x4a8a2a, 0); }, scale: 0.9375 });
+    { anim: 'witch', skin: s => { SK.witch(s); s.box(0, 64, 10, 2, 10, 0x2a2a3a, 0.08); s.box(0, 76, 7, 4, 7, 0x2a2a3a, 0.08); s.box(0, 87, 4, 4, 4, 0x2a2a3a, 0.08); s.box(0, 95, 1, 2, 1, 0x2a2a3a, 0.08); const H2 = s.faces(0, 76, 7, 4, 7); s.fill(H2.front[0], H2.front[1] + 3, 7, 1, 0x4a8a2a, 0); }, scale: 0.9375 });
   def('iron_golem', 128, 128, [
     P('head', [0, -7, -2], 0, [[0, 0, -4, -12, -5.5, 8, 10, 8], [24, 0, -1, -5, -7.5, 2, 4, 2]]),
     P('body', [0, -7, 0], 0, [[0, 40, -9, -2, -6, 18, 12, 11], [0, 70, -4.5, 10, -3, 9, 5, 6, 0.5]]),
@@ -531,9 +545,10 @@ const EntityModels = (() => {
   ], { anim: 'golem', skin: SK.iron_golem });
   def('snow_golem', 64, 64, [
     P('head', [0, 4, 0], 0, [[0, 0, -4, -8, -4, 8, 8, 8, -0.5]]),
-    P('upper_body', [0, 13, 0], 0, [[0, 16, -5, -10, -5, 10, 10, 10, -0.5]]), P('lower_body', [0, 24, 0], 0, [[0, 36, -6, -12, -6, 12, 12, 12, -0.5]]),
-    P('right_arm', [-5, 6, 1], [0, 0, 1], [[32, 0, -1, 0, -1, 12, 2, 2, -0.5]]), P('left_arm', [5, 6, -1], [0, PI, -1], [[32, 0, -1, 0, -1, 12, 2, 2, -0.5]]),
-  ], { anim: null, skin: s => { SK.snow_golem(s); s.box(32, 0, 12, 2, 2, 0x6a4a2a, 0.06); } });
+    P('upper_body', [0, 13, 0], 0, [[0, 16, -5, -10, -5, 10, 10, 10, -0.5]], [
+      P('right_arm', [-5, -7, 1], [0, 0, 1], [[32, 0, -1, 0, -1, 12, 2, 2, -0.5]]), P('left_arm', [5, -7, -1], [0, PI, -1], [[32, 0, -1, 0, -1, 12, 2, 2, -0.5]])]),
+    P('lower_body', [0, 24, 0], 0, [[0, 36, -6, -12, -6, 12, 12, 12, -0.5]]),
+  ], { anim: 'snow_golem', skin: s => { SK.snow_golem(s); s.box(32, 0, 12, 2, 2, 0x6a4a2a, 0.06); } });
   def('slime', 64, 32, [
     P('cube', [0, 0, 0], 0, [[0, 16, -3, 17, -3, 6, 6, 6]]),
     P('right_eye', [0, 0, 0], 0, [[32, 0, -3.25, 18, -3.5, 2, 2, 2]]), P('left_eye', [0, 0, 0], 0, [[32, 4, 1.25, 18, -3.5, 2, 2, 2]]), P('mouth', [0, 0, 0], 0, [[32, 8, 0, 21, -3.5, 1, 1, 1]]),

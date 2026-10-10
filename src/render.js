@@ -224,6 +224,7 @@ const SkyRender = (() => {
     }
     if (under === 'water') fogC.setRGB(0.02, 0.05, 0.2).lerp(new THREE.Color(0.05, 0.12, 0.35), Sky.skyFactor);
     if (under === 'lava') fogC.setRGB(0.6, 0.1, 0);
+    if (under === 'powder_snow') fogC.setRGB(0.623, 0.734, 0.785);
     domeMat.uniforms.top.value.copy(skyC); domeMat.uniforms.hor.value.copy(fogC);
     U.uSkyTop.value.copy(skyC); U.uSunDir.value.set(-Math.sin(ang), Math.cos(ang), 0);
     U.uFogColor.value.copy(fogC);

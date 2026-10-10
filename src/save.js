@@ -108,7 +108,7 @@ const Save = (() => {
       health: p.health, maxHealth: p.maxHealth, absorption: p.absorption, food: p.food, saturation: p.saturation, exhaustion: p.exhaustion,
       xpLevel: p.xpLevel, xpProgress: p.xpProgress, xpTotal: p.xpTotal, score: p.score, enchSeed: p.enchSeed, gamemode: p.gamemode, flying: p.flying,
       inv: p.inv.slots, selected: p.inv.selected, ender: p.enderChest.slots, effects: [...p.effects], spawn: p.spawn,
-      fire: p.fireTicks, air: p.air, fall: p.fallDistance, dead: p.dead, onGround: p.onGround, frozen: p.frozenTicks || 0,
+      fire: p.fireTicks, air: p.air, fall: p.fallDistance, dead: p.dead, onGround: p.onGround, frozen: p.freeze || 0,
       recipes: p.knownRecipes ? [...p.knownRecipes] : null, seenCredits: !!p.seenCredits, stats: typeof Stats.save === 'function' ? Stats.save() : null,
       adv: typeof Advancements.save === 'function' ? Advancements.save() : null,
     });
@@ -123,7 +123,7 @@ const Save = (() => {
     p.setGamemode(d.gamemode || 'survival'); p.flying = !!d.flying && p.mayFly;
     p.inv.load(d.inv); p.inv.selected = d.selected || 0; p.enderChest.load(d.ender);
     p.effects = new Map(d.effects || []); p.spawn = d.spawn || null;
-    p.fireTicks = d.fire || 0; p.air = d.air ?? 300; p.fallDistance = d.fall || 0; p.frozenTicks = d.frozen || 0;
+    p.fireTicks = d.fire || 0; p.air = d.air ?? 300; p.fallDistance = d.fall || 0; p.freeze = d.frozen || 0;
     if (d.recipes) p.knownRecipes = new Set(d.recipes);
     p.seenCredits = !!d.seenCredits;
     if (d.stats && typeof Stats.load === 'function') Stats.load(d.stats);

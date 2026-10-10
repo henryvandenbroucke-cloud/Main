@@ -587,7 +587,7 @@ const Vehicles = (() => {
       if (!m.tame && t !== 'camel' && t !== 'skeleton_horse') {
         if (rnd(25) === 0) {
           if (rnd(100) < (m.temper || 0)) { m.tame = true; m.owner = 'player'; Advancements.fire('tame_animal', { entity: m }); Particles.heart(m, 7); }
-          else { m.temper = Math.min(100, (m.temper || 0) + 5); dismount(p); Sound.play(t + '_hurt', m); Particles.smoke(m); return true; }
+          else { m.temper = Math.min(100, (m.temper || 0) + 5); dismount(p); m.stand && m.stand(); Sound.play(t + '_hurt', m); Particles.smoke(m); return true; }
         }
         m.forward = 0; return true;
       }

@@ -201,7 +201,9 @@ EntityRender = (() => {
       const x = lerp(e.px, e.x, a), y = lerp(e.py, e.y, a), z = lerp(e.pz, e.z, a);
       this.obj.position.set(x, y + (e.renderYOffset || 0), z);
       const by = lerpAng(e.pbodyYaw !== undefined ? e.pbodyYaw : e.pyaw, e.bodyYaw !== undefined ? e.bodyYaw : e.yaw, a);
-      this.obj.rotation.set(0, by, 0);
+      // converting (or frozen solid): the game's shiver of the body
+      const shake = e.isShaking && e.isShaking() ? Math.cos(Math.floor(e.age || 0) * 3.25) * Math.PI * 0.4 * Math.PI / 180 : 0;
+      this.obj.rotation.set(0, by + shake, 0);
       let k = (d.scale || 1) * (e.scale || 1) * (e.baby ? 0.5 : 1);
       this.inst.root.scale.setScalar(k);
       // dying: tip over onto the side over a second
@@ -209,9 +211,14 @@ EntityRender = (() => {
       // gliding, swimming and crawling lay the body down
       const tl = e.tilt ? e.tilt(a) : null;
       this.inst.root.rotation.x = tl ? tl[0] : 0; this.inst.root.rotation.y = tl ? tl[1] : 0; this.inst.root.position.set(0, tl ? tl[2] : 0, tl ? tl[3] : 0);
+      // named Dinnerbone or Grumm: upside down
+      if (e.customName === 'Dinnerbone' || e.customName === 'Grumm') { this.inst.root.rotation.z += Math.PI; this.inst.root.position.y += (e.h || 1) + 0.1; }
       const [sl, bl] = lightAt(x, y + e.h * 0.85, z);
       const flash = (e.hurtTime > 0 || (e.dead && e.deathTime > 0)) ? 1 : 0;
-      for (const m of [this.mat, this.matT].concat(this.layers.map(l => l.mat))) if (m) { m.uniforms.uEnv.value.set(e.glow ? 1 : sl, e.glow ? 1 : bl); m.uniforms.uFlash.value = flash; if (e.tint && m === this.mat) m.uniforms.uTint.value.setRGB(e.tint[0], e.tint[1], e.tint[2]); }
+      // a tint (a creeper's flashing, a wet wolf) goes back to white when it ends
+      const tn = e.tint;
+      for (const m of [this.mat, this.matT].concat(this.layers.map(l => l.mat))) if (m) { m.uniforms.uEnv.value.set(e.glow ? 1 : sl, e.glow ? 1 : bl); m.uniforms.uFlash.value = flash; if (m === this.mat && (tn || this.tinted)) m.uniforms.uTint.value.setRGB(tn ? tn[0] : 1, tn ? tn[1] : 1, tn ? tn[2] : 1); }
+      this.tinted = !!tn;
       // glowing layers (the warden's spots and heart) ignore the light
       for (const l of this.layers) if (l.L.glow) l.mat.uniforms.uEnv.value.set(1, 1);
       this.anim(this.inst, s);
