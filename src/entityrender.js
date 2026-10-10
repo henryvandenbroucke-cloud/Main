@@ -108,7 +108,7 @@ const ItemMesh = (() => {
   }
   // a held stack's own look: a shield carrying a banner gets a sprite of its own
   const custom = new Map();
-  const key = s => !s ? -1 : (s.tag && s.tag.banner && ITEMS[s.id].name === 'shield' ? s.id + '|' + JSON.stringify(s.tag.banner) : s.id);
+  const key = s => !s ? -1 : (s.tag && s.tag.banner && ITEMS[s.id].name === 'shield' ? s.id + '|' + JSON.stringify(s.tag.banner) : ITEMS[s.id].name.endsWith('_banner') ? s.id + '|' + JSON.stringify((s.tag && s.tag.patterns) || []) : s.id);
   function meshFor(s) {
     if (s && s.tag && s.tag.banner && ITEMS[s.id].name === 'shield' && typeof Banners !== 'undefined') {
       const k = key(s); let c = custom.get(k);
@@ -119,6 +119,16 @@ const ItemMesh = (() => {
         c = { geo: spriteGeoPx(px, 0, 0, 1), tex }; custom.set(k, c);
       }
       const m = new THREE.Mesh(c.geo, entityMat(c.tex, { side: THREE.DoubleSide })); m.frustumCulled = false; m.userData.block = false; m.userData.handheld = false;
+      return m;
+    }
+    // a banner in the hand is the whole banner: the pole and crossbar of its block, and its flag
+    if (s && ITEMS[s.id].name.endsWith('_banner') && typeof Banners !== 'undefined') {
+      const m = mesh(s.id);
+      const tex = new THREE.CanvasTexture(Banners.flagCanvas(ITEMS[s.id].name.replace('_banner', ''), (s.tag && s.tag.patterns) || [])); tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
+      const W = 20 / 24, H = 40 / 24, D = 1 / 24, mat = entityMat(tex, {});
+      const flag = new THREE.Mesh(new THREE.BoxGeometry(W, H, D), mat); flag.frustumCulled = false;
+      flag.position.set(0.5 - 1 / 16 - D / 2, 1.8333 - H / 2, 0.5); flag.rotation.y = Math.PI / 2;
+      m.add(flag);
       return m;
     }
     return mesh(s.id);
@@ -278,6 +288,7 @@ EntityRender = (() => {
         applyItemTransform(m, kind, 'tp', left);
         it.matrix.copy(m);
         it.material.uniforms.uEnv.value.set(sl, bl);
+        for (const ch of it.children) if (ch.material && ch.material.uniforms && ch.material.uniforms.uEnv) ch.material.uniforms.uEnv.value.set(sl, bl);
       }
       return k;
     }
@@ -554,6 +565,7 @@ Hand = (() => {
     applyItemTransform(m, kind, 'fp', true);
     oItem.matrix.copy(m);
     oItem.material.uniforms.uEnv.value.set(sl, bl);
+    for (const ch of oItem.children) if (ch.material && ch.material.uniforms && ch.material.uniforms.uEnv) ch.material.uniforms.uEnv.value.set(sl, bl);
   }
   function update(a, p) {
     if (!p) return;
@@ -606,6 +618,7 @@ Hand = (() => {
       applyItemTransform(m, kind, 'fp', false);
       item.matrix.copy(m);
       item.material.uniforms.uEnv.value.set(sl, bl);
+      for (const ch of item.children) if (ch.material && ch.material.uniforms && ch.material.uniforms.uEnv) ch.material.uniforms.uEnv.value.set(sl, bl);
     } else {
       const am = armMesh(); am.visible = true;
       const m = new THREE.Matrix4().copy(bob).multiply(sway);

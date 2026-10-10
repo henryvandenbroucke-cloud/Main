@@ -21442,7 +21442,7 @@ const ItemMesh = (() => {
   }
   // a held stack's own look: a shield carrying a banner gets a sprite of its own
   const custom = new Map();
-  const key = s => !s ? -1 : (s.tag && s.tag.banner && ITEMS[s.id].name === 'shield' ? s.id + '|' + JSON.stringify(s.tag.banner) : s.id);
+  const key = s => !s ? -1 : (s.tag && s.tag.banner && ITEMS[s.id].name === 'shield' ? s.id + '|' + JSON.stringify(s.tag.banner) : ITEMS[s.id].name.endsWith('_banner') ? s.id + '|' + JSON.stringify((s.tag && s.tag.patterns) || []) : s.id);
   function meshFor(s) {
     if (s && s.tag && s.tag.banner && ITEMS[s.id].name === 'shield' && typeof Banners !== 'undefined') {
       const k = key(s); let c = custom.get(k);
@@ -21453,6 +21453,16 @@ const ItemMesh = (() => {
         c = { geo: spriteGeoPx(px, 0, 0, 1), tex }; custom.set(k, c);
       }
       const m = new THREE.Mesh(c.geo, entityMat(c.tex, { side: THREE.DoubleSide })); m.frustumCulled = false; m.userData.block = false; m.userData.handheld = false;
+      return m;
+    }
+    // a banner in the hand is the whole banner: the pole and crossbar of its block, and its flag
+    if (s && ITEMS[s.id].name.endsWith('_banner') && typeof Banners !== 'undefined') {
+      const m = mesh(s.id);
+      const tex = new THREE.CanvasTexture(Banners.flagCanvas(ITEMS[s.id].name.replace('_banner', ''), (s.tag && s.tag.patterns) || [])); tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
+      const W = 20 / 24, H = 40 / 24, D = 1 / 24, mat = entityMat(tex, {});
+      const flag = new THREE.Mesh(new THREE.BoxGeometry(W, H, D), mat); flag.frustumCulled = false;
+      flag.position.set(0.5 - 1 / 16 - D / 2, 1.8333 - H / 2, 0.5); flag.rotation.y = Math.PI / 2;
+      m.add(flag);
       return m;
     }
     return mesh(s.id);
@@ -21612,6 +21622,7 @@ EntityRender = (() => {
         applyItemTransform(m, kind, 'tp', left);
         it.matrix.copy(m);
         it.material.uniforms.uEnv.value.set(sl, bl);
+        for (const ch of it.children) if (ch.material && ch.material.uniforms && ch.material.uniforms.uEnv) ch.material.uniforms.uEnv.value.set(sl, bl);
       }
       return k;
     }
@@ -21888,6 +21899,7 @@ Hand = (() => {
     applyItemTransform(m, kind, 'fp', true);
     oItem.matrix.copy(m);
     oItem.material.uniforms.uEnv.value.set(sl, bl);
+    for (const ch of oItem.children) if (ch.material && ch.material.uniforms && ch.material.uniforms.uEnv) ch.material.uniforms.uEnv.value.set(sl, bl);
   }
   function update(a, p) {
     if (!p) return;
@@ -21940,6 +21952,7 @@ Hand = (() => {
       applyItemTransform(m, kind, 'fp', false);
       item.matrix.copy(m);
       item.material.uniforms.uEnv.value.set(sl, bl);
+      for (const ch of item.children) if (ch.material && ch.material.uniforms && ch.material.uniforms.uEnv) ch.material.uniforms.uEnv.value.set(sl, bl);
     } else {
       const am = armMesh(); am.visible = true;
       const m = new THREE.Matrix4().copy(bob).multiply(sway);
@@ -24946,14 +24959,37 @@ const Raids = (() => {
       else if (m.patrolLeader && !m.patrolLeader.dead && !m.patrolLeader.removed && m.distTo(m.patrolLeader) > 4 && m.nav.done()) m.nav.moveTo(m.patrolLeader.x + (Math.random() - 0.5) * 4, m.patrolLeader.y, m.patrolLeader.z + (Math.random() - 0.5) * 4, 0.8);
     }
   }
+  // the game's VillageSiege: at midnight, one night in ten, twenty zombies gather at a spot about 32 blocks from a
+  // player in a village and come in, whatever the light (not in Peaceful, not with mob spawning off)
+  let siege = null, siegeNight = -1;
+  function sieges(p) {
+    if (World.dim !== 'overworld' || Game.difficulty === 'peaceful' || !Game.rules.doMobSpawning || !p || p.dead) { siege = null; return; }
+    const day = Math.floor(Game.dayTime / 24000), t = ((Game.dayTime % 24000) + 24000) % 24000;
+    if (t >= 18000 && t < 18020 && siegeNight !== day) { siegeNight = day; siege = Math.random() < 0.1 ? { left: 20, at: null, next: 0 } : null; }
+    if (!siege || t < 13000 || t > 23000) { if (t > 23000) siege = null; return; }
+    if (!siege.at) {
+      if (!isVillage(p.x, p.y, p.z)) return;
+      for (let k = 0; k < 10 && !siege.at; k++) {
+        const a = Math.random() * Math.PI * 2, x = Math.floor(p.x + Math.cos(a) * 32), z = Math.floor(p.z + Math.sin(a) * 32);
+        if (!World.chunkAt(x, z) || !isVillage(x, p.y, z)) continue;
+        const y = World.heightAt(x, z) + 1; if (Mobs.spawnable('zombie', x, y, z) || !BLOCKS[World.getBlock(x, y - 1, z)].fluid) siege.at = [x, y, z];
+      }
+      return;
+    }
+    if (--siege.next > 0 || siege.left <= 0) return;
+    siege.next = 2;
+    const [x0, , z0] = siege.at, x = x0 + rnd(16) - 8, z = z0 + rnd(16) - 8, y = World.heightAt(x, z) + 1;
+    if (!World.chunkAt(x, z) || BLOCKS[World.getBlock(x, y - 1, z)].fluid) return;
+    const zb = Mobs.spawnEntity('zombie', x + 0.5, y, z + 0.5); if (zb) { zb.target = p; siege.left--; }
+  }
   function tick() {
     const p = Game.player;
     tickPlayer(p);
     for (const r of raids.slice()) tickRaid(r);
-    if (World.dim === 'overworld') { patrols(p); tickPatrollers(); }
+    if (World.dim === 'overworld') { patrols(p); tickPatrollers(); sieges(p); }
   }
   function clear() { raids.length = 0; }
-  return { tick, start, isVillage, bellRung, spawnPatrol, raids, clear, TYPES };
+  return { tick, start, isVillage, bellRung, spawnPatrol, raids, clear, TYPES, get siege() { return siege; }, startSiege() { siege = { left: 20, at: null, next: 0 }; } };
 })();
 
 </script>

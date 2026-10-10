@@ -176,12 +176,35 @@ const Raids = (() => {
       else if (m.patrolLeader && !m.patrolLeader.dead && !m.patrolLeader.removed && m.distTo(m.patrolLeader) > 4 && m.nav.done()) m.nav.moveTo(m.patrolLeader.x + (Math.random() - 0.5) * 4, m.patrolLeader.y, m.patrolLeader.z + (Math.random() - 0.5) * 4, 0.8);
     }
   }
+  // the game's VillageSiege: at midnight, one night in ten, twenty zombies gather at a spot about 32 blocks from a
+  // player in a village and come in, whatever the light (not in Peaceful, not with mob spawning off)
+  let siege = null, siegeNight = -1;
+  function sieges(p) {
+    if (World.dim !== 'overworld' || Game.difficulty === 'peaceful' || !Game.rules.doMobSpawning || !p || p.dead) { siege = null; return; }
+    const day = Math.floor(Game.dayTime / 24000), t = ((Game.dayTime % 24000) + 24000) % 24000;
+    if (t >= 18000 && t < 18020 && siegeNight !== day) { siegeNight = day; siege = Math.random() < 0.1 ? { left: 20, at: null, next: 0 } : null; }
+    if (!siege || t < 13000 || t > 23000) { if (t > 23000) siege = null; return; }
+    if (!siege.at) {
+      if (!isVillage(p.x, p.y, p.z)) return;
+      for (let k = 0; k < 10 && !siege.at; k++) {
+        const a = Math.random() * Math.PI * 2, x = Math.floor(p.x + Math.cos(a) * 32), z = Math.floor(p.z + Math.sin(a) * 32);
+        if (!World.chunkAt(x, z) || !isVillage(x, p.y, z)) continue;
+        const y = World.heightAt(x, z) + 1; if (Mobs.spawnable('zombie', x, y, z) || !BLOCKS[World.getBlock(x, y - 1, z)].fluid) siege.at = [x, y, z];
+      }
+      return;
+    }
+    if (--siege.next > 0 || siege.left <= 0) return;
+    siege.next = 2;
+    const [x0, , z0] = siege.at, x = x0 + rnd(16) - 8, z = z0 + rnd(16) - 8, y = World.heightAt(x, z) + 1;
+    if (!World.chunkAt(x, z) || BLOCKS[World.getBlock(x, y - 1, z)].fluid) return;
+    const zb = Mobs.spawnEntity('zombie', x + 0.5, y, z + 0.5); if (zb) { zb.target = p; siege.left--; }
+  }
   function tick() {
     const p = Game.player;
     tickPlayer(p);
     for (const r of raids.slice()) tickRaid(r);
-    if (World.dim === 'overworld') { patrols(p); tickPatrollers(); }
+    if (World.dim === 'overworld') { patrols(p); tickPatrollers(); sieges(p); }
   }
   function clear() { raids.length = 0; }
-  return { tick, start, isVillage, bellRung, spawnPatrol, raids, clear, TYPES };
+  return { tick, start, isVillage, bellRung, spawnPatrol, raids, clear, TYPES, get siege() { return siege; }, startSiege() { siege = { left: 20, at: null, next: 0 }; } };
 })();

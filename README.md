@@ -68,7 +68,7 @@ To rebuild the single file after changing the code, run `python3 tools/build_sin
 
 **Mobs.** Every 1.21 mob, with its own AI, model, animation, sounds and loot:
 - villagers with professions, trading and reputation (gossip changes prices, and iron golems defend villagers from players who hurt them);
-- raids and patrols;
+- raids, patrols and zombie sieges;
 - breeding, taming and riding, with the jump bar for horses and camels;
 - cat, wolf, axolotl and tropical fish variants;
 - buckets of fish, axolotls and tadpoles that keep the mob inside;
