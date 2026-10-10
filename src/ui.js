@@ -60,14 +60,12 @@ const UI = (() => {
       ${btn('Subtitles: ' + (Settings.subtitles ? 'ON' : 'OFF'), 'tsubs', { w: 150 })}${btn('Sounds: ' + packName(), 'soundpack', { w: 150 })}</div><div class="mbottom">${btn('Done', 'options')}</div>`,
     // the real game's sounds, from the player's own copy of Minecraft
     soundpack: d => { const st = SoundPack.status(); return `<div class="mtitle">Minecraft Sounds</div><div class="mcol wide packinfo">
-      <div class="mtext">Play the real sounds and music from <b>your own copy of Minecraft: Java Edition</b> instead of the built-in ones.
-      Pick your <b>.minecraft</b> folder (or the <b>assets</b> folder inside it). Start the game once in the Minecraft launcher first, so the sounds are downloaded.</div>
-      <div class="mtext small">Windows: <code>%APPDATA%\.minecraft</code> &nbsp; macOS: <code>~/Library/Application Support/minecraft</code> &nbsp; Linux: <code>~/.minecraft</code><br>
-      A resource pack folder with its own sounds works too. The files stay on your computer: nothing is copied or uploaded.${st.canRemember ? '' : ' This browser can\'t remember the folder, so you pick it again each time.'}</div>
+      <div class="mtext">Use the real sounds and music from <b>your own Minecraft: Java Edition</b>. Pick your <b>.minecraft</b> folder (or the <b>assets</b> folder in it). Play the game once in the launcher first, so its sounds are downloaded.</div>
+      <div class="mtext small">Windows: <code>%APPDATA%/.minecraft</code> &nbsp; macOS: <code>~/Library/Application Support/minecraft</code> &nbsp; Linux: <code>~/.minecraft</code>. A resource pack folder works too. Nothing is copied or uploaded.</div>
       <div class="mtext status">${escapeHTML(d.msg || (st.loading ? 'Loading...' : st.loaded ? `Using ${st.count} sound events from "${st.label}".` : st.pending ? 'Your Minecraft folder was picked before. Click Reconnect to use it again.' : 'Using the built-in sounds.'))}</div>
-      <div class="mrow">${btn('Choose Folder...', 'packpick', { w: 150 })}${st.pending ? btn('Reconnect', 'packreconnect', { w: 150 }) : btn('Use Built-in Sounds', 'packoff', { w: 150, off: !st.loaded })}</div>
-      ${st.canRemember ? `<div class="mrow">${btn('Folder Won\'t Open? Upload It Instead...', 'packupload', { w: 304 })}</div>` : ''}
-      </div><div class="mbottom">${btn('Done', 'sounds')}</div>`; },
+      <div class="mrow">${btn('Choose Folder...', 'packpick', { w: 150 })}${st.canRemember ? btn('Upload Folder...', 'packupload', { w: 150 }) : ''}</div>
+      <div class="mrow">${st.pending ? btn('Reconnect', 'packreconnect', { w: 150 }) : btn('Use Built-in Sounds', 'packoff', { w: 150, off: !st.loaded })}${btn('Done', 'sounds', { w: 150 })}</div>
+      </div>`; },
     access: () => `<div class="mtitle">Accessibility Settings</div><div class="mcol wide grid2">
       ${btn('Auto-Jump: ' + (Settings.autoJump ? 'ON' : 'OFF'), 'tajump', { w: 150 })}${btn('Sprint: ' + (Settings.toggleSprint ? 'Toggle' : 'Hold'), 'tsprint', { w: 150 })}
       ${btn('Sneak: ' + (Settings.toggleCrouch ? 'Toggle' : 'Hold'), 'tsneak', { w: 150 })}${btn('Subtitles: ' + (Settings.subtitles ? 'ON' : 'OFF'), 'tsubs', { w: 150 })}</div>
