@@ -51,7 +51,8 @@ const UI = (() => {
       ${btn('View Bobbing: ' + (Settings.bobbing ? 'ON' : 'OFF'), 'tbob', { w: 150 })}${btn('GUI Scale: ' + (Settings.guiScale || 'Auto'), 'tgui', { w: 150 })}
       ${slider('gamma', 'Brightness', 0, 1, 0.01, v => v === 0 ? 'Moody' : v === 1 ? 'Bright' : Math.round(v * 100) + '%')}${btn('Clouds: ' + cap(Settings.clouds), 'tclouds', { w: 150 })}
       ${btn('Particles: ' + cap(Settings.particles), 'tpart', { w: 150 })}${btn('Fullscreen: ' + (document.fullscreenElement ? 'ON' : 'OFF'), 'tfull', { w: 150 })}
-      ${btn('Show FPS: ' + (Settings.showFps ? 'ON' : 'OFF'), 'tfps', { w: 150 })}${btn('Biome Blend: 5x5', 'none', { w: 150, off: true })}</div>
+      ${btn('Show FPS: ' + (Settings.showFps ? 'ON' : 'OFF'), 'tfps', { w: 150 })}${btn('Biome Blend: 5x5', 'none', { w: 150, off: true })}
+      ${btn('Shaders: ' + (Settings.shaders ? 'ON' : 'OFF'), 'tshaders', { w: 150 })}<div class="mhint" style="align-self:center">Waving water with reflections. Slower on weak computers.</div></div>
       <div class="mbottom">${btn('Done', 'options')}</div>`,
     sounds: () => `<div class="mtitle">Music & Sound Options</div><div class="mcol wide grid2">
       ${slider('vMaster', 'Master Volume', 0, 1, 0.01, pct)}${slider('vMusic', 'Music', 0, 1, 0.01, pct)}${slider('vSfx', 'Blocks, Mobs & Players', 0, 1, 0.01, pct)}${slider('vAmbient', 'Ambient/Environment', 0, 1, 0.01, pct)}
@@ -146,7 +147,7 @@ const UI = (() => {
     }
   }
   function toggle(a) {
-    const T = { tleaves: () => { Settings.fastLeaves = !Settings.fastLeaves; }, tsmooth: () => { Settings.smooth = !Settings.smooth; }, tbob: () => { Settings.bobbing = !Settings.bobbing; },
+    const T = { tshaders: () => { Settings.shaders = !Settings.shaders; if (typeof applyShaders === 'function') applyShaders(); }, tleaves: () => { Settings.fastLeaves = !Settings.fastLeaves; }, tsmooth: () => { Settings.smooth = !Settings.smooth; }, tbob: () => { Settings.bobbing = !Settings.bobbing; },
       tgui: () => { Settings.guiScale = (Settings.guiScale + 1) % 5; }, tclouds: () => { Settings.clouds = { fancy: 'fast', fast: 'off', off: 'fancy' }[Settings.clouds]; }, tpart: () => { Settings.particles = { all: 'decreased', decreased: 'minimal', minimal: 'all' }[Settings.particles]; },
       tfull: () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {}); }, tfps: () => { Settings.showFps = !Settings.showFps; }, tsubs: () => { Settings.subtitles = !Settings.subtitles; },
       tajump: () => { Settings.autoJump = !Settings.autoJump; }, tsprint: () => { Settings.toggleSprint = !Settings.toggleSprint; }, tsneak: () => { Settings.toggleCrouch = !Settings.toggleCrouch; }, tinvert: () => { Settings.invertY = !Settings.invertY; } };

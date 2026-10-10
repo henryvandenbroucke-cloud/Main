@@ -52,11 +52,15 @@ const Interact = (() => {
     const h = hardness(id); if (h < 0) return 0; if (h === 0) return 1;
     return breakSpeed(p, id, tool) / h / (Drops.canHarvest(id, tool) ? 30 : 100);
   }
+  // the bottom layer of bedrock in every dimension, and the Nether's ceiling
+  const isBorder = y => y === MINY || (World.dim === 'nether' && (y === 0 || y === 127));
   function breakBlock(p, x, y, z) {
     const id = World.getBlock(x, y, z), st = World.getState(x, y, z), d = BLOCKS[id];
     if (p.gamemode === 'adventure' || p.spectator) return false;
     const held = p.inv.held;
     if (p.creative && held && ITEMS[held.id].tool && ITEMS[held.id].tool.kind === 'sword') return false;
+    // the world's floor (and the Nether's floor and roof) can't be broken, even in Creative: nobody falls out
+    if (id === BID.bedrock && isBorder(y)) return false;
     Particles.blockBreak(x, y, z, id, st);
     Sound.blockBreak(id, x, y, z);
     // containers spill their contents

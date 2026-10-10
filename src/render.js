@@ -35,16 +35,29 @@ vec3 lightmap(float sky, float blk){
 const U = {
   uTex: { value: null }, uTime: { value: 0 }, uSkyLight: { value: 1 }, uSkyTint: { value: new THREE.Color(1, 1, 1) }, uGamma: { value: 0.5 }, uAmbient: { value: 0 }, uNV: { value: 0 },
   uFlicker: { value: 1 }, uDark: { value: 0 }, uForceBright: { value: 0 }, uFogColor: { value: new THREE.Color(0xc0d8ff) }, uFogStart: { value: 100 }, uFogEnd: { value: 128 },
+  // for the optional shaders: where the sun is, the sky overhead, and which texture layers are water
+  uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSkyTop: { value: new THREE.Color(0x78a7ff) }, uWaterA: { value: -10 }, uWaterB: { value: -10 },
 };
 const VOX_VERT = `
 in vec4 aUV; in vec4 aLight; in vec4 aColor;
 uniform float uTime;
 out vec3 vUV; out vec2 vL; out float vShade; out vec3 vColor; out float vDist;
+#ifdef SHADERS
+uniform float uWaterA; uniform float uWaterB;
+out vec3 vWorld; out float vWater;
+#endif
 void main(){
   float layer = aUV.z;
   if (aUV.w > 0.5) layer += mod(floor(uTime * 10.0), aUV.w);
   vUV = vec3(aUV.xy, layer); vL = aLight.xy; vShade = aLight.z; vColor = aColor.rgb;
-  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+#ifdef SHADERS
+  // water: its surface rises and falls in slow waves (the bottom of each water block stays put)
+  vWater = (abs(aUV.z - uWaterA) < 0.5 || abs(aUV.z - uWaterB) < 0.5) ? 1.0 : 0.0;
+  if (vWater > 0.5 && fract(wp.y) > 0.05) wp.y += (sin(wp.x * 0.8 + uTime * 1.5) + sin(wp.z * 1.05 + uTime * 1.2) + sin((wp.x + wp.z) * 0.37 - uTime * 0.9)) * 0.016 - 0.04;
+  vWorld = wp.xyz;
+#endif
+  vec4 mv = viewMatrix * wp;
   vDist = length(mv.xyz);
   gl_Position = projectionMatrix * mv;
 }`;
@@ -53,6 +66,10 @@ precision highp float; precision highp sampler2DArray;
 uniform sampler2DArray uTex; uniform float uMode; uniform vec3 uFogColor; uniform float uFogStart; uniform float uFogEnd;
 ${LIGHT_GLSL}
 in vec3 vUV; in vec2 vL; in float vShade; in vec3 vColor; in float vDist;
+#ifdef SHADERS
+uniform vec3 uSunDir; uniform vec3 uSkyTop; uniform float uTime;
+in vec3 vWorld; in float vWater;
+#endif
 out vec4 fragColor;
 void main(){
   vec4 t = texture(uTex, vUV);
@@ -60,19 +77,42 @@ void main(){
   if (uMode < 0.5) c = mix(t.rgb * vColor, t.rgb, t.a);
   else { if (uMode < 1.5 && t.a < 0.5) discard; if (uMode > 1.5 && t.a < 0.01) discard; c = t.rgb * vColor; }
   c *= lightmap(vL.x, vL.y) * vShade;
+  float alpha = uMode > 1.5 ? t.a : 1.0;
+#ifdef SHADERS
+  if (vWater > 0.5 && uMode > 1.5) {
+    // ripples: a surface normal from a few moving waves; the sky reflects off it (more at grazing angles), the
+    // sun leaves a glint, and only where the sky reaches the water
+    vec2 p = vWorld.xz; float tt = uTime;
+    vec3 N = normalize(vec3(
+      sin(p.x * 1.7 + tt * 1.9) * 0.07 + sin(p.x * 3.3 - p.y * 2.1 + tt * 2.6) * 0.045 + cos(p.y * 2.3 + p.x * 0.7 + tt * 1.4) * 0.035,
+      1.0,
+      cos(p.y * 1.5 + tt * 1.6) * 0.07 + sin(p.y * 3.1 + p.x * 1.8 - tt * 2.2) * 0.045 + sin(p.x * 2.6 - tt * 1.1) * 0.03));
+    vec3 V = normalize(cameraPosition - vWorld);
+    float ndv = abs(dot(N, V)), fres = pow(1.0 - ndv, 3.0);
+    vec3 R = reflect(-V, N); if (R.y < 0.0) R.y = -R.y;
+    float sky = lmBr(vL.x) * uSkyLight;
+    vec3 refl = mix(uFogColor, uSkyTop, clamp(R.y * 1.5, 0.0, 1.0));
+    c = mix(c * 0.9, refl, clamp(fres * 0.8 + 0.12, 0.0, 0.85) * sky);
+    float spec = pow(max(dot(R, normalize(uSunDir)), 0.0), 180.0) * sky * smoothstep(-0.05, 0.15, uSunDir.y);
+    c += vec3(1.0, 0.94, 0.82) * spec * 2.0;
+    alpha = clamp(mix(t.a * 0.85, 1.0, fres * 0.9 + spec), 0.0, 1.0);
+  }
+#endif
   float fog = clamp((vDist - uFogStart) / max(uFogEnd - uFogStart, 0.001), 0.0, 1.0);
   c = mix(c, uFogColor, fog);
-  fragColor = vec4(c, uMode > 1.5 ? t.a : 1.0);
+  fragColor = vec4(c, alpha);
 }`;
 function voxMat(mode) {
   const m = new THREE.ShaderMaterial({
     uniforms: Object.assign({}, U, { uMode: { value: mode } }), vertexShader: VOX_VERT, fragmentShader: VOX_FRAG, glslVersion: THREE.GLSL3,
-    transparent: mode === 2, depthWrite: mode !== 2, side: THREE.FrontSide,
+    transparent: mode === 2, depthWrite: mode !== 2, side: THREE.FrontSide, defines: Settings.shaders ? { SHADERS: 1 } : {},
   });
   for (const k in U) m.uniforms[k] = U[k];
   return m;
 }
 const MATS = [voxMat(0), voxMat(1), voxMat(2)];
+// the Shaders option: the same materials recompiled with or without the extra water work
+function applyShaders() { for (const m of MATS) { if (Settings.shaders) m.defines.SHADERS = 1; else delete m.defines.SHADERS; m.needsUpdate = true; } }
 
 // entities: a box model lit by one light value (sky, block) and the same lightmap and fog
 const ENT_VERT = `
@@ -185,6 +225,7 @@ const SkyRender = (() => {
     if (under === 'water') fogC.setRGB(0.02, 0.05, 0.2).lerp(new THREE.Color(0.05, 0.12, 0.35), Sky.skyFactor);
     if (under === 'lava') fogC.setRGB(0.6, 0.1, 0);
     domeMat.uniforms.top.value.copy(skyC); domeMat.uniforms.hor.value.copy(fogC);
+    U.uSkyTop.value.copy(skyC); U.uSunDir.value.set(-Math.sin(ang), Math.cos(ang), 0);
     U.uFogColor.value.copy(fogC);
     renderer.setClearColor(fogC);
     lowMat.color.setRGB(skyC.r * 0.2 + 0.04, skyC.g * 0.2 + 0.04, skyC.b * 0.6 + 0.1);

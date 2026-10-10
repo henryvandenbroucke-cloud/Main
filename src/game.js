@@ -154,6 +154,7 @@ const Loop = (() => {
     if (World.dim === 'end') { U.uSkyLight.value = 0; U.uAmbient.value = 0.0; }
     U.uForceBright.value = World.dim === 'end' ? 1 : 0;
     U.uGamma.value = Settings.gamma;
+    if (U.uWaterA.value < 0 && Tex.has && Tex.has('water_still')) { U.uWaterA.value = Tex.get('water_still').layer; U.uWaterB.value = Tex.get('water_flow').layer; }
     U.uFlicker.value = 1.0 + (Math.random() - 0.5) * 0.02;
     const nv = p.effect('night_vision'); U.uNV.value = nv ? (nv.dur > 200 ? 1 : 0.7 + Math.sin((nv.dur - a) * Math.PI * 0.2) * 0.3) : 0;
     const dist = Settings.renderDist * 16;
