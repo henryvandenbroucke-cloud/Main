@@ -552,6 +552,44 @@ Hand = (() => {
     itemId = st ? st.id : -1; itemKey = ItemMesh.key(st);
     if (st) { item = ItemMesh.meshFor(st); item.matrixAutoUpdate = false; hScene.add(item); }
   }
+  // a filled map held up (the game's renderTwoHandedMap / renderOneHandedMap): the paper and its map on a plane
+  let mapTex = null, mapSeen = -1;
+  const mapMeshes = [null, null];
+  function mapMesh(k) {
+    if (!mapTex) { mapTex = new THREE.CanvasTexture(Maps.handCanvas); mapTex.magFilter = mapTex.minFilter = THREE.NearestFilter; mapTex.generateMipmaps = false; }
+    if (!mapMeshes[k]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), entityMat(mapTex, { side: THREE.DoubleSide })); m.matrixAutoUpdate = false; m.frustumCulled = false; hScene.add(m); mapMeshes[k] = m; }
+    return mapMeshes[k];
+  }
+  const mapTilt = pitchDeg => { const f = Math.max(0, Math.min(1, 1 - pitchDeg / 45 + 0.1)); return -Math.cos(f * Math.PI) * 0.5 + 0.5; };
+  // the game's renderMap: turned to face you, 0.38 across per hand-scale unit, the paper 142 map pixels square
+  function renderMap(m) { MStack.ry(m, 180); MStack.rz(m, 180); m.multiply(new THREE.Matrix4().makeScale(0.38, 0.38, 0.38)); MStack.t(m, -0.5, -0.5, 0); m.multiply(new THREE.Matrix4().makeScale(1 / 128, 1 / 128, 1 / 128)); MStack.t(m, 64, 64, 0); m.multiply(new THREE.Matrix4().makeScale(142, -142, 1)); return m; }
+  function heldMaps(p, bob, sway, swing, eq, sl, bl) {
+    const isMap = s => s && ITEMS[s.id].name === 'filled_map';
+    const main = isMap(p.inv.held), off = isMap(p.inv.offhand);
+    if (main || off) { if (Maps.handDrawn !== mapSeen) { mapSeen = Maps.handDrawn; if (mapTex) mapTex.needsUpdate = true; } }
+    for (let k = 0; k < 2; k++) if (mapMeshes[k]) mapMeshes[k].visible = false;
+    if (main && !p.inv.offhand) {
+      // both hands: the map rises and tilts toward you as you look down
+      const m = new THREE.Matrix4().copy(bob).multiply(sway), f = Math.sqrt(swing), g = -0.2 * Math.sin(swing * Math.PI), h = -0.4 * Math.sin(f * Math.PI);
+      MStack.t(m, 0, -g / 2, h);
+      const i = mapTilt(p.pitch * 180 / Math.PI);
+      MStack.t(m, 0, 0.04 - eq * 1.2 - i * 0.5, -0.72); MStack.rx(m, i * -85);
+      MStack.rx(m, Math.sin(f * Math.PI) * 20); m.multiply(new THREE.Matrix4().makeScale(2, 2, 2));
+      const mm = mapMesh(0); mm.visible = true; mm.matrix.copy(renderMap(m)); mm.material.uniforms.uEnv.value.set(sl, bl);
+      return 'both';
+    }
+    const one = (side, k, sw, e) => {
+      const m = new THREE.Matrix4().copy(bob).multiply(sway), f = side;
+      MStack.t(m, f * 0.125, -0.125, 0);
+      MStack.t(m, f * 0.51, -0.08 - e * 1.2, -0.75);
+      const g = Math.sqrt(sw), hh = Math.sin(g * Math.PI), i = -0.5 * hh, j = 0.4 * Math.sin(g * Math.PI * 2), kk = -0.3 * Math.sin(sw * Math.PI);
+      MStack.t(m, f * i, j - 0.3 * hh, kk); MStack.rx(m, hh * -45); MStack.ry(m, f * hh * -30);
+      const mm = mapMesh(k); mm.visible = true; mm.matrix.copy(renderMap(m)); mm.material.uniforms.uEnv.value.set(sl, bl);
+    };
+    if (main) one(1, 0, swing, eq);
+    if (off) one(-1, 1, 0, 0);
+    return main ? 'main' : off ? 'off' : null;
+  }
   // the off-hand item, on the left (the game's renderArmWithItem for the left arm, mirrored)
   let oItem = null, oKey = -1;
   function offHand(p, bob, sway, sl, bl) {
@@ -582,6 +620,10 @@ Hand = (() => {
     const bob = new THREE.Matrix4();
     if (Settings.bobbing && !p.flying) { const wd = p.pwalkDist + (p.walkDist - p.pwalkDist) * a, b = p.pbob + (p.bob - p.pbob) * a, g = wd * Math.PI; MStack.t(bob, Math.sin(g) * b * 0.5, -Math.abs(Math.cos(g) * b), 0); MStack.rz(bob, Math.sin(g) * b * 3); MStack.rx(bob, Math.abs(Math.cos(g - 0.2) * b) * 5); }
     offHand(p, bob, sway, sl, bl);
+    const swingNow = p.swinging ? Math.max(0, (p.swingTime + a) / 6) : 0, eqNow = 1 - (pequip + (equip - pequip) * a);
+    const maps = heldMaps(p, bob, sway, swingNow, eqNow, sl, bl);
+    if (maps === 'off' || maps === 'main' && oItem && p.inv.offhand && ITEMS[p.inv.offhand.id].name === 'filled_map') { if (oItem) oItem.visible = false; }
+    if (maps === 'both' || maps === 'main') { if (item) item.visible = false; if (arm) arm.visible = false; return; }
     if (item) {
       if (arm) arm.visible = false;
       item.visible = true;

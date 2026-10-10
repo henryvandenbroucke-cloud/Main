@@ -175,7 +175,7 @@ const Maps = (() => {
   }
   // ---------------------------------------------------------------- the map in your hands
   const hand = document.createElement('canvas'); hand.id = 'mapHand'; hand.width = hand.height = 288; hand.className = 'hidden'; document.body.appendChild(hand);
-  let handFor = -1, handVer = -1, handT = 0;
+  let handFor = -1, handVer = -1, handT = 0, handDrawn = 0;
   function heldMap(p) { for (const s of [p.inv.held, p.inv.offhand]) if (s && ITEMS[s.id].name === 'filled_map') return s; return null; }
   function tick(p) {
     if (!p) return;
@@ -186,12 +186,12 @@ const Maps = (() => {
     if (s && (!s.tag || s.tag.map === undefined || !d)) { d = newData(0, p.x, p.z, World.dim); s.tag = Object.assign({}, s.tag || {}, { map: d.id }); }
     if (d) update(p, d);
     const show = d && !UI.screenOpen() && p.view === 0 && Game.running;
-    hand.classList.toggle('hidden', !show);
+    hand.classList.add('hidden'); // drawn in the first-person hands instead (see Hand)
     if (show && (handFor !== d.id || handVer !== d.ver || ++handT % 2 === 0)) {
       const g = hand.getContext('2d');
       g.fillStyle = '#d8cfa8'; g.fillRect(0, 0, 288, 288); g.fillStyle = '#b8a878'; g.fillRect(0, 0, 288, 6); g.fillRect(0, 282, 288, 6); g.fillRect(0, 0, 6, 288); g.fillRect(282, 0, 6, 288);
       g.save(); g.translate(16, 16); draw(g, d, 2, true); g.restore();
-      handFor = d.id; handVer = d.ver;
+      handFor = d.id; handVer = d.ver; handDrawn++;
     }
   }
   function tooltip(s) {
@@ -219,7 +219,7 @@ const Maps = (() => {
     if (n === 'glass_pane' && !d.locked) return { kind: 'lock', out: () => { const nd = newData(d.scale, d.cx, d.cz, d.dim); nd.cx = d.cx; nd.cz = d.cz; nd.colors.set(d.colors); nd.deco = d.deco.slice(); nd.locked = true; return stack('filled_map', 1, { tag: { map: nd.id } }); }, preview: stack('filled_map', 1, { tag: a.tag }) };
     return null;
   }
-  return { PAL, create, get, update, tick, mesh, draw, canvasFor, tooltip, save, load, cartography, explorer, colors, maps };
+  return { PAL, create, get, update, tick, mesh, draw, canvasFor, tooltip, save, load, cartography, explorer, colors, maps, handCanvas: hand, get handDrawn() { return handDrawn; } };
 })();
 
 class CartographyScreen extends Screens.Screen {
