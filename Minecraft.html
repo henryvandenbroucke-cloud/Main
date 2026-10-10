@@ -9299,7 +9299,9 @@ const Interact = (() => {
     const md = MCDATA.blocks[BLOCKS[id].name];
     const it = tool ? ITEMS[tool.id] : null;
     let speed = 1;
-    const kind = md ? md[4] : '', n = BLOCKS[id].name;
+    // the data leaves the tool kind out for blocks that need a better pickaxe (ores, obsidian, metal blocks...):
+    // those are all pickaxe blocks, so the pickaxe's speed counts for them too
+    const kind = md ? (md[4] || (md[5] > 0 ? 'pickaxe' : '')) : '', n = BLOCKS[id].name;
     if (it && it.tool) {
       const t = it.tool;
       if (t.kind === 'shears') speed = n === 'cobweb' || n.endsWith('_leaves') ? 15 : n.endsWith('_wool') ? 5 : (n === 'vine' || n === 'glow_lichen') ? 2 : 1;
