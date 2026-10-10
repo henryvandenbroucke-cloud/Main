@@ -126,6 +126,16 @@ input { font-family: inherit; }
 .rbitem .icon { left: var(--o); top: var(--o); }
 .rbfilter, .rbprev, .rbnext { position: absolute; box-sizing: border-box; height: calc(var(--s) * 14); padding: 0 calc(var(--s) * 3); line-height: calc(var(--s) * 12); background: #6f6f6f; border: var(--s) solid #000; color: #e0e0e0; text-shadow: var(--s) var(--s) 0 #3f3f3f; }
 .rbfilter.on { background: #3b7a2a; }
+.rbsearch { position: absolute; box-sizing: border-box; height: calc(var(--s) * 13); background: #000; border: var(--s) solid #a0a0a0; color: #fff; font-family: inherit; font-size: calc(var(--fs) * 0.8); padding: 0 calc(var(--s) * 2); outline: none; user-select: text; -webkit-user-select: text; }
+.rbsearch:focus { border-color: #fff; }
+.rbempty { text-align: center; color: #555 !important; text-shadow: none !important; }
+.rbtabs { position: absolute; right: 100%; top: calc(var(--s) * 4); display: flex; flex-direction: column; gap: calc(var(--s) * 1); }
+.rbtab { position: relative; width: calc(var(--s) * 30); height: calc(var(--s) * 26); box-sizing: border-box; background: #8b8b8b; border: var(--s) solid #000; border-right: none; cursor: pointer; margin-left: calc(var(--s) * 4); }
+.rbtab.on { background: #c6c6c6; margin-left: 0; }
+.rbtab:hover { filter: brightness(1.15); }
+.rbtab .icon { position: absolute; left: calc(var(--s) * 7); top: calc(var(--s) * 4); }
+.ghostbg { position: absolute; left: var(--o); top: var(--o); width: calc(var(--s) * 16); height: calc(var(--s) * 16); background: rgba(255, 60, 60, 0.35); }
+.ghosticon { opacity: 0.45; }
 .rbfilter:hover, .rbprev:hover, .rbnext:hover { border-color: #fff; }
 
 /* chat */

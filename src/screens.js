@@ -243,6 +243,11 @@ const Screens = (() => {
         if (!s.el) continue;
         const st = Slots.get(s);
         let html = st ? iconHTML(st) : (s.emptyIcon ? `<div class="emptyicon" style="${GUI.css(s.emptyIcon)}"></div>` : '');
+        // a ghost recipe from the recipe book: what goes where, faded on a red background
+        if (!st && this.ghost && this.grid && (s.inv === this.grid.inv || s === this.outSlot)) {
+          const gi = s === this.outSlot ? this.ghost.result : this.ghost.cells[s.i];
+          if (gi) html = `<div class="ghostbg"></div>${iconHTML(stack(gi, s === this.outSlot ? this.ghost.n : 1))}`.replace('class="icon', 'class="ghosticon icon');
+        }
         if (drag && drag.slots && drag.slots.has(s) && drag.slots.size > 1) html += '<div class="dragmark"></div>';
         if (s._html !== html) { s.el.innerHTML = html; s._html = html; }
       }
@@ -292,7 +297,7 @@ const Screens = (() => {
 // ---------------------------------------------------------------- crafting grids
 class CraftGrid {
   constructor(w) { this.w = w; this.inv = new Inventory(w * w); this.out = new Inventory(1); this.recipe = null; }
-  update() { const r = Recipes.match(this.inv.slots, this.w); this.recipe = r; this.out.slots[0] = r ? r.result : null; }
+  update() { const r = Recipes.match(this.inv.slots, this.w); this.recipe = r; this.out.slots[0] = r ? r.result : null; if (this.inv.slots.some(x => x) && Screens.current && Screens.current.grid === this) Screens.current.ghost = null; }
   // taking the result uses one of each ingredient (buckets and bottles are left behind)
   consume() {
     for (let i = 0; i < this.inv.size; i++) {
@@ -451,7 +456,7 @@ function recipeBookButton(scr, x, y) {
   return b;
 }
 const RecipeBook = (() => {
-  let open = false, panel = null, filterCraftable = false, page = 0;
+  let open = false, panel = null, filterCraftable = false, page = 0, tab = 'all', query = '';
   function toggle(scr) { open = !open; if (open) show(scr); else hide(); }
   function hide() { if (panel) panel.remove(); panel = null; }
   function show(scr) {
@@ -461,7 +466,6 @@ const RecipeBook = (() => {
     Screens.root.appendChild(panel);
     render(scr);
   }
-  function have(st) { return Game.player.inv.count(st.id); }
   function craftable(r, size) {
     if (r.s && (r.s.length > size || r.s[0].length > size)) return false;
     const need = new Map();
@@ -469,31 +473,58 @@ const RecipeBook = (() => {
     for (const [c, n] of need) { const opts = Recipes.tagMembers(c) || [c]; const total = opts.reduce((a, o) => a + (IID[o] !== undefined ? Game.player.inv.count(IID[o]) : 0), 0); if (total < n) return false; }
     return true;
   }
+  // the game's recipe book tabs: equipment, building blocks, redstone and everything else
+  const EQUIP = new Set(['bow', 'crossbow', 'arrow', 'spectral_arrow', 'tipped_arrow', 'shield', 'trident', 'fishing_rod', 'shears', 'flint_and_steel', 'carrot_on_a_stick', 'warped_fungus_on_a_stick', 'brush', 'spyglass', 'compass', 'clock', 'recovery_compass', 'lead', 'wolf_armor', 'mace', 'leather_horse_armor']);
+  const REDSTONE = /redstone|repeater|comparator|piston|observer|dispenser|dropper|hopper|lever|_button$|pressure_plate|tripwire|daylight_detector|^target$|note_block|lightning_rod|sculk_sensor|crafter|^tnt$|lectern|trapped_chest|_door$|_trapdoor$|fence_gate|copper_bulb/;
+  const BUILD_MODELS = new Set(['cube', 'slab', 'stairs', 'wall', 'pillar', 'column', 'log', 'glass', 'pane']);
+  const catCache = new Map();
+  function category(r) {
+    if (catCache.has(r.r)) return catCache.get(r.r);
+    const it = ITEMS[IID[r.r]], n = r.r; let c = 'misc';
+    if (REDSTONE.test(n)) c = 'redstone';
+    else if (it && (it.tool || it.armor || EQUIP.has(n))) c = 'equipment';
+    else if (BID[n] !== undefined && (BUILD_MODELS.has(BLOCKS[BID[n]].model) || /_planks$|_bricks?$|_tiles$|_slab$|_stairs$|_wall$|^(cut_|chiseled_|polished_|smooth_)|_concrete_powder$|terracotta$|_wool$|glass$/.test(n)) && !/^(crafting_table|furnace|chest|barrel|smoker|blast_furnace|loom|cartography_table|fletching_table|smithing_table|stonecutter|grindstone|composter|beehive|bookshelf|jukebox|enchanting_table|beacon|anvil|ender_chest|respawn_anchor|lodestone|conduit|campfire|soul_campfire)$/.test(n)) c = 'building';
+    catCache.set(r.r, c); return c;
+  }
+  const TABS = [['all', 'compass', 'Search'], ['equipment', 'iron_axe', 'Equipment'], ['building', 'bricks', 'Building Blocks'], ['misc', 'lava_bucket', 'Miscellaneous'], ['redstone', 'redstone', 'Redstone']];
   function render(scr) {
     if (!panel) return;
     const size = scr.grid ? scr.grid.w : 3;
     const all = Recipes.list.filter(r => !(r.s && (r.s.length > size || r.s[0].length > size)) && !(r.i && r.i.length > size * size));
-    // recipes you know: anything you have at least one ingredient for
-    const known = all.filter(r => (r.s ? r.s.flat() : r.i).some(c => c && (Recipes.tagMembers(c) || [c]).some(o => IID[o] !== undefined && Game.player.inv.count(IID[o]) > 0)));
+    // recipes you know: anything you have at least one ingredient for (or, searching, everything)
+    const q = query.trim().toLowerCase();
+    const known = all.filter(r => q || (r.s ? r.s.flat() : r.i).some(c => c && (Recipes.tagMembers(c) || [c]).some(o => IID[o] !== undefined && Game.player.inv.count(IID[o]) > 0)));
     const seen = new Set(), list = [];
-    for (const r of known) { if (seen.has(r.r)) continue; seen.add(r.r); const ok = craftable(r, size); if (filterCraftable && !ok) continue; list.push([r, ok]); }
+    for (const r of known) {
+      if (seen.has(r.r)) continue;
+      if (tab !== 'all' && category(r) !== tab) continue;
+      if (q && !itemName(stack(r.r)).toLowerCase().includes(q)) continue;
+      seen.add(r.r); const ok = craftable(r, size); if (filterCraftable && !ok) continue; list.push([r, ok]);
+    }
     list.sort((a, b) => b[1] - a[1]);
     const per = 20, pages = Math.max(1, Math.ceil(list.length / per)); if (page >= pages) page = 0;
     const S = GUI.S;
-    let h = `<div class="glabel" style="left:${8 * S}px;top:${6 * S}px">Recipe Book</div><div class="rbfilter${filterCraftable ? ' on' : ''}" style="left:${100 * S}px;top:${4 * S}px">${filterCraftable ? 'Craftable' : 'All'}</div><div class="rbgrid" style="left:${11 * S}px;top:${22 * S}px">`;
+    let h = `<input class="rbsearch" placeholder="Search..." value="${escapeHTML(query)}" style="left:${8 * S}px;top:${6 * S}px;width:${82 * S}px">`;
+    h += `<div class="rbfilter${filterCraftable ? ' on' : ''}" title="${filterCraftable ? 'Showing Craftable' : 'Showing All'}" style="left:${95 * S}px;top:${5 * S}px">${filterCraftable ? 'Craftable' : 'All'}</div><div class="rbgrid" style="left:${11 * S}px;top:${22 * S}px">`;
     for (const [r, ok] of list.slice(page * per, page * per + per)) h += `<div class="rbitem${ok ? '' : ' no'}" data-r="${Recipes.list.indexOf(r)}">${iconHTML(stack(r.r, r.n))}</div>`;
-    h += `</div><div class="glabel" style="left:${55 * S}px;top:${146 * S}px">${page + 1}/${pages}</div><div class="rbprev" style="left:${30 * S}px;top:${144 * S}px">&lt;</div><div class="rbnext" style="left:${95 * S}px;top:${144 * S}px">&gt;</div>`;
+    h += `</div>${list.length ? '' : `<div class="glabel rbempty" style="left:0;top:${70 * S}px;width:${147 * S}px">${q ? 'Nothing found' : 'No recipes yet'}</div>`}<div class="glabel" style="left:${55 * S}px;top:${146 * S}px">${page + 1}/${pages}</div><div class="rbprev" style="left:${30 * S}px;top:${144 * S}px">&lt;</div><div class="rbnext" style="left:${95 * S}px;top:${144 * S}px">&gt;</div>`;
+    h += `<div class="rbtabs">${TABS.map(([id, icon, label]) => `<div class="rbtab${tab === id ? ' on' : ''}" data-tab="${id}" title="${label}">${iconHTML(stack(icon))}</div>`).join('')}</div>`;
     panel.innerHTML = h;
+    const inp = panel.querySelector('.rbsearch');
+    inp.onkeydown = e => e.stopPropagation(); inp.onkeyup = e => e.stopPropagation(); inp.onmousedown = e => e.stopPropagation();
+    inp.oninput = () => { query = inp.value; page = 0; const pos = inp.selectionStart; render(scr); const n = panel.querySelector('.rbsearch'); n.focus(); n.setSelectionRange(pos, pos); };
     panel.querySelector('.rbfilter').onmousedown = e => { e.stopPropagation(); filterCraftable = !filterCraftable; render(scr); };
     panel.querySelector('.rbprev').onmousedown = e => { e.stopPropagation(); page = (page - 1 + pages) % pages; render(scr); };
     panel.querySelector('.rbnext').onmousedown = e => { e.stopPropagation(); page = (page + 1) % pages; render(scr); };
+    for (const el of panel.querySelectorAll('.rbtab')) el.onmousedown = e => { e.stopPropagation(); tab = el.dataset.tab; page = 0; Sound.ui(); render(scr); };
     for (const el of panel.querySelectorAll('.rbitem')) {
       const r = Recipes.list[+el.dataset.r];
       el.onmousedown = e => { e.stopPropagation(); fill(scr, r, e.shiftKey); render(scr); Screens.render(); };
       el.onmouseenter = () => Slots.showTip(stack(r.r, r.n)); el.onmouseleave = () => Slots.hideTip();
     }
   }
-  // move ingredients from the inventory into the grid to match the recipe (shift: as many as possible)
+  // move ingredients from the inventory into the grid to match the recipe (shift: as many as possible); a recipe
+  // you can't make yet shows as a ghost in the grid instead, like the game
   function fill(scr, r, max) {
     if (!scr.grid) return;
     const g = scr.grid, w = g.w;
@@ -501,8 +532,9 @@ const RecipeBook = (() => {
     const cells = new Array(w * w).fill(null);
     if (r.s) for (let y = 0; y < r.s.length; y++) for (let x = 0; x < r.s[y].length; x++) cells[x + y * w] = r.s[y][x];
     else r.i.forEach((c, k) => { cells[k] = c; });
-    let times = 1;
-    if (max) times = 64;
+    if (!craftable(r, w)) { g.update(); scr.ghost = { cells: cells.map(c => c && (Recipes.tagMembers(c) || [c]).find(o => IID[o] !== undefined)), result: r.r, n: r.n }; return; }
+    scr.ghost = null;
+    const times = max ? 64 : 1;
     for (let t = 0; t < times; t++) {
       let ok = true;
       for (let k = 0; k < cells.length; k++) {
