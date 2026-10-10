@@ -20,6 +20,7 @@ Then click **Singleplayer → Create New World**. You can pick:
 - the game mode: Survival, Hardcore, Creative or Spectator;
 - the difficulty;
 - the world type: Default or Superflat;
+- how common structures are: More Common (the default, about four times as many) or Normal (the game's own spacing);
 - a seed.
 
 Worlds save to the browser automatically. **Save and Quit** keeps your progress.
@@ -97,6 +98,7 @@ To rebuild the single file after changing the code, run `python3 tools/build_sin
 - **Art and sound.** Textures, models, sounds and music are recreated in code, so they look and sound close to the game but not identical.
 - **Single player only.** There is no multiplayer, Realms, resource packs or data packs.
 - **Approximate generation.** Structure layouts are drawn in code in the style of the game's rather than from its template files.
+- **Structure spacing.** New worlds use More Common structures unless you pick Normal.
 
 ## Project layout
 

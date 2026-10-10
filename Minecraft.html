@@ -2373,6 +2373,17 @@ SHARED.push(function structuresModule(G) {
   function place(gen, w, cx, cz) { for (const p of plansNear('overworld', gen, cx, cz)) apply(p, w, cx, cz); }
   function placeNether(gen, w, cx, cz) { for (const p of plansNear('nether', gen, cx, cz)) apply(p, w, cx, cz); }
   function placeEnd(gen, w, cx, cz) { for (const p of plansNear('end', gen, cx, cz)) apply(p, w, cx, cz); }
+  // how close together structures are: 1 is the game's spacing; 0.5 halves the grid (about four times as many).
+  // Structures placed one per chunk by chance (buried treasure, desert wells) and strongholds keep their own rules
+  function setDensity(f) {
+    f = f || 1; G.Structures.density = f;
+    for (const s of TYPES) {
+      if (s.custom || !s.spacing || s.spacing <= 1) continue;
+      if (s.baseSpacing === undefined) { s.baseSpacing = s.spacing; s.baseSep = s.sep; }
+      s.spacing = Math.max(4, Math.round(s.baseSpacing * f)); s.sep = Math.max(1, Math.min(s.spacing - 2, Math.round(s.baseSep * f)));
+    }
+    cache.clear();
+  }
   // the nearest structure of a kind (for eyes of ender, maps and /locate): searches outward ring by ring
   function locate(name, gen, x, z, maxChunks) {
     const s = TYPES.find(t => t.name === name); if (!s) return null;
@@ -2660,7 +2671,7 @@ SHARED.push(function structuresModule(G) {
       return p;
     } });
 
-  G.StructureGen = G.Structures = { treeless, place, placeNether, placeEnd, locate, at, plansNear, reg, Plan, apply, rotState, biomeAt, heightAt, ground, dry, isOcean, TYPES, startOf, Models_POT, replaceable };
+  G.StructureGen = G.Structures = { setDensity, treeless, place, placeNether, placeEnd, locate, at, plansNear, reg, Plan, apply, rotState, biomeAt, heightAt, ground, dry, isOcean, TYPES, startOf, Models_POT, replaceable };
 });
 
 </script>
@@ -2800,7 +2811,16 @@ SHARED.push(function villageModule(G) {
   function lampPost(p, st) { p.fill(0, 1, 0, 0, 2, 0, st.fence); p.set(0, 3, 0, st.base === B.sandstone ? B.cut_sandstone : B.white_wool); p.set(0, 4, 0, B.torch); }
 
   // ---------------------------------------------------------------- the village
-  function buildVillage(gen, r, x, z) {
+  // with More Common structures a village may move up to 24 blocks to stand in a village biome
+  const OFFS = [[0, 0], [16, 0], [-16, 0], [0, 16], [0, -16], [16, 16], [-16, 16], [16, -16], [-16, -16], [24, 0], [-24, 0], [0, 24], [0, -24]];
+  function villageSpot(gen, x, z) {
+    const offs = (S.density || 1) < 1 ? OFFS : OFFS.slice(0, 1);
+    for (const [ox, oz] of offs) if (STYLE_OF[biomeAt(gen, x + ox, z + oz)] && (gen.flat || heightAt(gen, x + ox, z + oz) >= SEA)) return [x + ox, z + oz];
+    return null;
+  }
+  function buildVillage(gen, r, x0, z0) {
+    const spot = villageSpot(gen, x0, z0); if (!spot) return null;
+    const [x, z] = spot;
     const styleName = STYLE_OF[biomeAt(gen, x, z)]; if (!styleName) return null;
     const st = STYLE[styleName], h0 = heightAt(gen, x, z);
     if (h0 < SEA && !gen.flat) return null;
@@ -2871,8 +2891,8 @@ SHARED.push(function villageModule(G) {
     p.box(-48, h0 - 10, -48, 48, h0 + 20, 48, 'village');
     return p;
   }
-  S.reg({ name: 'village', dim: 'overworld', spacing: 34, sep: 8, salt: 10387312, reach: 4, flatOk: true,
-    check: (gen, x, z) => !!STYLE_OF[biomeAt(gen, x, z)],
+  S.reg({ name: 'village', dim: 'overworld', spacing: 34, sep: 8, salt: 10387312, reach: 5, flatOk: true,
+    check: (gen, x, z) => !!villageSpot(gen, x, z),
     build: buildVillage });
   G.VillageStyles = STYLE;
 });
@@ -3665,13 +3685,13 @@ const Tex = (() => {
   const layers = [], index = {}, painters = {};
   const H = h => [(h >> 16) & 255, (h >> 8) & 255, h & 255];
   const mixc = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-  const mul = (c, f) => [c[0] * f, c[1] * f, c[2] * f];
+  const mul = (c, f) => [Math.min(255, c[0] * f), Math.min(255, c[1] * f), Math.min(255, c[2] * f)]; // clamped: bright rims must not wrap around to dark
   const cl01 = v => v < 0 ? 0 : v > 0.9999 ? 0.9999 : v;
   const pick = (pal, t) => H(pal[Math.floor(cl01(t) * pal.length)]);
   function hashName(name) { let h = 7; for (const ch of name) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; }
 
   function ctx(name, frame) {
-    const data = new Uint8Array(1024), seed = hashName(name) % 100003;
+    const data = new Uint8ClampedArray(1024), seed = hashName(name) % 100003;
     let rs = (hashName(name) + (frame || 0) * 7919) % 2147483646 + 1;
     const c = {
       data, frame: frame || 0, mask: false,
@@ -5590,7 +5610,7 @@ const World = {
   },
   unload(c) {
     for (const f of this.listeners.chunkUnloaded) f(c);
-    for (const m of c.meshes) if (m) Render.disposeSection(m);
+    Render.disposeChunk(c);
     this.chunks.delete(ckey(c.cx, c.cz));
   },
   // ---------------------------------------------------------------- block access
@@ -5643,6 +5663,10 @@ const World = {
     state = state || 0;
     if (old === id && oldState === state) return false;
     c.blocks[i] = id; c.states[i] = state; c.modified = true;
+    // a log taken away: the leaves around it start checking whether they still hang on to a tree
+    if (typeof Leaves !== 'undefined' && Leaves.LOG[old] && !Leaves.LOG[id]) Leaves.logRemoved(x, y, z);
+    // a tickable block put in: the section is looked at again by random ticks
+    if (c.tickable && TICKS[id]) c.tickable[(y + 64) >> 4] = 2;
     if (old !== id && c.be.has(i) && !(flags & 4)) c.be.delete(i);
     const lx = x & 15, lz = z & 15;
     if (OPACITY[old] !== OPACITY[id] || SOLID[old] !== SOLID[id] || LIGHT[old] !== LIGHT[id] || (LIGHT[id] && BLOCKS[id].lightFn) || (LIGHT[old] && BLOCKS[old].lightFn)) {
@@ -5670,7 +5694,7 @@ function workerMain() {
   let gens = null;
   self.onmessage = e => {
     const m = e.data;
-    if (m.type === 'init') { gens = { overworld: new self.Overworld(m.seed, m.opts), nether: new self.Nether(m.seed), end: new self.End(m.seed) }; return; }
+    if (m.type === 'init') { if (self.Structures) self.Structures.setDensity(m.opts && m.opts.density); gens = { overworld: new self.Overworld(m.seed, m.opts), nether: new self.Nether(m.seed), end: new self.End(m.seed) }; return; }
     if (m.type === 'gen') {
       const o = gens[m.dim].generate(m.cx, m.cz);
       const tr = [o.blocks.buffer, o.states.buffer, o.biomes.buffer, o.heights.buffer]; if (o.cave) tr.push(o.cave.buffer);
@@ -5781,16 +5805,21 @@ const Light = (() => {
     const sides = [[-1, 0], [1, 0], [0, -1], [0, 1]];
     for (const [dx, dz] of sides) {
       const n = World.getChunk(c.cx + dx, c.cz + dz); if (!n || !n.lit) continue;
+      // sky light above the ground on both sides is already full and has nothing to spread
       for (let k = 0; k < 16; k++) {
         const lx = dx === -1 ? 15 : dx === 1 ? 0 : k, lz = dz === -1 ? 15 : dz === 1 ? 0 : k;
+        const ox = dx === -1 ? 0 : dx === 1 ? 15 : k, oz = dz === -1 ? 0 : dz === 1 ? 15 : k;
+        const top = sky ? Math.min(MAXY, Math.max(n.height[lx + lz * 16], c.height[ox + oz * 16]) + 1) : MAXY;
         const wx = n.cx * 16 + lx, wz = n.cz * 16 + lz;
-        for (let y = MINY; y <= MAXY; y++) { const l = (n.light[LIDX(lx, y, lz)] & mask) >> sh; if (l > 1) push(wx, y, wz, l); }
+        for (let y = MINY; y <= top; y++) { const l = (n.light[LIDX(lx, y, lz)] & mask) >> sh; if (l > 1) push(wx, y, wz, l); }
       }
       // our edge spreads into them too
       for (let k = 0; k < 16; k++) {
         const lx = dx === -1 ? 0 : dx === 1 ? 15 : k, lz = dz === -1 ? 0 : dz === 1 ? 15 : k;
+        const ox = dx === -1 ? 15 : dx === 1 ? 0 : k, oz = dz === -1 ? 15 : dz === 1 ? 0 : k;
+        const top = sky ? Math.min(MAXY, Math.max(c.height[lx + lz * 16], n.height[ox + oz * 16]) + 1) : MAXY;
         const wx = c.cx * 16 + lx, wz = c.cz * 16 + lz;
-        for (let y = MINY; y <= MAXY; y++) { const l = (c.light[LIDX(lx, y, lz)] & mask) >> sh; if (l > 1) push(wx, y, wz, l); }
+        for (let y = MINY; y <= top; y++) { const l = (c.light[LIDX(lx, y, lz)] & mask) >> sh; if (l > 1) push(wx, y, wz, l); }
       }
     }
   }
@@ -7134,10 +7163,20 @@ const Clouds = (() => {
 // ---------------------------------------------------------------- the world's meshes
 const Render = {
   meshQueue: [], built: 0,
+  // the solid and cut-out faces of each stack of four sections (64 blocks) are drawn as one mesh each: a quarter of
+  // the draw calls, still small enough to be culled when out of view; see-through faces (water, glass, ice) stay
+  // one mesh per section so they keep sorting by distance
   makeSection(c, sy, bufs) {
-    const objs = [];
-    for (let L = 0; L < 3; L++) {
-      const b = bufs[L]; if (!b.n) { objs.push(null); continue; }
+    const objs = [null, null, null];
+    if (!c.secBufs) c.secBufs = new Array(16).fill(null);
+    c.secBufs[sy] = null;
+    for (let L = 0; L < 2; L++) {
+      const b = bufs[L]; if (!b.n) continue;
+      (c.secBufs[sy] || (c.secBufs[sy] = [null, null]))[L] = { p: b.p.slice(0, b.n * 3), uv: b.uv.slice(0, b.n * 4), li: b.li.slice(0, b.n * 4), co: b.co.slice(0, b.n * 4), ix: b.ix.slice(0, b.ni), n: b.n, ni: b.ni };
+    }
+    c.grpDirty = (c.grpDirty || 0) | (1 << (sy >> 2));
+    const b = bufs[2];
+    if (b.n) {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.BufferAttribute(b.p.slice(0, b.n * 3), 3));
       g.setAttribute('aUV', new THREE.BufferAttribute(b.uv.slice(0, b.n * 4), 4));
@@ -7145,16 +7184,55 @@ const Render = {
       g.setAttribute('aColor', new THREE.BufferAttribute(b.co.slice(0, b.n * 4), 4, true));
       g.setIndex(new THREE.BufferAttribute(b.n > 65535 ? b.ix.slice(0, b.ni) : new Uint16Array(b.ix.subarray(0, b.ni)), 1));
       g.boundingSphere = new THREE.Sphere(new THREE.Vector3(8, 8, 8), 14);
-      const m = new THREE.Mesh(g, MATS[L]);
+      const m = new THREE.Mesh(g, MATS[2]);
       m.position.set(c.cx * 16, sy * 16 - 64, c.cz * 16);
-      m.matrixAutoUpdate = false; m.updateMatrix();
-      if (L === 2) m.renderOrder = 2;
-      scene.add(m); objs.push(m);
+      m.matrixAutoUpdate = false; m.updateMatrix(); m.renderOrder = 2;
+      scene.add(m); objs[2] = m;
     }
-    return objs;
+    // a section with nothing in it stays null (block ticking skips those)
+    return objs[2] || c.secBufs[sy] ? objs : null;
+  },
+  // join the section buffers of each changed stack into one mesh per layer
+  buildColumn(c) {
+    const dirty = c.grpDirty || 0; c.grpDirty = 0;
+    if (!c.grpMesh) c.grpMesh = [[null, null], [null, null], [null, null], [null, null]];
+    for (let gi = 0; gi < 4; gi++) {
+      if (!(dirty & (1 << gi))) continue;
+      for (let L = 0; L < 2; L++) {
+        let n = 0, ni = 0, lo = 99, hi = -1;
+        for (let s = gi * 4; s < gi * 4 + 4; s++) { const q = c.secBufs && c.secBufs[s] && c.secBufs[s][L]; if (q) { n += q.n; ni += q.ni; lo = Math.min(lo, s); hi = Math.max(hi, s); } }
+        const old = c.grpMesh[gi][L];
+        if (!n) { if (old) { scene.remove(old); old.geometry.dispose(); c.grpMesh[gi][L] = null; } continue; }
+        const P = new Float32Array(n * 3), UV = new Float32Array(n * 4), LI = new Uint8Array(n * 4), CO = new Uint8Array(n * 4), IX = n > 65535 ? new Uint32Array(ni) : new Uint16Array(ni);
+        let vo = 0, io = 0;
+        for (let s = gi * 4; s < gi * 4 + 4; s++) {
+          const q = c.secBufs && c.secBufs[s] && c.secBufs[s][L]; if (!q) continue;
+          const yo = (s - gi * 4) * 16;
+          for (let i = 0; i < q.n; i++) { P[(vo + i) * 3] = q.p[i * 3]; P[(vo + i) * 3 + 1] = q.p[i * 3 + 1] + yo; P[(vo + i) * 3 + 2] = q.p[i * 3 + 2]; }
+          UV.set(q.uv, vo * 4); LI.set(q.li, vo * 4); CO.set(q.co, vo * 4);
+          for (let i = 0; i < q.ni; i++) IX[io + i] = q.ix[i] + vo;
+          vo += q.n; io += q.ni;
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(P, 3));
+        g.setAttribute('aUV', new THREE.BufferAttribute(UV, 4));
+        g.setAttribute('aLight', new THREE.BufferAttribute(LI, 4, true));
+        g.setAttribute('aColor', new THREE.BufferAttribute(CO, 4, true));
+        g.setIndex(new THREE.BufferAttribute(IX, 1));
+        const y0 = (lo - gi * 4) * 16, y1 = (hi - gi * 4 + 1) * 16;
+        g.boundingSphere = new THREE.Sphere(new THREE.Vector3(8, (y0 + y1) / 2, 8), Math.hypot(8, 8, (y1 - y0) / 2) + 0.5);
+        if (old) { old.geometry.dispose(); old.geometry = g; }
+        else { const m = new THREE.Mesh(g, MATS[L]); m.position.set(c.cx * 16, gi * 64 - 64, c.cz * 16); m.matrixAutoUpdate = false; m.updateMatrix(); scene.add(m); c.grpMesh[gi][L] = m; }
+      }
+    }
   },
   disposeSection(objs) { for (const m of objs) if (m) { scene.remove(m); m.geometry.dispose(); } },
-  // rebuild dirty sections, nearest first, within a time budget
+  disposeChunk(c) {
+    for (const m of c.meshes) if (m) Render.disposeSection(m);
+    if (c.grpMesh) for (const gm of c.grpMesh) for (const m of gm) if (m) { scene.remove(m); m.geometry.dispose(); }
+    c.grpMesh = null; c.secBufs = null; c.grpDirty = 0;
+  },
+  // rebuild dirty sections, nearest first, within a time budget; then rejoin the columns that changed
   updateMeshes(px, pz, budgetMs) {
     const t0 = performance.now();
     const pcx = Math.floor(px / 16), pcz = Math.floor(pz / 16), py = Math.floor((camera.position.y + 64) / 16);
@@ -7173,19 +7251,23 @@ const Render = {
     }
     list.sort((a, b) => a[0] - b[0]);
     let n = 0;
-    for (const [, c] of list) {
+    const touched = [];
+    outer: for (const [, c] of list) {
       const order = [];
       for (let s = 0; s < 16; s++) if (c.dirty[s]) order.push(s);
       order.sort((a, b) => Math.abs(a - py) - Math.abs(b - py));
+      touched.push(c);
       for (const s of order) {
         c.dirty[s] = 0;
         const bufs = Mesher.mesh(c, s);
         if (c.meshes[s]) Render.disposeSection(c.meshes[s]);
-        c.meshes[s] = bufs ? this.makeSection(c, s, bufs) : null;
+        if (bufs) c.meshes[s] = this.makeSection(c, s, bufs);
+        else { c.meshes[s] = null; if (c.secBufs && c.secBufs[s]) { c.secBufs[s] = null; c.grpDirty = (c.grpDirty || 0) | (1 << (s >> 2)); } }
         n++;
-        if (performance.now() - t0 > budgetMs) return n;
+        if (performance.now() - t0 > budgetMs) break outer;
       }
     }
+    for (const c of touched) if (c.grpDirty) this.buildColumn(c);
     return n;
   },
 };
@@ -8553,6 +8635,8 @@ const Place = (() => {
 'use strict';
 /* Scheduled block ticks (fluids, redstone, falling blocks) and random ticks (crops, grass, leaves, ice...):
    every tick each 16x16x16 section near the player gets "randomTickSpeed" (3) random block ticks. */
+// the blocks that take random ticks, by id
+const TICKS = new Uint8Array(BLOCKS.length); for (const d of BLOCKS) if (d.ticks && d.name !== 'water') TICKS[d.id] = 1; // water doesn't random-tick in the game
 const Ticks = (() => {
   const sched = new Map(); // key -> { x, y, z, at, id }
   let now = 0;
@@ -8566,15 +8650,28 @@ const Ticks = (() => {
     const k = key(x, y, z) + (water ? 'w' : ''), at = now + Math.max(1, delay | 0);
     const cur = sched.get(k);
     if (cur && cur.at <= at) return;
-    sched.set(k, { x, y, z, at, dim: World.dim, id: id === undefined ? World.getBlock(x, y, z) : id, pri: pri || 0, seq: seq++, water });
+    const t = { x, y, z, at, dim: World.dim, id: id === undefined ? World.getBlock(x, y, z) : id, pri: pri || 0, seq: seq++, water, k };
+    sched.set(k, t); bucket(t);
   }
+  // the ticks waiting for each game tick, so a tick only looks at what is due
+  const byTime = new Map();
+  function bucket(t) { let b = byTime.get(t.at); if (!b) byTime.set(t.at, b = []); b.push(t); }
   function has(x, y, z) { return sched.has(key(x, y, z)); }
   function tick() {
     now++;
     // scheduled ticks that are due (at most a few thousand per tick)
     let n = 0;
     const due = [];
-    for (const [k, t] of sched) { if (t.at <= now && t.dim === World.dim) { due.push(t); sched.delete(k); if (++n > 4000) break; } }
+    for (const [at, b] of byTime) {
+      if (at > now) continue;
+      byTime.delete(at);
+      for (const t of b) {
+        if (sched.get(t.k) !== t) continue; // replaced by an earlier one
+        // another dimension's ticks wait; past the per-tick limit the rest wait for the next tick
+        if (t.dim !== World.dim || n > 4000) { t.at = now + (t.dim !== World.dim ? 20 : 1); bucket(t); continue; }
+        due.push(t); sched.delete(t.k); n++;
+      }
+    }
     due.sort((a, b) => a.at - b.at || a.pri - b.pri || a.seq - b.seq);
     for (const t of due) { if (!World.loaded(t.x, t.z)) continue; const id = World.getBlock(t.x, t.y, t.z); Blocks.scheduledTick(t.x, t.y, t.z, id, World.getState(t.x, t.y, t.z), t.water); }
     // random ticks around the player
@@ -8584,18 +8681,22 @@ const Ticks = (() => {
     for (const c of World.chunks.values()) {
       if (Math.abs(c.cx - pcx) > R || Math.abs(c.cz - pcz) > R) continue;
       c.inhabited++;
+      // sections are scanned once for anything that random-ticks (crops, saplings, grass, ice, leaves...);
+      // the rest (most of the stone underground) are skipped, like the game's per-section ticking count
+      const tk = c.tickable || (c.tickable = new Uint8Array(16));
       for (let s = 0; s < 16; s++) {
-        if (!c.meshes[s] && !c.dirty[s]) continue; // empty sections
+        if (!tk[s]) { let any = 1; const b = c.blocks, i0 = s << 12; for (let i = i0; i < i0 + 4096; i++) if (TICKS[b[i]]) { any = 2; break; } tk[s] = any; }
+        if (tk[s] === 1) continue;
         for (let k = 0; k < speed; k++) {
           const r = Math.random() * 4096 | 0, lx = r & 15, lz = (r >> 4) & 15, ly = r >> 8;
           const i = ((s * 16 + ly) << 8) | (lz << 4) | lx, id = c.blocks[i];
-          if (id && BLOCKS[id].ticks) Blocks.randomTick(c.cx * 16 + lx, s * 16 + ly - 64, c.cz * 16 + lz, id, c.states[i]);
+          if (TICKS[id]) Blocks.randomTick(c.cx * 16 + lx, s * 16 + ly - 64, c.cz * 16 + lz, id, c.states[i]);
         }
       }
     }
   }
   function save() { const out = []; for (const t of sched.values()) out.push([t.dim, t.x, t.y, t.z, t.at - now, t.pri, t.water ? 1 : 0]); return out; }
-  function load(arr) { sched.clear(); for (const [dim, x, y, z, d, pri, w] of arr || []) sched.set(dim + ':' + x + ',' + y + ',' + z + (w ? 'w' : ''), { x, y, z, at: now + Math.max(1, d), dim, pri: pri || 0, seq: seq++, water: !!w }); }
+  function load(arr) { sched.clear(); byTime.clear(); for (const [dim, x, y, z, d, pri, w] of arr || []) { const k = dim + ':' + x + ',' + y + ',' + z + (w ? 'w' : ''), t = { x, y, z, at: now + Math.max(1, d), dim, pri: pri || 0, seq: seq++, water: !!w, k }; sched.set(k, t); bucket(t); } }
   return { schedule, has, tick, save, load, get now() { return now; } };
 })();
 
@@ -8909,7 +9010,7 @@ const Blocks = (() => {
       case 'fire': return;
     }
     if (n.endsWith('_sapling') || n === 'mangrove_propagule') { if (light >= 9 && Math.random() < 1 / 7) growSapling(x, y, z, id, st); return; }
-    if (n.endsWith('_leaves')) { if (!(st & 8)) Leaves.check(x, y, z, id); return; }
+    if (n.endsWith('_leaves')) { if (!(st & 8)) Leaves.randomTick(x, y, z, id); return; }
   }
   function waterNear(x, y, z, r) { for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) for (let dy = 0; dy <= 1; dy++) { const b = World.getBlock(x + dx, y + dy, z + dz); if (BLOCKS[b].fluid === 'water' || BLOCKS[b].fluidLog || (BLOCKS[b].waterlog && World.getState(x + dx, y + dy, z + dz) & 128)) return true; } return false; }
   // the crop growth chance from the farmland around it (the game's getGrowthSpeed)
@@ -13212,7 +13313,17 @@ const Leaves = (() => {
     decay(x, y, z, id);
   }
   function decay(x, y, z, id) { const st = World.getState(x, y, z); Drops.dropBlock(id, st, null, x, y, z); Blocks.remove(x, y, z, null, true); Particles.blockBreak(x, y, z, id, st); }
-  return { check, isLog };
+  // the game only random-ticks leaves cut off from their logs; here, leaves near a log that was taken away look
+  // every random tick (for 20 minutes), the rest one tick in 16, which still clears old floating leaves
+  const LOG = new Uint8Array(BLOCKS.length); for (const d of BLOCKS) if (isLog(d.id)) LOG[d.id] = 1;
+  const zones = [];
+  function logRemoved(x, y, z) { const now = Game.gameTime; for (let i = zones.length - 1; i >= 0; i--) if (zones[i][3] < now) zones.splice(i, 1); if (zones.length < 200) zones.push([x, y, z, now + 24000]); }
+  function randomTick(x, y, z, id) {
+    let near = false;
+    for (const zn of zones) if (Math.abs(zn[0] - x) <= 7 && Math.abs(zn[1] - y) <= 7 && Math.abs(zn[2] - z) <= 7 && zn[3] >= Game.gameTime) { near = true; break; }
+    if (near || Math.random() < 1 / 16) check(x, y, z, id);
+  }
+  return { check, isLog, LOG, logRemoved, randomTick };
 })();
 
 const Sponge = (() => {
@@ -19038,6 +19149,7 @@ const UI = (() => {
       if (tab === 'world') h += `${btn('World Type: ' + (d.type === 'flat' ? 'Superflat' : d.type === 'large' ? 'Large Biomes' : 'Default'), 'ctype')}
         <div class="mlabel">Seed for the World Generator</div><input class="minput" id="cSeed" value="${escapeHTML(d.seed || '')}" placeholder="Leave blank for a random seed">
         ${btn('Generate Structures: ' + (d.structures === false ? 'OFF' : 'ON'), 'cstruct')}<div class="mhint">Villages, dungeons etc.</div>
+        ${btn('Structures: ' + (d.density === 'normal' ? 'Normal' : 'More Common'), 'cdensity')}<div class="mhint">${d.density === 'normal' ? 'The same spacing as the game' : 'About four times as many as the game'}</div>
         ${btn('Bonus Chest: ' + (d.bonus ? 'ON' : 'OFF'), 'cbonus')}`;
       if (tab === 'more') h += `${btn('Game Rules', 'none', { off: true })}${btn('Data Packs', 'none', { off: true })}${btn('Experiments', 'none', { off: true })}`;
       return h + `</div><div class="mbottom"><div class="mrow">${btn('Create New World', 'docreate', { w: 150 })}${btn('Cancel', 'single', { w: 150 })}</div></div>`;
@@ -19117,18 +19229,19 @@ const UI = (() => {
       case 'quit': show('confirm', { title: 'Quit Game?', text: 'You can close this browser tab to quit.', yes: 'OK', no: 'Back' }); confirmFn = () => show('title'); break;
       case 'back': show('title'); break;
       case 'video': case 'controls': case 'sounds': case 'access': show(a); break;
-      case 'create': createData = { name: 'New World', mode: 'survival', difficulty: 'normal', cheats: false, seed: '', structures: true, type: 'default' }; show('create', createData); break;
+      case 'create': createData = { name: 'New World', mode: 'survival', difficulty: 'normal', cheats: false, seed: '', structures: true, density: 'more', type: 'default' }; show('create', createData); break;
       case 'cmode': readCreate(); createData.mode = { survival: 'hardcore', hardcore: 'creative', creative: 'survival' }[createData.mode]; if (createData.mode === 'creative') createData.cheats = true; if (createData.mode === 'hardcore') createData.cheats = false; show('create', createData); break;
       case 'cdiff': readCreate(); if (createData.mode === 'hardcore') break; createData.difficulty = { peaceful: 'easy', easy: 'normal', normal: 'hard', hard: 'peaceful' }[createData.difficulty]; show('create', createData); break;
       case 'ccheats': readCreate(); if (createData.mode === 'hardcore') break; createData.cheats = !createData.cheats; show('create', createData); break;
       case 'cstruct': readCreate(); createData.structures = !createData.structures; show('create', createData); break;
+      case 'cdensity': readCreate(); createData.density = createData.density === 'normal' ? 'more' : 'normal'; show('create', createData); break;
       case 'cbonus': readCreate(); createData.bonus = !createData.bonus; show('create', createData); break;
       case 'ctype': readCreate(); createData.type = { default: 'flat', flat: 'large', large: 'default' }[createData.type]; show('create', createData); break;
       case 'docreate': readCreate(); await createWorld(createData); break;
       case 'play': if (selected) await playWorld(selected); break;
       case 'delete': if (selected) { const s = selected; show('confirm', { title: 'Are you sure you want to delete this world?', text: `'${escapeHTML(s.name)}' will be lost forever! (A long time!)`, yes: 'Delete' }); confirmFn = async () => { await Save.deleteWorld(s.id); selected = null; show('single'); }; } break;
       case 'rename': if (selected) { const n = prompt('World name', selected.name); if (n) { selected.name = n; await Save.putMeta(selected); show('single'); } } break;
-      case 'recreate': if (selected) { createData = { name: selected.name + ' (copy)', mode: selected.hardcore ? 'hardcore' : selected.gamemode, difficulty: selected.difficulty, cheats: selected.cheats, seed: String(selected.seed), structures: selected.structures !== false, type: selected.type || 'default' }; show('create', createData); } break;
+      case 'recreate': if (selected) { createData = { name: selected.name + ' (copy)', mode: selected.hardcore ? 'hardcore' : selected.gamemode, difficulty: selected.difficulty, cheats: selected.cheats, seed: String(selected.seed), structures: selected.structures !== false, density: selected.density === 0.5 ? 'more' : 'normal', type: selected.type || 'default' }; show('create', createData); } break;
       case 'cyes': if (confirmFn) { const f = confirmFn; confirmFn = null; await f(); } break;
       case 'cno': show(page === 'confirm' && optionsFrom === 'pause' && game ? 'pause' : 'single'); break;
       case 'resume': resume(); break;
@@ -19169,7 +19282,7 @@ const UI = (() => {
   }
   async function createWorld(d) {
     const seed = d.seed.trim() ? seedFromText(d.seed) : (Math.random() * 4294967296 | 0) - 2147483648;
-    const meta = { id: 'w' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36), name: d.name || 'New World', seed, gamemode: d.mode === 'hardcore' ? 'survival' : d.mode, hardcore: d.mode === 'hardcore', difficulty: d.mode === 'hardcore' ? 'hard' : d.difficulty, cheats: d.cheats, structures: d.structures !== false, bonus: !!d.bonus, type: d.type || 'default', created: Date.now(), lastPlayed: Date.now() };
+    const meta = { id: 'w' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36), name: d.name || 'New World', seed, gamemode: d.mode === 'hardcore' ? 'survival' : d.mode, hardcore: d.mode === 'hardcore', difficulty: d.mode === 'hardcore' ? 'hard' : d.difficulty, cheats: d.cheats, structures: d.structures !== false, density: d.density === 'normal' ? 1 : 0.5, bonus: !!d.bonus, type: d.type || 'default', created: Date.now(), lastPlayed: Date.now() };
     await Save.putMeta(meta);
     startWorld(meta, null);
   }
@@ -19179,7 +19292,7 @@ const UI = (() => {
     meta.lastPlayed = Date.now(); Save.putMeta(meta);
     Save.begin(meta, state);
     Game.start({ id: meta.id, name: meta.name, seed: meta.seed, gamemode: state ? state.player.gamemode : meta.gamemode, hardcore: meta.hardcore, difficulty: state ? state.difficulty : meta.difficulty, cheats: meta.cheats,
-      dayTime: state ? state.dayTime : 0, gameTime: state ? state.gameTime : 0, rules: state ? state.rules : null, spawn: state ? state.spawn : null, player: state ? state.player : null, dim: state ? state.player.dim : 'overworld', worldType: meta.type, structures: meta.structures, bonus: meta.bonus && !state });
+      dayTime: state ? state.dayTime : 0, gameTime: state ? state.gameTime : 0, rules: state ? state.rules : null, spawn: state ? state.spawn : null, player: state ? state.player : null, dim: state ? state.player.dim : 'overworld', worldType: meta.type, structures: meta.structures, density: meta.density || 1, bonus: meta.bonus && !state });
     Sound.music && Sound.music('game');
   }
   // the loading screen stays until the chunks around the player are drawn
@@ -19292,7 +19405,9 @@ const Game = {
     if (opts.rules) Object.assign(this.rules, opts.rules);
     World.dim = opts.dim || 'overworld';
     this.worldType = opts.worldType || 'default'; this.structures = opts.structures !== false;
-    World.init(this.seed, { type: this.worldType, structures: this.structures });
+    // structure spacing: 0.5 for worlds made with More Common structures, the game's own for the rest
+    this.structDensity = opts.density || 1; if (self.StructureGen) self.StructureGen.setDensity(this.structDensity);
+    World.init(this.seed, { type: this.worldType, structures: this.structures, density: this.structDensity });
     Clouds.setSeed(this.seed);
     // the spawn point: a dry land column near 0,0
     if (opts.spawn) this.spawn = opts.spawn;
@@ -19310,7 +19425,7 @@ const Game = {
     if (!opts.player) { Weather.reset(); Stats.reset(); }
     UI.enterGame();
   },
-  stop() { this.running = false; EntityRender && EntityRender.clear(); Particles.clear(); BeaconBeams.clear(); Signs.clear(); Banners.clear(); Leads.clear(); Spawners.clear(); Pots.clear(); GameEvents.clear(); Trials.clear(); Raids.clear(); Archaeology.clear(); Dripstone.clear(); Creatures.clear(); for (const d in World.dims) { for (const c of World.dims[d].values()) for (const m of c.meshes) if (m) Render.disposeSection(m); World.dims[d].clear(); } Entities.list.length = 0; },
+  stop() { this.running = false; EntityRender && EntityRender.clear(); Particles.clear(); BeaconBeams.clear(); Signs.clear(); Banners.clear(); Leads.clear(); Spawners.clear(); Pots.clear(); GameEvents.clear(); Trials.clear(); Raids.clear(); Archaeology.clear(); Dripstone.clear(); Creatures.clear(); for (const d in World.dims) { for (const c of World.dims[d].values()) Render.disposeChunk(c); World.dims[d].clear(); } Entities.list.length = 0; },
   // like the game, the player spawns on a grass or podzol surface (never on a tree) near the world spawn
   findSpawn(x0, z0) {
     const top = (x, z) => { let y = MAXY; while (y > MINY && (World.getBlock(x, y, z) === 0 || !SOLID[World.getBlock(x, y, z)] && !FLUID[World.getBlock(x, y, z)])) y--; return y; };
@@ -21558,17 +21673,29 @@ EntityRender = (() => {
     if (e.animState) e.animState(s, a);
     return s;
   }
+  // what the camera can see this frame
+  const frustum = new THREE.Frustum(), projView = new THREE.Matrix4(), sphere = new THREE.Sphere();
   function update(a) {
     const p = Game.player, R = (Settings.renderDist * 16) ** 2;
     const seen = new Set();
+    camera.updateMatrixWorld(); projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); frustum.setFromProjectionMatrix(projView);
+    const cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
     for (const e of Entities.list) {
       if (e.removed || e.invisible) continue;
-      if (p && e.dist2(p.x, p.y, p.z) > R) continue;
+      const d2 = (e.x - cx) ** 2 + (e.y - cy) ** 2 + (e.z - cz) ** 2;
+      if (d2 > R) continue;
       let v = vis.get(e);
       // a villager that takes a profession changes its clothes (a different model texture)
       if (v && e.model && v.name && v.name !== e.model) { v.dispose(); v = null; }
       if (!v) { v = make(e); vis.set(e, v); }
       seen.add(e);
+      // the game's render distance for entities: 64 blocks times the size of the box (at least 24), and only
+      // what is in view is posed and drawn
+      const w = e.w || 0.5, h = e.h || 0.5, far = Math.max(24, (w + h + w) / 3 * 64);
+      sphere.center.set(e.x, e.y + h / 2, e.z); sphere.radius = Math.max(w, h) + 1.5;
+      const show = d2 <= far * far && frustum.intersectsSphere(sphere);
+      if (v.obj) v.obj.visible = show;
+      if (!show) continue;
       v.update(a, animState(e, a));
     }
     // the player, when the camera is behind or in front
@@ -21602,9 +21729,13 @@ EntityRender = (() => {
     if (pr.domElement.parentNode !== el) { el.innerHTML = ''; el.appendChild(pr.domElement); }
     const w = el.clientWidth || 98, h = el.clientHeight || 140;
     pr.setSize(w, h, false);
-    // the player looks toward the mouse, like the game
-    const r = el.getBoundingClientRect(), mx = (window._mouseX || 0) - (r.left + r.width / 2), my = (window._mouseY || 0) - (r.top + r.height * 0.3);
-    const fake = pVis.e; fake.headYaw = fake.pheadYaw = -Math.atan(mx / 40) * 0.7; fake.bodyYaw = fake.pbodyYaw = -Math.atan(mx / 40) * 0.35; fake.pitch = fake.ppitch = Math.atan(my / 40) * 0.6;
+    // the player looks toward the mouse, like the game's renderEntityInInventoryFollowsMouse: from the middle of
+    // the box, atan(distance / 40 GUI pixels) turns the body 20 degrees, the head 40 and tilts it 20
+    previewEl = el;
+    const S = (typeof GUI !== 'undefined' && GUI.S) || 2;
+    const r = el.getBoundingClientRect(), mx = ((window._mouseX || 0) - (r.left + r.width / 2)) / S, my = ((window._mouseY || 0) - (r.top + r.height / 2)) / S;
+    const ha = Math.atan(mx / 40), va = Math.atan(-my / 40), D = Math.PI / 180;
+    const fake = pVis.e; fake.bodyYaw = fake.pbodyYaw = ha * 20 * D; fake.headYaw = fake.pheadYaw = ha * 40 * D; fake.pitch = fake.ppitch = -va * 20 * D;
     fake.age = p.age; fake.sneaking = p.sneaking; fake.inv = p.inv; fake.heldItem = () => p.inv.held;
     pVis.obj.rotation.y = 0;
     pVis.update(1, Object.assign(animState(fake, 1), { la: 0 }));
@@ -21615,7 +21746,12 @@ EntityRender = (() => {
     pr.render(pScene, pCam);
     U.uSkyLight.value = sky; U.uFogStart.value = fs; U.uFogEnd.value = fe;
   }
-  addEventListener('mousemove', e => { window._mouseX = e.clientX; window._mouseY = e.clientY; });
+  // the preview follows the mouse while the inventory is open (redrawn at most once a frame)
+  let previewEl = null, previewQueued = false;
+  addEventListener('mousemove', e => {
+    window._mouseX = e.clientX; window._mouseY = e.clientY;
+    if (previewEl && previewEl.isConnected && !previewQueued) { previewQueued = true; requestAnimationFrame(() => { previewQueued = false; if (previewEl && previewEl.isConnected) drawPlayerPreview(previewEl); }); }
+  });
   return { update, register(type, f) { factories[type] = f; }, pickup, clear, drawPlayerPreview, MobVisual, ItemVisual, BlockVisual, lightAt, vis };
 })();
 
@@ -26183,7 +26319,7 @@ const Panorama = (() => {
   // test hook: ?auto starts a throwaway world straight away (seed, mode, x, z, time, fly, yaw, pitch)
   if (q.has('auto')) {
     World.savedChunks = null;
-    Game.start({ seed: seedFromText(q.get('seed') || 'test'), name: 'Test', gamemode: q.get('mode') || 'creative', worldType: q.get('type') || 'default', cheats: true });
+    Game.start({ seed: seedFromText(q.get('seed') || 'test'), name: 'Test', gamemode: q.get('mode') || 'creative', worldType: q.get('type') || 'default', cheats: true, density: +(q.get('density') || 1) });
     if (q.has('x')) { Game.player.x = +q.get('x'); Game.player.z = +q.get('z'); }
     if (q.has('time')) Game.dayTime = +q.get('time');
     const p = Game.player; p.flying = q.has('fly');

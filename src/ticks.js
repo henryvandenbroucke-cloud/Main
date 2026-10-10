@@ -1,6 +1,8 @@
 'use strict';
 /* Scheduled block ticks (fluids, redstone, falling blocks) and random ticks (crops, grass, leaves, ice...):
    every tick each 16x16x16 section near the player gets "randomTickSpeed" (3) random block ticks. */
+// the blocks that take random ticks, by id
+const TICKS = new Uint8Array(BLOCKS.length); for (const d of BLOCKS) if (d.ticks && d.name !== 'water') TICKS[d.id] = 1; // water doesn't random-tick in the game
 const Ticks = (() => {
   const sched = new Map(); // key -> { x, y, z, at, id }
   let now = 0;
@@ -14,15 +16,28 @@ const Ticks = (() => {
     const k = key(x, y, z) + (water ? 'w' : ''), at = now + Math.max(1, delay | 0);
     const cur = sched.get(k);
     if (cur && cur.at <= at) return;
-    sched.set(k, { x, y, z, at, dim: World.dim, id: id === undefined ? World.getBlock(x, y, z) : id, pri: pri || 0, seq: seq++, water });
+    const t = { x, y, z, at, dim: World.dim, id: id === undefined ? World.getBlock(x, y, z) : id, pri: pri || 0, seq: seq++, water, k };
+    sched.set(k, t); bucket(t);
   }
+  // the ticks waiting for each game tick, so a tick only looks at what is due
+  const byTime = new Map();
+  function bucket(t) { let b = byTime.get(t.at); if (!b) byTime.set(t.at, b = []); b.push(t); }
   function has(x, y, z) { return sched.has(key(x, y, z)); }
   function tick() {
     now++;
     // scheduled ticks that are due (at most a few thousand per tick)
     let n = 0;
     const due = [];
-    for (const [k, t] of sched) { if (t.at <= now && t.dim === World.dim) { due.push(t); sched.delete(k); if (++n > 4000) break; } }
+    for (const [at, b] of byTime) {
+      if (at > now) continue;
+      byTime.delete(at);
+      for (const t of b) {
+        if (sched.get(t.k) !== t) continue; // replaced by an earlier one
+        // another dimension's ticks wait; past the per-tick limit the rest wait for the next tick
+        if (t.dim !== World.dim || n > 4000) { t.at = now + (t.dim !== World.dim ? 20 : 1); bucket(t); continue; }
+        due.push(t); sched.delete(t.k); n++;
+      }
+    }
     due.sort((a, b) => a.at - b.at || a.pri - b.pri || a.seq - b.seq);
     for (const t of due) { if (!World.loaded(t.x, t.z)) continue; const id = World.getBlock(t.x, t.y, t.z); Blocks.scheduledTick(t.x, t.y, t.z, id, World.getState(t.x, t.y, t.z), t.water); }
     // random ticks around the player
@@ -32,18 +47,22 @@ const Ticks = (() => {
     for (const c of World.chunks.values()) {
       if (Math.abs(c.cx - pcx) > R || Math.abs(c.cz - pcz) > R) continue;
       c.inhabited++;
+      // sections are scanned once for anything that random-ticks (crops, saplings, grass, ice, leaves...);
+      // the rest (most of the stone underground) are skipped, like the game's per-section ticking count
+      const tk = c.tickable || (c.tickable = new Uint8Array(16));
       for (let s = 0; s < 16; s++) {
-        if (!c.meshes[s] && !c.dirty[s]) continue; // empty sections
+        if (!tk[s]) { let any = 1; const b = c.blocks, i0 = s << 12; for (let i = i0; i < i0 + 4096; i++) if (TICKS[b[i]]) { any = 2; break; } tk[s] = any; }
+        if (tk[s] === 1) continue;
         for (let k = 0; k < speed; k++) {
           const r = Math.random() * 4096 | 0, lx = r & 15, lz = (r >> 4) & 15, ly = r >> 8;
           const i = ((s * 16 + ly) << 8) | (lz << 4) | lx, id = c.blocks[i];
-          if (id && BLOCKS[id].ticks) Blocks.randomTick(c.cx * 16 + lx, s * 16 + ly - 64, c.cz * 16 + lz, id, c.states[i]);
+          if (TICKS[id]) Blocks.randomTick(c.cx * 16 + lx, s * 16 + ly - 64, c.cz * 16 + lz, id, c.states[i]);
         }
       }
     }
   }
   function save() { const out = []; for (const t of sched.values()) out.push([t.dim, t.x, t.y, t.z, t.at - now, t.pri, t.water ? 1 : 0]); return out; }
-  function load(arr) { sched.clear(); for (const [dim, x, y, z, d, pri, w] of arr || []) sched.set(dim + ':' + x + ',' + y + ',' + z + (w ? 'w' : ''), { x, y, z, at: now + Math.max(1, d), dim, pri: pri || 0, seq: seq++, water: !!w }); }
+  function load(arr) { sched.clear(); byTime.clear(); for (const [dim, x, y, z, d, pri, w] of arr || []) { const k = dim + ':' + x + ',' + y + ',' + z + (w ? 'w' : ''), t = { x, y, z, at: now + Math.max(1, d), dim, pri: pri || 0, seq: seq++, water: !!w, k }; sched.set(k, t); bucket(t); } }
   return { schedule, has, tick, save, load, get now() { return now; } };
 })();
 

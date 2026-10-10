@@ -147,7 +147,17 @@ const Leaves = (() => {
     decay(x, y, z, id);
   }
   function decay(x, y, z, id) { const st = World.getState(x, y, z); Drops.dropBlock(id, st, null, x, y, z); Blocks.remove(x, y, z, null, true); Particles.blockBreak(x, y, z, id, st); }
-  return { check, isLog };
+  // the game only random-ticks leaves cut off from their logs; here, leaves near a log that was taken away look
+  // every random tick (for 20 minutes), the rest one tick in 16, which still clears old floating leaves
+  const LOG = new Uint8Array(BLOCKS.length); for (const d of BLOCKS) if (isLog(d.id)) LOG[d.id] = 1;
+  const zones = [];
+  function logRemoved(x, y, z) { const now = Game.gameTime; for (let i = zones.length - 1; i >= 0; i--) if (zones[i][3] < now) zones.splice(i, 1); if (zones.length < 200) zones.push([x, y, z, now + 24000]); }
+  function randomTick(x, y, z, id) {
+    let near = false;
+    for (const zn of zones) if (Math.abs(zn[0] - x) <= 7 && Math.abs(zn[1] - y) <= 7 && Math.abs(zn[2] - z) <= 7 && zn[3] >= Game.gameTime) { near = true; break; }
+    if (near || Math.random() < 1 / 16) check(x, y, z, id);
+  }
+  return { check, isLog, LOG, logRemoved, randomTick };
 })();
 
 const Sponge = (() => {

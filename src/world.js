@@ -107,7 +107,7 @@ const World = {
   },
   unload(c) {
     for (const f of this.listeners.chunkUnloaded) f(c);
-    for (const m of c.meshes) if (m) Render.disposeSection(m);
+    Render.disposeChunk(c);
     this.chunks.delete(ckey(c.cx, c.cz));
   },
   // ---------------------------------------------------------------- block access
@@ -160,6 +160,10 @@ const World = {
     state = state || 0;
     if (old === id && oldState === state) return false;
     c.blocks[i] = id; c.states[i] = state; c.modified = true;
+    // a log taken away: the leaves around it start checking whether they still hang on to a tree
+    if (typeof Leaves !== 'undefined' && Leaves.LOG[old] && !Leaves.LOG[id]) Leaves.logRemoved(x, y, z);
+    // a tickable block put in: the section is looked at again by random ticks
+    if (c.tickable && TICKS[id]) c.tickable[(y + 64) >> 4] = 2;
     if (old !== id && c.be.has(i) && !(flags & 4)) c.be.delete(i);
     const lx = x & 15, lz = z & 15;
     if (OPACITY[old] !== OPACITY[id] || SOLID[old] !== SOLID[id] || LIGHT[old] !== LIGHT[id] || (LIGHT[id] && BLOCKS[id].lightFn) || (LIGHT[old] && BLOCKS[old].lightFn)) {
@@ -187,7 +191,7 @@ function workerMain() {
   let gens = null;
   self.onmessage = e => {
     const m = e.data;
-    if (m.type === 'init') { gens = { overworld: new self.Overworld(m.seed, m.opts), nether: new self.Nether(m.seed), end: new self.End(m.seed) }; return; }
+    if (m.type === 'init') { if (self.Structures) self.Structures.setDensity(m.opts && m.opts.density); gens = { overworld: new self.Overworld(m.seed, m.opts), nether: new self.Nether(m.seed), end: new self.End(m.seed) }; return; }
     if (m.type === 'gen') {
       const o = gens[m.dim].generate(m.cx, m.cz);
       const tr = [o.blocks.buffer, o.states.buffer, o.biomes.buffer, o.heights.buffer]; if (o.cave) tr.push(o.cave.buffer);
@@ -298,16 +302,21 @@ const Light = (() => {
     const sides = [[-1, 0], [1, 0], [0, -1], [0, 1]];
     for (const [dx, dz] of sides) {
       const n = World.getChunk(c.cx + dx, c.cz + dz); if (!n || !n.lit) continue;
+      // sky light above the ground on both sides is already full and has nothing to spread
       for (let k = 0; k < 16; k++) {
         const lx = dx === -1 ? 15 : dx === 1 ? 0 : k, lz = dz === -1 ? 15 : dz === 1 ? 0 : k;
+        const ox = dx === -1 ? 0 : dx === 1 ? 15 : k, oz = dz === -1 ? 0 : dz === 1 ? 15 : k;
+        const top = sky ? Math.min(MAXY, Math.max(n.height[lx + lz * 16], c.height[ox + oz * 16]) + 1) : MAXY;
         const wx = n.cx * 16 + lx, wz = n.cz * 16 + lz;
-        for (let y = MINY; y <= MAXY; y++) { const l = (n.light[LIDX(lx, y, lz)] & mask) >> sh; if (l > 1) push(wx, y, wz, l); }
+        for (let y = MINY; y <= top; y++) { const l = (n.light[LIDX(lx, y, lz)] & mask) >> sh; if (l > 1) push(wx, y, wz, l); }
       }
       // our edge spreads into them too
       for (let k = 0; k < 16; k++) {
         const lx = dx === -1 ? 0 : dx === 1 ? 15 : k, lz = dz === -1 ? 0 : dz === 1 ? 15 : k;
+        const ox = dx === -1 ? 15 : dx === 1 ? 0 : k, oz = dz === -1 ? 15 : dz === 1 ? 0 : k;
+        const top = sky ? Math.min(MAXY, Math.max(c.height[lx + lz * 16], n.height[ox + oz * 16]) + 1) : MAXY;
         const wx = c.cx * 16 + lx, wz = c.cz * 16 + lz;
-        for (let y = MINY; y <= MAXY; y++) { const l = (c.light[LIDX(lx, y, lz)] & mask) >> sh; if (l > 1) push(wx, y, wz, l); }
+        for (let y = MINY; y <= top; y++) { const l = (c.light[LIDX(lx, y, lz)] & mask) >> sh; if (l > 1) push(wx, y, wz, l); }
       }
     }
   }

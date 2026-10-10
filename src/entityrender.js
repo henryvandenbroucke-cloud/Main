@@ -404,17 +404,29 @@ EntityRender = (() => {
     if (e.animState) e.animState(s, a);
     return s;
   }
+  // what the camera can see this frame
+  const frustum = new THREE.Frustum(), projView = new THREE.Matrix4(), sphere = new THREE.Sphere();
   function update(a) {
     const p = Game.player, R = (Settings.renderDist * 16) ** 2;
     const seen = new Set();
+    camera.updateMatrixWorld(); projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); frustum.setFromProjectionMatrix(projView);
+    const cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
     for (const e of Entities.list) {
       if (e.removed || e.invisible) continue;
-      if (p && e.dist2(p.x, p.y, p.z) > R) continue;
+      const d2 = (e.x - cx) ** 2 + (e.y - cy) ** 2 + (e.z - cz) ** 2;
+      if (d2 > R) continue;
       let v = vis.get(e);
       // a villager that takes a profession changes its clothes (a different model texture)
       if (v && e.model && v.name && v.name !== e.model) { v.dispose(); v = null; }
       if (!v) { v = make(e); vis.set(e, v); }
       seen.add(e);
+      // the game's render distance for entities: 64 blocks times the size of the box (at least 24), and only
+      // what is in view is posed and drawn
+      const w = e.w || 0.5, h = e.h || 0.5, far = Math.max(24, (w + h + w) / 3 * 64);
+      sphere.center.set(e.x, e.y + h / 2, e.z); sphere.radius = Math.max(w, h) + 1.5;
+      const show = d2 <= far * far && frustum.intersectsSphere(sphere);
+      if (v.obj) v.obj.visible = show;
+      if (!show) continue;
       v.update(a, animState(e, a));
     }
     // the player, when the camera is behind or in front
@@ -448,9 +460,13 @@ EntityRender = (() => {
     if (pr.domElement.parentNode !== el) { el.innerHTML = ''; el.appendChild(pr.domElement); }
     const w = el.clientWidth || 98, h = el.clientHeight || 140;
     pr.setSize(w, h, false);
-    // the player looks toward the mouse, like the game
-    const r = el.getBoundingClientRect(), mx = (window._mouseX || 0) - (r.left + r.width / 2), my = (window._mouseY || 0) - (r.top + r.height * 0.3);
-    const fake = pVis.e; fake.headYaw = fake.pheadYaw = -Math.atan(mx / 40) * 0.7; fake.bodyYaw = fake.pbodyYaw = -Math.atan(mx / 40) * 0.35; fake.pitch = fake.ppitch = Math.atan(my / 40) * 0.6;
+    // the player looks toward the mouse, like the game's renderEntityInInventoryFollowsMouse: from the middle of
+    // the box, atan(distance / 40 GUI pixels) turns the body 20 degrees, the head 40 and tilts it 20
+    previewEl = el;
+    const S = (typeof GUI !== 'undefined' && GUI.S) || 2;
+    const r = el.getBoundingClientRect(), mx = ((window._mouseX || 0) - (r.left + r.width / 2)) / S, my = ((window._mouseY || 0) - (r.top + r.height / 2)) / S;
+    const ha = Math.atan(mx / 40), va = Math.atan(-my / 40), D = Math.PI / 180;
+    const fake = pVis.e; fake.bodyYaw = fake.pbodyYaw = ha * 20 * D; fake.headYaw = fake.pheadYaw = ha * 40 * D; fake.pitch = fake.ppitch = -va * 20 * D;
     fake.age = p.age; fake.sneaking = p.sneaking; fake.inv = p.inv; fake.heldItem = () => p.inv.held;
     pVis.obj.rotation.y = 0;
     pVis.update(1, Object.assign(animState(fake, 1), { la: 0 }));
@@ -461,7 +477,12 @@ EntityRender = (() => {
     pr.render(pScene, pCam);
     U.uSkyLight.value = sky; U.uFogStart.value = fs; U.uFogEnd.value = fe;
   }
-  addEventListener('mousemove', e => { window._mouseX = e.clientX; window._mouseY = e.clientY; });
+  // the preview follows the mouse while the inventory is open (redrawn at most once a frame)
+  let previewEl = null, previewQueued = false;
+  addEventListener('mousemove', e => {
+    window._mouseX = e.clientX; window._mouseY = e.clientY;
+    if (previewEl && previewEl.isConnected && !previewQueued) { previewQueued = true; requestAnimationFrame(() => { previewQueued = false; if (previewEl && previewEl.isConnected) drawPlayerPreview(previewEl); }); }
+  });
   return { update, register(type, f) { factories[type] = f; }, pickup, clear, drawPlayerPreview, MobVisual, ItemVisual, BlockVisual, lightAt, vis };
 })();
 

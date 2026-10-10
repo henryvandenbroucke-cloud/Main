@@ -133,6 +133,17 @@ SHARED.push(function structuresModule(G) {
   function place(gen, w, cx, cz) { for (const p of plansNear('overworld', gen, cx, cz)) apply(p, w, cx, cz); }
   function placeNether(gen, w, cx, cz) { for (const p of plansNear('nether', gen, cx, cz)) apply(p, w, cx, cz); }
   function placeEnd(gen, w, cx, cz) { for (const p of plansNear('end', gen, cx, cz)) apply(p, w, cx, cz); }
+  // how close together structures are: 1 is the game's spacing; 0.5 halves the grid (about four times as many).
+  // Structures placed one per chunk by chance (buried treasure, desert wells) and strongholds keep their own rules
+  function setDensity(f) {
+    f = f || 1; G.Structures.density = f;
+    for (const s of TYPES) {
+      if (s.custom || !s.spacing || s.spacing <= 1) continue;
+      if (s.baseSpacing === undefined) { s.baseSpacing = s.spacing; s.baseSep = s.sep; }
+      s.spacing = Math.max(4, Math.round(s.baseSpacing * f)); s.sep = Math.max(1, Math.min(s.spacing - 2, Math.round(s.baseSep * f)));
+    }
+    cache.clear();
+  }
   // the nearest structure of a kind (for eyes of ender, maps and /locate): searches outward ring by ring
   function locate(name, gen, x, z, maxChunks) {
     const s = TYPES.find(t => t.name === name); if (!s) return null;
@@ -420,5 +431,5 @@ SHARED.push(function structuresModule(G) {
       return p;
     } });
 
-  G.StructureGen = G.Structures = { treeless, place, placeNether, placeEnd, locate, at, plansNear, reg, Plan, apply, rotState, biomeAt, heightAt, ground, dry, isOcean, TYPES, startOf, Models_POT, replaceable };
+  G.StructureGen = G.Structures = { setDensity, treeless, place, placeNether, placeEnd, locate, at, plansNear, reg, Plan, apply, rotState, biomeAt, heightAt, ground, dry, isOcean, TYPES, startOf, Models_POT, replaceable };
 });

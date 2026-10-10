@@ -15,7 +15,9 @@ const Game = {
     if (opts.rules) Object.assign(this.rules, opts.rules);
     World.dim = opts.dim || 'overworld';
     this.worldType = opts.worldType || 'default'; this.structures = opts.structures !== false;
-    World.init(this.seed, { type: this.worldType, structures: this.structures });
+    // structure spacing: 0.5 for worlds made with More Common structures, the game's own for the rest
+    this.structDensity = opts.density || 1; if (self.StructureGen) self.StructureGen.setDensity(this.structDensity);
+    World.init(this.seed, { type: this.worldType, structures: this.structures, density: this.structDensity });
     Clouds.setSeed(this.seed);
     // the spawn point: a dry land column near 0,0
     if (opts.spawn) this.spawn = opts.spawn;
@@ -33,7 +35,7 @@ const Game = {
     if (!opts.player) { Weather.reset(); Stats.reset(); }
     UI.enterGame();
   },
-  stop() { this.running = false; EntityRender && EntityRender.clear(); Particles.clear(); BeaconBeams.clear(); Signs.clear(); Banners.clear(); Leads.clear(); Spawners.clear(); Pots.clear(); GameEvents.clear(); Trials.clear(); Raids.clear(); Archaeology.clear(); Dripstone.clear(); Creatures.clear(); for (const d in World.dims) { for (const c of World.dims[d].values()) for (const m of c.meshes) if (m) Render.disposeSection(m); World.dims[d].clear(); } Entities.list.length = 0; },
+  stop() { this.running = false; EntityRender && EntityRender.clear(); Particles.clear(); BeaconBeams.clear(); Signs.clear(); Banners.clear(); Leads.clear(); Spawners.clear(); Pots.clear(); GameEvents.clear(); Trials.clear(); Raids.clear(); Archaeology.clear(); Dripstone.clear(); Creatures.clear(); for (const d in World.dims) { for (const c of World.dims[d].values()) Render.disposeChunk(c); World.dims[d].clear(); } Entities.list.length = 0; },
   // like the game, the player spawns on a grass or podzol surface (never on a tree) near the world spawn
   findSpawn(x0, z0) {
     const top = (x, z) => { let y = MAXY; while (y > MINY && (World.getBlock(x, y, z) === 0 || !SOLID[World.getBlock(x, y, z)] && !FLUID[World.getBlock(x, y, z)])) y--; return y; };

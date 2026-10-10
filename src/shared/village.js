@@ -133,7 +133,16 @@ SHARED.push(function villageModule(G) {
   function lampPost(p, st) { p.fill(0, 1, 0, 0, 2, 0, st.fence); p.set(0, 3, 0, st.base === B.sandstone ? B.cut_sandstone : B.white_wool); p.set(0, 4, 0, B.torch); }
 
   // ---------------------------------------------------------------- the village
-  function buildVillage(gen, r, x, z) {
+  // with More Common structures a village may move up to 24 blocks to stand in a village biome
+  const OFFS = [[0, 0], [16, 0], [-16, 0], [0, 16], [0, -16], [16, 16], [-16, 16], [16, -16], [-16, -16], [24, 0], [-24, 0], [0, 24], [0, -24]];
+  function villageSpot(gen, x, z) {
+    const offs = (S.density || 1) < 1 ? OFFS : OFFS.slice(0, 1);
+    for (const [ox, oz] of offs) if (STYLE_OF[biomeAt(gen, x + ox, z + oz)] && (gen.flat || heightAt(gen, x + ox, z + oz) >= SEA)) return [x + ox, z + oz];
+    return null;
+  }
+  function buildVillage(gen, r, x0, z0) {
+    const spot = villageSpot(gen, x0, z0); if (!spot) return null;
+    const [x, z] = spot;
     const styleName = STYLE_OF[biomeAt(gen, x, z)]; if (!styleName) return null;
     const st = STYLE[styleName], h0 = heightAt(gen, x, z);
     if (h0 < SEA && !gen.flat) return null;
@@ -204,8 +213,8 @@ SHARED.push(function villageModule(G) {
     p.box(-48, h0 - 10, -48, 48, h0 + 20, 48, 'village');
     return p;
   }
-  S.reg({ name: 'village', dim: 'overworld', spacing: 34, sep: 8, salt: 10387312, reach: 4, flatOk: true,
-    check: (gen, x, z) => !!STYLE_OF[biomeAt(gen, x, z)],
+  S.reg({ name: 'village', dim: 'overworld', spacing: 34, sep: 8, salt: 10387312, reach: 5, flatOk: true,
+    check: (gen, x, z) => !!villageSpot(gen, x, z),
     build: buildVillage });
   G.VillageStyles = STYLE;
 });

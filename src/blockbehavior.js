@@ -195,7 +195,7 @@ const Blocks = (() => {
       case 'fire': return;
     }
     if (n.endsWith('_sapling') || n === 'mangrove_propagule') { if (light >= 9 && Math.random() < 1 / 7) growSapling(x, y, z, id, st); return; }
-    if (n.endsWith('_leaves')) { if (!(st & 8)) Leaves.check(x, y, z, id); return; }
+    if (n.endsWith('_leaves')) { if (!(st & 8)) Leaves.randomTick(x, y, z, id); return; }
   }
   function waterNear(x, y, z, r) { for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) for (let dy = 0; dy <= 1; dy++) { const b = World.getBlock(x + dx, y + dy, z + dz); if (BLOCKS[b].fluid === 'water' || BLOCKS[b].fluidLog || (BLOCKS[b].waterlog && World.getState(x + dx, y + dy, z + dz) & 128)) return true; } return false; }
   // the crop growth chance from the farmland around it (the game's getGrowthSpeed)

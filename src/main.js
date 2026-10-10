@@ -72,7 +72,7 @@ const Panorama = (() => {
   // test hook: ?auto starts a throwaway world straight away (seed, mode, x, z, time, fly, yaw, pitch)
   if (q.has('auto')) {
     World.savedChunks = null;
-    Game.start({ seed: seedFromText(q.get('seed') || 'test'), name: 'Test', gamemode: q.get('mode') || 'creative', worldType: q.get('type') || 'default', cheats: true });
+    Game.start({ seed: seedFromText(q.get('seed') || 'test'), name: 'Test', gamemode: q.get('mode') || 'creative', worldType: q.get('type') || 'default', cheats: true, density: +(q.get('density') || 1) });
     if (q.has('x')) { Game.player.x = +q.get('x'); Game.player.z = +q.get('z'); }
     if (q.has('time')) Game.dayTime = +q.get('time');
     const p = Game.player; p.flying = q.has('fly');

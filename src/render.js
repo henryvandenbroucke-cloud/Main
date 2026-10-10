@@ -259,10 +259,20 @@ const Clouds = (() => {
 // ---------------------------------------------------------------- the world's meshes
 const Render = {
   meshQueue: [], built: 0,
+  // the solid and cut-out faces of each stack of four sections (64 blocks) are drawn as one mesh each: a quarter of
+  // the draw calls, still small enough to be culled when out of view; see-through faces (water, glass, ice) stay
+  // one mesh per section so they keep sorting by distance
   makeSection(c, sy, bufs) {
-    const objs = [];
-    for (let L = 0; L < 3; L++) {
-      const b = bufs[L]; if (!b.n) { objs.push(null); continue; }
+    const objs = [null, null, null];
+    if (!c.secBufs) c.secBufs = new Array(16).fill(null);
+    c.secBufs[sy] = null;
+    for (let L = 0; L < 2; L++) {
+      const b = bufs[L]; if (!b.n) continue;
+      (c.secBufs[sy] || (c.secBufs[sy] = [null, null]))[L] = { p: b.p.slice(0, b.n * 3), uv: b.uv.slice(0, b.n * 4), li: b.li.slice(0, b.n * 4), co: b.co.slice(0, b.n * 4), ix: b.ix.slice(0, b.ni), n: b.n, ni: b.ni };
+    }
+    c.grpDirty = (c.grpDirty || 0) | (1 << (sy >> 2));
+    const b = bufs[2];
+    if (b.n) {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.BufferAttribute(b.p.slice(0, b.n * 3), 3));
       g.setAttribute('aUV', new THREE.BufferAttribute(b.uv.slice(0, b.n * 4), 4));
@@ -270,16 +280,55 @@ const Render = {
       g.setAttribute('aColor', new THREE.BufferAttribute(b.co.slice(0, b.n * 4), 4, true));
       g.setIndex(new THREE.BufferAttribute(b.n > 65535 ? b.ix.slice(0, b.ni) : new Uint16Array(b.ix.subarray(0, b.ni)), 1));
       g.boundingSphere = new THREE.Sphere(new THREE.Vector3(8, 8, 8), 14);
-      const m = new THREE.Mesh(g, MATS[L]);
+      const m = new THREE.Mesh(g, MATS[2]);
       m.position.set(c.cx * 16, sy * 16 - 64, c.cz * 16);
-      m.matrixAutoUpdate = false; m.updateMatrix();
-      if (L === 2) m.renderOrder = 2;
-      scene.add(m); objs.push(m);
+      m.matrixAutoUpdate = false; m.updateMatrix(); m.renderOrder = 2;
+      scene.add(m); objs[2] = m;
     }
-    return objs;
+    // a section with nothing in it stays null (block ticking skips those)
+    return objs[2] || c.secBufs[sy] ? objs : null;
+  },
+  // join the section buffers of each changed stack into one mesh per layer
+  buildColumn(c) {
+    const dirty = c.grpDirty || 0; c.grpDirty = 0;
+    if (!c.grpMesh) c.grpMesh = [[null, null], [null, null], [null, null], [null, null]];
+    for (let gi = 0; gi < 4; gi++) {
+      if (!(dirty & (1 << gi))) continue;
+      for (let L = 0; L < 2; L++) {
+        let n = 0, ni = 0, lo = 99, hi = -1;
+        for (let s = gi * 4; s < gi * 4 + 4; s++) { const q = c.secBufs && c.secBufs[s] && c.secBufs[s][L]; if (q) { n += q.n; ni += q.ni; lo = Math.min(lo, s); hi = Math.max(hi, s); } }
+        const old = c.grpMesh[gi][L];
+        if (!n) { if (old) { scene.remove(old); old.geometry.dispose(); c.grpMesh[gi][L] = null; } continue; }
+        const P = new Float32Array(n * 3), UV = new Float32Array(n * 4), LI = new Uint8Array(n * 4), CO = new Uint8Array(n * 4), IX = n > 65535 ? new Uint32Array(ni) : new Uint16Array(ni);
+        let vo = 0, io = 0;
+        for (let s = gi * 4; s < gi * 4 + 4; s++) {
+          const q = c.secBufs && c.secBufs[s] && c.secBufs[s][L]; if (!q) continue;
+          const yo = (s - gi * 4) * 16;
+          for (let i = 0; i < q.n; i++) { P[(vo + i) * 3] = q.p[i * 3]; P[(vo + i) * 3 + 1] = q.p[i * 3 + 1] + yo; P[(vo + i) * 3 + 2] = q.p[i * 3 + 2]; }
+          UV.set(q.uv, vo * 4); LI.set(q.li, vo * 4); CO.set(q.co, vo * 4);
+          for (let i = 0; i < q.ni; i++) IX[io + i] = q.ix[i] + vo;
+          vo += q.n; io += q.ni;
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(P, 3));
+        g.setAttribute('aUV', new THREE.BufferAttribute(UV, 4));
+        g.setAttribute('aLight', new THREE.BufferAttribute(LI, 4, true));
+        g.setAttribute('aColor', new THREE.BufferAttribute(CO, 4, true));
+        g.setIndex(new THREE.BufferAttribute(IX, 1));
+        const y0 = (lo - gi * 4) * 16, y1 = (hi - gi * 4 + 1) * 16;
+        g.boundingSphere = new THREE.Sphere(new THREE.Vector3(8, (y0 + y1) / 2, 8), Math.hypot(8, 8, (y1 - y0) / 2) + 0.5);
+        if (old) { old.geometry.dispose(); old.geometry = g; }
+        else { const m = new THREE.Mesh(g, MATS[L]); m.position.set(c.cx * 16, gi * 64 - 64, c.cz * 16); m.matrixAutoUpdate = false; m.updateMatrix(); scene.add(m); c.grpMesh[gi][L] = m; }
+      }
+    }
   },
   disposeSection(objs) { for (const m of objs) if (m) { scene.remove(m); m.geometry.dispose(); } },
-  // rebuild dirty sections, nearest first, within a time budget
+  disposeChunk(c) {
+    for (const m of c.meshes) if (m) Render.disposeSection(m);
+    if (c.grpMesh) for (const gm of c.grpMesh) for (const m of gm) if (m) { scene.remove(m); m.geometry.dispose(); }
+    c.grpMesh = null; c.secBufs = null; c.grpDirty = 0;
+  },
+  // rebuild dirty sections, nearest first, within a time budget; then rejoin the columns that changed
   updateMeshes(px, pz, budgetMs) {
     const t0 = performance.now();
     const pcx = Math.floor(px / 16), pcz = Math.floor(pz / 16), py = Math.floor((camera.position.y + 64) / 16);
@@ -298,19 +347,23 @@ const Render = {
     }
     list.sort((a, b) => a[0] - b[0]);
     let n = 0;
-    for (const [, c] of list) {
+    const touched = [];
+    outer: for (const [, c] of list) {
       const order = [];
       for (let s = 0; s < 16; s++) if (c.dirty[s]) order.push(s);
       order.sort((a, b) => Math.abs(a - py) - Math.abs(b - py));
+      touched.push(c);
       for (const s of order) {
         c.dirty[s] = 0;
         const bufs = Mesher.mesh(c, s);
         if (c.meshes[s]) Render.disposeSection(c.meshes[s]);
-        c.meshes[s] = bufs ? this.makeSection(c, s, bufs) : null;
+        if (bufs) c.meshes[s] = this.makeSection(c, s, bufs);
+        else { c.meshes[s] = null; if (c.secBufs && c.secBufs[s]) { c.secBufs[s] = null; c.grpDirty = (c.grpDirty || 0) | (1 << (s >> 2)); } }
         n++;
-        if (performance.now() - t0 > budgetMs) return n;
+        if (performance.now() - t0 > budgetMs) break outer;
       }
     }
+    for (const c of touched) if (c.grpDirty) this.buildColumn(c);
     return n;
   },
 };

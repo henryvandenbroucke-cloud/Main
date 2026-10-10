@@ -34,6 +34,7 @@ const UI = (() => {
       if (tab === 'world') h += `${btn('World Type: ' + (d.type === 'flat' ? 'Superflat' : d.type === 'large' ? 'Large Biomes' : 'Default'), 'ctype')}
         <div class="mlabel">Seed for the World Generator</div><input class="minput" id="cSeed" value="${escapeHTML(d.seed || '')}" placeholder="Leave blank for a random seed">
         ${btn('Generate Structures: ' + (d.structures === false ? 'OFF' : 'ON'), 'cstruct')}<div class="mhint">Villages, dungeons etc.</div>
+        ${btn('Structures: ' + (d.density === 'normal' ? 'Normal' : 'More Common'), 'cdensity')}<div class="mhint">${d.density === 'normal' ? 'The same spacing as the game' : 'About four times as many as the game'}</div>
         ${btn('Bonus Chest: ' + (d.bonus ? 'ON' : 'OFF'), 'cbonus')}`;
       if (tab === 'more') h += `${btn('Game Rules', 'none', { off: true })}${btn('Data Packs', 'none', { off: true })}${btn('Experiments', 'none', { off: true })}`;
       return h + `</div><div class="mbottom"><div class="mrow">${btn('Create New World', 'docreate', { w: 150 })}${btn('Cancel', 'single', { w: 150 })}</div></div>`;
@@ -113,18 +114,19 @@ const UI = (() => {
       case 'quit': show('confirm', { title: 'Quit Game?', text: 'You can close this browser tab to quit.', yes: 'OK', no: 'Back' }); confirmFn = () => show('title'); break;
       case 'back': show('title'); break;
       case 'video': case 'controls': case 'sounds': case 'access': show(a); break;
-      case 'create': createData = { name: 'New World', mode: 'survival', difficulty: 'normal', cheats: false, seed: '', structures: true, type: 'default' }; show('create', createData); break;
+      case 'create': createData = { name: 'New World', mode: 'survival', difficulty: 'normal', cheats: false, seed: '', structures: true, density: 'more', type: 'default' }; show('create', createData); break;
       case 'cmode': readCreate(); createData.mode = { survival: 'hardcore', hardcore: 'creative', creative: 'survival' }[createData.mode]; if (createData.mode === 'creative') createData.cheats = true; if (createData.mode === 'hardcore') createData.cheats = false; show('create', createData); break;
       case 'cdiff': readCreate(); if (createData.mode === 'hardcore') break; createData.difficulty = { peaceful: 'easy', easy: 'normal', normal: 'hard', hard: 'peaceful' }[createData.difficulty]; show('create', createData); break;
       case 'ccheats': readCreate(); if (createData.mode === 'hardcore') break; createData.cheats = !createData.cheats; show('create', createData); break;
       case 'cstruct': readCreate(); createData.structures = !createData.structures; show('create', createData); break;
+      case 'cdensity': readCreate(); createData.density = createData.density === 'normal' ? 'more' : 'normal'; show('create', createData); break;
       case 'cbonus': readCreate(); createData.bonus = !createData.bonus; show('create', createData); break;
       case 'ctype': readCreate(); createData.type = { default: 'flat', flat: 'large', large: 'default' }[createData.type]; show('create', createData); break;
       case 'docreate': readCreate(); await createWorld(createData); break;
       case 'play': if (selected) await playWorld(selected); break;
       case 'delete': if (selected) { const s = selected; show('confirm', { title: 'Are you sure you want to delete this world?', text: `'${escapeHTML(s.name)}' will be lost forever! (A long time!)`, yes: 'Delete' }); confirmFn = async () => { await Save.deleteWorld(s.id); selected = null; show('single'); }; } break;
       case 'rename': if (selected) { const n = prompt('World name', selected.name); if (n) { selected.name = n; await Save.putMeta(selected); show('single'); } } break;
-      case 'recreate': if (selected) { createData = { name: selected.name + ' (copy)', mode: selected.hardcore ? 'hardcore' : selected.gamemode, difficulty: selected.difficulty, cheats: selected.cheats, seed: String(selected.seed), structures: selected.structures !== false, type: selected.type || 'default' }; show('create', createData); } break;
+      case 'recreate': if (selected) { createData = { name: selected.name + ' (copy)', mode: selected.hardcore ? 'hardcore' : selected.gamemode, difficulty: selected.difficulty, cheats: selected.cheats, seed: String(selected.seed), structures: selected.structures !== false, density: selected.density === 0.5 ? 'more' : 'normal', type: selected.type || 'default' }; show('create', createData); } break;
       case 'cyes': if (confirmFn) { const f = confirmFn; confirmFn = null; await f(); } break;
       case 'cno': show(page === 'confirm' && optionsFrom === 'pause' && game ? 'pause' : 'single'); break;
       case 'resume': resume(); break;
@@ -165,7 +167,7 @@ const UI = (() => {
   }
   async function createWorld(d) {
     const seed = d.seed.trim() ? seedFromText(d.seed) : (Math.random() * 4294967296 | 0) - 2147483648;
-    const meta = { id: 'w' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36), name: d.name || 'New World', seed, gamemode: d.mode === 'hardcore' ? 'survival' : d.mode, hardcore: d.mode === 'hardcore', difficulty: d.mode === 'hardcore' ? 'hard' : d.difficulty, cheats: d.cheats, structures: d.structures !== false, bonus: !!d.bonus, type: d.type || 'default', created: Date.now(), lastPlayed: Date.now() };
+    const meta = { id: 'w' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36), name: d.name || 'New World', seed, gamemode: d.mode === 'hardcore' ? 'survival' : d.mode, hardcore: d.mode === 'hardcore', difficulty: d.mode === 'hardcore' ? 'hard' : d.difficulty, cheats: d.cheats, structures: d.structures !== false, density: d.density === 'normal' ? 1 : 0.5, bonus: !!d.bonus, type: d.type || 'default', created: Date.now(), lastPlayed: Date.now() };
     await Save.putMeta(meta);
     startWorld(meta, null);
   }
@@ -175,7 +177,7 @@ const UI = (() => {
     meta.lastPlayed = Date.now(); Save.putMeta(meta);
     Save.begin(meta, state);
     Game.start({ id: meta.id, name: meta.name, seed: meta.seed, gamemode: state ? state.player.gamemode : meta.gamemode, hardcore: meta.hardcore, difficulty: state ? state.difficulty : meta.difficulty, cheats: meta.cheats,
-      dayTime: state ? state.dayTime : 0, gameTime: state ? state.gameTime : 0, rules: state ? state.rules : null, spawn: state ? state.spawn : null, player: state ? state.player : null, dim: state ? state.player.dim : 'overworld', worldType: meta.type, structures: meta.structures, bonus: meta.bonus && !state });
+      dayTime: state ? state.dayTime : 0, gameTime: state ? state.gameTime : 0, rules: state ? state.rules : null, spawn: state ? state.spawn : null, player: state ? state.player : null, dim: state ? state.player.dim : 'overworld', worldType: meta.type, structures: meta.structures, density: meta.density || 1, bonus: meta.bonus && !state });
     Sound.music && Sound.music('game');
   }
   // the loading screen stays until the chunks around the player are drawn
