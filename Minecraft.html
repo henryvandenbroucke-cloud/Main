@@ -22130,11 +22130,11 @@ const Vehicles = (() => {
 const VOXE_VERT = `
 in vec4 aUV; in vec4 aLight; in vec4 aColor;
 uniform float uTime;
-out vec3 vUV; out float vShade; out vec3 vColor; out float vDist;
+out vec3 vUV; out float vShade; out vec3 vColor; out float vDist; out float vMode;
 void main(){
   float layer = aUV.z;
   if (aUV.w > 0.5) layer += mod(floor(uTime * 10.0), aUV.w);
-  vUV = vec3(aUV.xy, layer); vShade = aLight.z; vColor = aColor.rgb;
+  vUV = vec3(aUV.xy, layer); vShade = aLight.z; vColor = aColor.rgb; vMode = aColor.a;
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
   vDist = length(mv.xyz);
   gl_Position = projectionMatrix * mv;
@@ -22143,12 +22143,13 @@ const VOXE_FRAG = `
 precision highp float; precision highp sampler2DArray;
 uniform sampler2DArray uTex; uniform vec2 uEnv; uniform float uFlash; uniform vec3 uFogColor; uniform float uFogStart; uniform float uFogEnd;
 ${LIGHT_GLSL}
-in vec3 vUV; in float vShade; in vec3 vColor; in float vDist;
+in vec3 vUV; in float vShade; in vec3 vColor; in float vDist; in float vMode;
 out vec4 fragColor;
 void main(){
   vec4 t = texture(uTex, vUV);
-  if (t.a < 0.1) discard;
-  vec3 c = t.rgb * vColor;
+  vec3 c;
+  if (vMode < 0.25) c = mix(t.rgb * vColor, t.rgb, t.a);
+  else { if (t.a < (vMode < 0.75 ? 0.5 : 0.1)) discard; c = t.rgb * vColor; }
   c *= lightmap(uEnv.x, uEnv.y) * vShade;
   c = mix(c, vec3(1.0), uFlash);
   float fog = clamp((vDist - uFogStart) / max(uFogEnd - uFogStart, 0.001), 0.0, 1.0);
@@ -22175,7 +22176,10 @@ const ItemMesh = (() => {
       g.setAttribute('position', new THREE.BufferAttribute(b.p.slice(0, b.n * 3), 3));
       g.setAttribute('aUV', new THREE.BufferAttribute(b.uv.slice(0, b.n * 4), 4));
       g.setAttribute('aLight', new THREE.BufferAttribute(b.li.slice(0, b.n * 4), 4, true));
-      g.setAttribute('aColor', new THREE.BufferAttribute(b.co.slice(0, b.n * 4), 4, true));
+      // the colour's alpha carries the layer: solid faces use the texture's alpha as the tint mask (the grass on
+      // a grass block's side), cutout faces as a hard edge, translucent ones as see-through
+      const co = b.co.slice(0, b.n * 4); for (let v = 3; v < co.length; v += 4) co[v] = [0, 128, 255][L];
+      g.setAttribute('aColor', new THREE.BufferAttribute(co, 4, true));
       g.setIndex(new THREE.BufferAttribute(new Uint32Array(b.ix.subarray(0, b.ni)), 1));
       geos.push(g);
     }
