@@ -11034,10 +11034,7 @@ G.MeleeAttack = class extends Goal {
     m.lookAt(t.x, t.eyeY, t.z, 30, 30);
     if (--this.repath <= 0) { this.repath = 4 + rnd(7); const d = m.distTo(t); if (d > 32) this.repath += 10; else if (d > 16) this.repath += 5; m.nav.moveTo(t.x, t.y, t.z, this.speed, { reach: 1 }); }
     if (this.cool > 0) this.cool--;
-    // reach: the attacker's width doubled plus the target's width
-    const reach = Math.pow(m.w * 2, 2) + t.w;
-    const dx = t.x - m.x, dz = t.z - m.z, d2 = dx * dx + dz * dz;
-    if (d2 <= reach && Math.abs(t.y - m.y) < 2.5 && this.cool <= 0 && m.canSee(t)) { this.cool = m.attackInterval || 20; m.swingArm(); m.doHurtTarget(t); }
+    if (this.cool <= 0 && m.inMeleeReach(t) && m.canSee(t)) { this.cool = m.attackInterval || 20; m.swingArm(); m.doHurtTarget(t); }
   }
 };
 G.NearestAttackableTarget = class extends Goal {
@@ -11113,6 +11110,14 @@ G.RangedBow = class extends Goal {
 
 // ---------------------------------------------------------------- the mob base class
 class Mob extends Living {
+  // the game's melee reach (since 1.20.2): the attacker's box (joined with its mount's) stretched 0.83 blocks
+  // sideways has to touch the target's box, so height counts and wide mobs no longer hit from 3 blocks away
+  inMeleeReach(t) {
+    const v = this.vehicle, hw = this.w / 2 + 0.8282857, th = t.w / 2;
+    let x0 = this.x - hw, x1 = this.x + hw, z0 = this.z - hw, z1 = this.z + hw;
+    if (v) { const vw = v.w / 2 + 0.8282857; x0 = Math.min(x0, v.x - vw); x1 = Math.max(x1, v.x + vw); z0 = Math.min(z0, v.z - vw); z1 = Math.max(z1, v.z + vw); }
+    return t.x + th > x0 && t.x - th < x1 && t.z + th > z0 && t.z - th < z1 && t.y < this.y + this.h && t.y + t.h > this.y;
+  }
   constructor(type, x, y, z) {
     super(type, x, y, z);
     const st = MOB_STATS[type] || [10, 0.25, 0, '0', 'creature'];
@@ -12663,7 +12668,7 @@ const Explosions = (() => {
       if (t && !t.dead && mg) {
         const r = t.w + 3, dx = t.x - this.x, dz = t.z - this.z;
         if (dx * dx + (t.y - this.y) ** 2 + dz * dz < r * r) {
-          const reach = dx * dx + dz * dz <= Math.pow(this.w * 2, 2) + t.w && Math.abs(t.y - this.y) < 2.5;
+          const reach = this.inMeleeReach(t);
           if (mg.cool <= 0 && !reach) mg.cool = 20;
           stand = mg.cool <= 10;
         }
@@ -24476,8 +24481,7 @@ class Warden extends Monster {
     const dh = Math.hypot(t.x - this.x, t.z - this.z), dv = Math.abs(t.y - this.y);
     if (this.boomCooldown <= 0 && dh < 15 && dv < 20) { this.startPose('boom', 60); this.boomCooldown = 60; Sound.play('warden_sonic_charge', this, { volume: 3 }); return; }
     if (--this.repath <= 0) { this.repath = 4 + Math.floor(Math.random() * 7); this.nav.moveTo(t.x, t.y, t.z, 1.2, { reach: 1 }); }
-    const reach = Math.pow(this.w * 2, 2) + t.w;
-    if (dh * dh <= reach && dv < 3 && this.meleeCool <= 0 && this.canSee(t)) { this.meleeCool = 18; this.swingArm(); this.doHurtTarget(t); }
+    if (this.inMeleeReach(t) && this.meleeCool <= 0 && this.canSee(t)) { this.meleeCool = 18; this.swingArm(); this.doHurtTarget(t); }
   }
   doHurtTarget(t) {
     this.attackT = 10; Sound.play('warden_attack_impact', this);
@@ -26238,8 +26242,7 @@ const Creatures = (() => {
         this.lastTarget = t; this.nav.stop();
         this.lookAt(t.x, t.eyeY, t.z, 30, 30);
         this.swimGoal = [t.x, t.y + t.h / 2, t.z];
-        const dx = t.x - this.x, dz = t.z - this.z, reach = (this.w * 2) ** 2 + t.w;
-        if (dx * dx + dz * dz <= reach && Math.abs(t.y - this.y) < 2 && this.atkCool <= 0) {
+        if (this.inMeleeReach(t) && this.atkCool <= 0) {
           this.atkCool = 20; this.swingArm && this.swingArm(); Sound.play('axolotl_attack', this);
           if (this.doHurtTarget(t) && t.dead && AX_HUNT.has(t.type)) this.huntCool = 2400;
         }

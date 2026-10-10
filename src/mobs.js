@@ -222,10 +222,7 @@ G.MeleeAttack = class extends Goal {
     m.lookAt(t.x, t.eyeY, t.z, 30, 30);
     if (--this.repath <= 0) { this.repath = 4 + rnd(7); const d = m.distTo(t); if (d > 32) this.repath += 10; else if (d > 16) this.repath += 5; m.nav.moveTo(t.x, t.y, t.z, this.speed, { reach: 1 }); }
     if (this.cool > 0) this.cool--;
-    // reach: the attacker's width doubled plus the target's width
-    const reach = Math.pow(m.w * 2, 2) + t.w;
-    const dx = t.x - m.x, dz = t.z - m.z, d2 = dx * dx + dz * dz;
-    if (d2 <= reach && Math.abs(t.y - m.y) < 2.5 && this.cool <= 0 && m.canSee(t)) { this.cool = m.attackInterval || 20; m.swingArm(); m.doHurtTarget(t); }
+    if (this.cool <= 0 && m.inMeleeReach(t) && m.canSee(t)) { this.cool = m.attackInterval || 20; m.swingArm(); m.doHurtTarget(t); }
   }
 };
 G.NearestAttackableTarget = class extends Goal {
@@ -301,6 +298,14 @@ G.RangedBow = class extends Goal {
 
 // ---------------------------------------------------------------- the mob base class
 class Mob extends Living {
+  // the game's melee reach (since 1.20.2): the attacker's box (joined with its mount's) stretched 0.83 blocks
+  // sideways has to touch the target's box, so height counts and wide mobs no longer hit from 3 blocks away
+  inMeleeReach(t) {
+    const v = this.vehicle, hw = this.w / 2 + 0.8282857, th = t.w / 2;
+    let x0 = this.x - hw, x1 = this.x + hw, z0 = this.z - hw, z1 = this.z + hw;
+    if (v) { const vw = v.w / 2 + 0.8282857; x0 = Math.min(x0, v.x - vw); x1 = Math.max(x1, v.x + vw); z0 = Math.min(z0, v.z - vw); z1 = Math.max(z1, v.z + vw); }
+    return t.x + th > x0 && t.x - th < x1 && t.z + th > z0 && t.z - th < z1 && t.y < this.y + this.h && t.y + t.h > this.y;
+  }
   constructor(type, x, y, z) {
     super(type, x, y, z);
     const st = MOB_STATS[type] || [10, 0.25, 0, '0', 'creature'];

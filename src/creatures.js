@@ -343,8 +343,7 @@ const Creatures = (() => {
         this.lastTarget = t; this.nav.stop();
         this.lookAt(t.x, t.eyeY, t.z, 30, 30);
         this.swimGoal = [t.x, t.y + t.h / 2, t.z];
-        const dx = t.x - this.x, dz = t.z - this.z, reach = (this.w * 2) ** 2 + t.w;
-        if (dx * dx + dz * dz <= reach && Math.abs(t.y - this.y) < 2 && this.atkCool <= 0) {
+        if (this.inMeleeReach(t) && this.atkCool <= 0) {
           this.atkCool = 20; this.swingArm && this.swingArm(); Sound.play('axolotl_attack', this);
           if (this.doHurtTarget(t) && t.dead && AX_HUNT.has(t.type)) this.huntCool = 2400;
         }

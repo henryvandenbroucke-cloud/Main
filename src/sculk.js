@@ -631,8 +631,7 @@ class Warden extends Monster {
     const dh = Math.hypot(t.x - this.x, t.z - this.z), dv = Math.abs(t.y - this.y);
     if (this.boomCooldown <= 0 && dh < 15 && dv < 20) { this.startPose('boom', 60); this.boomCooldown = 60; Sound.play('warden_sonic_charge', this, { volume: 3 }); return; }
     if (--this.repath <= 0) { this.repath = 4 + Math.floor(Math.random() * 7); this.nav.moveTo(t.x, t.y, t.z, 1.2, { reach: 1 }); }
-    const reach = Math.pow(this.w * 2, 2) + t.w;
-    if (dh * dh <= reach && dv < 3 && this.meleeCool <= 0 && this.canSee(t)) { this.meleeCool = 18; this.swingArm(); this.doHurtTarget(t); }
+    if (this.inMeleeReach(t) && this.meleeCool <= 0 && this.canSee(t)) { this.meleeCool = 18; this.swingArm(); this.doHurtTarget(t); }
   }
   doHurtTarget(t) {
     this.attackT = 10; Sound.play('warden_attack_impact', this);

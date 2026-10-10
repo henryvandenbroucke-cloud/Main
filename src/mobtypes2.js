@@ -113,7 +113,7 @@
       if (t && !t.dead && mg) {
         const r = t.w + 3, dx = t.x - this.x, dz = t.z - this.z;
         if (dx * dx + (t.y - this.y) ** 2 + dz * dz < r * r) {
-          const reach = dx * dx + dz * dz <= Math.pow(this.w * 2, 2) + t.w && Math.abs(t.y - this.y) < 2.5;
+          const reach = this.inMeleeReach(t);
           if (mg.cool <= 0 && !reach) mg.cool = 20;
           stand = mg.cool <= 10;
         }
