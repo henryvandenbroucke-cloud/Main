@@ -6,8 +6,8 @@
    lava, campfires and portals give off their particles near the player (the game's animate tick). */
 const Particles = (() => {
   const MAX = 6000;
-  // ---------------------------------------------------------------- sprite sheet (8x8 cells on a 128x128 canvas)
-  const sheet = document.createElement('canvas'); sheet.width = sheet.height = 128;
+  // ---------------------------------------------------------------- sprite sheet (8x8 cells on a 128x256 canvas)
+  const sheet = document.createElement('canvas'); sheet.width = 128; sheet.height = 256;
   const g = sheet.getContext('2d');
   const SP = {}; let nx = 0, ny = 0;
   function cell(name, w, h, draw) { w = w || 8; h = h || 8; if (nx + w > 128) { nx = 0; ny += 8; } if (w > 8 && nx % 16) { nx += 8; if (nx + w > 128) { nx = 0; ny += 8; } } SP[name] = [nx, ny, w, h]; g.save(); g.translate(nx, ny); draw(g, w, h); g.restore(); nx += w; if (h > 8 && nx >= 128) { ny += h - 8; } }
@@ -41,6 +41,14 @@ const Particles = (() => {
   for (let i = 0; i < 8; i++) cell('sweep_' + i, 16, 16, c => { for (let k = 0; k < 40; k++) { const t = Math.PI * (0.15 + k / 40 * 0.7), r = 6.5 - i * 0.2; const x = 8 + Math.cos(t) * r, y = 12 - Math.sin(t) * r; px(c, Math.floor(x), Math.floor(y), i < 6 ? '#ffffff' : '#c8c8c8'); if (k % 2) px(c, Math.floor(x), Math.floor(y) + 1, '#d8d8d8'); } });
   for (let i = 0; i < 16; i++) cell('explosion_' + i, 16, 16, c => { const r = 3 + i * 0.35, n = Math.max(0, 1 - i / 16); for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const d = Math.hypot(x + 0.5 - 8, y + 0.5 - 8); const h = Math.sin(x * 3.1 + y * 1.7 + i) * 1.2; if (d < r + h && d > (i > 8 ? (i - 8) * 0.8 : 0)) { const v = Math.floor(255 * (0.55 + 0.45 * n) - d * 6); px(c, x, y, `rgb(${v},${v},${v})`); } } });
   for (let i = 0; i < 12; i++) cell('big_smoke_' + i, 16, 16, c => { const r = 4 + i * 0.2; disc(c, 8, 8, r, '#ffffff'); disc(c, 6, 7, r * 0.5, '#e8e8e8'); });
+  // the deep dark: the vibration's travelling spot, the sonic boom's ring (16 frames), the shriek's ring, souls
+  // rising from a blooming catalyst and the sculk charge's flecks
+  const ring = (c, cx, cy, r, w, col) => { for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy); if (d <= r && d >= r - w) px(c, x, y, col); } };
+  cell('vibration', 8, 8, c => { ring(c, 4, 4, 3.2, 1.3, '#ffffff'); px(c, 3, 3, '#ffffff'); px(c, 4, 4, '#ffffff'); });
+  for (let i = 0; i < 16; i++) cell('sonic_boom_' + i, 16, 16, c => ring(c, 8, 8, 2 + i * 0.38, 1.6, '#ffffff'));
+  for (let i = 0; i < 4; i++) cell('shriek_' + i, 16, 16, c => ring(c, 8, 8, 4 + i, 1.2, '#ffffff'));
+  for (let i = 0; i < 4; i++) cell('sculk_soul_' + i, 8, 8, c => { const k = 1 - i * 0.2; disc(c, 4, 3, 2.4 * k + 0.4, '#ffffff'); c.fillStyle = '#ffffff'; c.fillRect(3, 4, 3, Math.round(3 * k)); px(c, 3, 3, '#000000'); px(c, 5, 3, '#000000'); });
+  for (let i = 0; i < 4; i++) cell('sculk_charge_' + i, 8, 8, c => { const r = 2.6 - i * 0.5; disc(c, 4, 4, r, '#ffffff'); });
   const tex = new THREE.CanvasTexture(sheet); tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.flipY = false;
 
   // ---------------------------------------------------------------- the point systems
@@ -131,7 +139,7 @@ void main(){
         const i = n++;
         S.pos[i * 3] = p.px + (p.x - p.px) * a; S.pos[i * 3 + 1] = p.py + (p.y - p.py) * a; S.pos[i * 3 + 2] = p.pz + (p.z - p.pz) * a;
         S.size[i] = (p.sizeFn ? p.sizeFn(p, a) : p.size) * 2;
-        if (k === 'sheet') { const sp = SP[p.spriteFn ? p.spriteFn(p) : p.sprite] || SP.generic_0; S.rect[i * 4] = sp[0] / 128; S.rect[i * 4 + 1] = sp[1] / 128; S.rect[i * 4 + 2] = (sp[0] + sp[2]) / 128; S.rect[i * 4 + 3] = (sp[1] + sp[3]) / 128; }
+        if (k === 'sheet') { const sp = SP[p.spriteFn ? p.spriteFn(p) : p.sprite] || SP.generic_0; S.rect[i * 4] = sp[0] / 128; S.rect[i * 4 + 1] = sp[1] / 256; S.rect[i * 4 + 2] = (sp[0] + sp[2]) / 128; S.rect[i * 4 + 3] = (sp[1] + sp[3]) / 256; }
         else { S.rect[i * 4] = p.u0; S.rect[i * 4 + 1] = p.v0; S.rect[i * 4 + 2] = p.u1; S.rect[i * 4 + 3] = p.v1; }
         S.col[i * 4] = p.r; S.col[i * 4 + 1] = p.g; S.col[i * 4 + 2] = p.b; S.col[i * 4 + 3] = p.alphaFn ? p.alphaFn(p, a) : p.a;
         if (p.bright) { S.light[i * 3] = 1; S.light[i * 3 + 1] = 1; S.light[i * 3 + 2] = k === 'block' ? p.layer : 1; }
@@ -166,8 +174,8 @@ void main(){
     const uo = Math.floor(rand() * 4) / 4, vo = Math.floor(rand() * 4) / 4;
     p.u0 = uo; p.v0 = vo; p.u1 = uo + 0.25; p.v1 = vo + 0.25;
     let tint = null;
-    if (d.tint === 'grass' && (texName.includes('top') || d.name !== 'grass_block')) tint = BIOMES[World.biomeAt(Math.floor(x), Math.floor(z))].grass;
-    else if (d.tint === 'foliage') tint = BIOMES[World.biomeAt(Math.floor(x), Math.floor(z))].foliage;
+    if (d.tint === 'grass' && (texName.includes('top') || d.name !== 'grass_block')) tint = BIOMES[World.biomeAt3(x, y, z)].grass;
+    else if (d.tint === 'foliage') tint = BIOMES[World.biomeAt3(x, y, z)].foliage;
     else if (typeof d.tint === 'number') tint = d.tint;
     const k = 0.6;
     p.r = k * (tint ? (tint >> 16 & 255) / 255 : 1); p.g = k * (tint ? (tint >> 8 & 255) / 255 : 1); p.b = k * (tint ? (tint & 255) / 255 : 1);
@@ -307,6 +315,7 @@ void main(){
             if (rnd(30) === 0) Sound.play('candle_ambient', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 });
             break;
           }
+          case 'dripstone': Dripstone.animate(x, y, z, World.getState(x, y, z)); break;
           case 'ench': {
             for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) for (let dy = 0; dy <= 1; dy++) {
               if ((Math.abs(dx) !== 2 && Math.abs(dz) !== 2) || rnd(16) !== 0) continue;
@@ -317,7 +326,13 @@ void main(){
           }
           case 'fire': if (rnd(24) === 0) Sound.play('fire_ambient', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 }); for (let i = 0; i < 3; i++) smokeAt(x + rand(), y + rand() * 0.5 + 0.5, z + rand(), 0, 0, 0, true); break;
           case 'campfire': if ((World.getState(x, y, z) & 8) === 0) { if (rnd(10) === 0) Sound.play('campfire_crackle', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 }); if (rnd(5) === 0) lavaPop(x + 0.5, y + 0.5, z + 0.5); } break;
-          case 'portal': if (rnd(100) === 0) Sound.play('portal_ambient', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 }); for (let i = 0; i < 4; i++) { const p = generic(x + rand(), y + rand(), z + rand(), (rand() - 0.5) * 0.5, (rand() - 0.5) * 0.5, (rand() - 0.5) * 0.5, { size: 0.1 * (rand() * 0.2 + 0.5), life: 40 + rnd(10), phys: false, drag: 1, bright: true }); const f = rand() * 0.6 + 0.4; p.r = f * 0.9; p.g = f * 0.3; p.b = f; p.spriteFn = s => 'portal_' + Math.min(7, Math.floor(s.age / s.life * 8)); } break;
+          case 'portal': if (rnd(100) === 0) Sound.play('portal_ambient', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 }); for (let i = 0; i < 4; i++) {
+            // the game's PortalParticle: it starts off to one side and drifts back into the portal
+            const sx = x + rand(), sy = y + rand(), sz = z + rand(), vx = (rand() - 0.5) * 0.5, vy = (rand() - 0.5) * 0.5, vz = (rand() - 0.5) * 0.5;
+            const p = generic(sx + vx, sy + vy + 1, sz + vz, 0, 0, 0, { size: 0.1 * (rand() * 0.2 + 0.5), life: Math.floor(rand() * 10) + 40, phys: false, drag: 1, bright: true, sprite: 'generic_' + rnd(8) });
+            const f = rand() * 0.6 + 0.4; p.r = f * 0.9; p.g = f * 0.3; p.b = f;
+            p.update = q => { const t = q.age / q.life, f1 = -t + t * t * 2, f2 = 1 - f1; q.x = sx + vx * f2; q.y = sy + vy * f2 + (1 - t); q.z = sz + vz * f2; };
+          } break;
         }
         if (n === 'lava' && World.getBlock(x, y + 1, z) === 0 && rnd(100) === 0) { lavaPop(x + rand(), y + 1, z + rand()); Sound.play('lava_pop', null, { x: x + 0.5, y: y + 1, z: z + 0.5 }); }
         if ((n === 'water' || BLOCKS[World.getBlock(x, y, z)].fluid) && rnd(10) === 0 && World.getBlock(x, y - 1, z) === 0 && false) drip(x + rand(), y - 0.05, z + rand(), n === 'lava');
@@ -337,7 +352,12 @@ void main(){
     const f = rand() * 0.6 + 0.4; p.r = 0.9 * f * 0.9; p.g = 0.9 * f * 0.9; p.b = 0.9 * f;
     p.update = q => { const t = 1 - q.age / q.life, u = (1 - t) ** 4; q.x = x + dx * t; q.y = y + dy * t - u * 1.2; q.z = z + dz * t; };
   }
+  // dragon's breath: purple puffs that drift and fade
+  function dragonBreath(x, y, z) {
+    const p = generic(x, y, z, (rand() - 0.5) * 0.02, rand() * 0.02, (rand() - 0.5) * 0.02, { sprite: 'generic_' + rnd(8), size: 0.15, life: 20 + rnd(20), grav: 0, phys: false, drag: 0.96, bright: true });
+    const f = rand() * 0.2 + 0.8; p.r = 0.7 * f; p.g = 0.1 * f; p.b = 0.9 * f;
+  }
   function clear() { for (const k in SYS) SYS[k].list.length = 0; }
-  const api = { enchantGlyph, tick, render, blockBreak, blockHit, itemBreak, crit, magicCrit, sweep, smoke, poof, heart, happy, boneMeal, angry, totem, portal, bubble, splash, explosion, furnace, campfireSmoke, eat, slime, potionSplash, effects, note, firework, fireworkTrail, dust, drip, lavaPop, snow, damage, flameAt, smokeAt, clear, gust: (x, y, z) => explosion(x, y, z, false), sheet };
+  const api = { dragonBreath, enchantGlyph, tick, render, blockBreak, blockHit, blockBits, itemBreak, crit, magicCrit, sweep, smoke, poof, heart, happy, boneMeal, angry, totem, portal, bubble, splash, explosion, furnace, campfireSmoke, eat, slime, potionSplash, effects, note, firework, fireworkTrail, dust, drip, lavaPop, snow, damage, flameAt, smokeAt, generic, clear, gust: (x, y, z) => explosion(x, y, z, false), sheet };
   return new Proxy(api, { get: (t, k) => (k in t ? t[k] : () => {}) });
 })();

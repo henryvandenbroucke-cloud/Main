@@ -53,7 +53,7 @@ const Place = (() => {
     if (n === 'sweet_berry_bush') return soil(below);
     if (n === 'cocoa') { const f = st & 7; const l = World.getBlock(x + DX[f], y, z + DZ[f]); return l === BID.jungle_log || l === BID.jungle_wood || l === BID.stripped_jungle_log || l === BID.stripped_jungle_wood; }
     if (n === 'kelp_plant' || n === 'tall_seagrass') return true;
-    if (d.model === 'wall_torch' || d.model === 'wall_sign') { const f = st & 7; return SOLID[World.getBlock(x - DX[f], y, z - DZ[f])] === 1; }
+    if (d.model === 'wall_torch' || d.model === 'wall_sign' || d.model === 'wall_banner') { const f = st & 7; return SOLID[World.getBlock(x - DX[f], y, z - DZ[f])] === 1; }
     if (d.model === 'carpet' || d.model === 'plate' || d.model === 'wire' || d.model === 'repeater' || d.model === 'comparator') return SOLID[below] === 1 || (d.model === 'carpet' && below !== 0);
     if (d.model === 'bed') return true;
     if (n === 'snow') return SOLID[below] && below !== BID.ice && below !== BID.packed_ice && below !== BID.barrier || below === BID.snow && (World.getState(x, y - 1, z) & 7) === 7 || bd.name.endsWith('_leaves');
@@ -91,10 +91,10 @@ const Place = (() => {
     const waterHere = cd.fluid === 'water' && (World.getState(x, y, z) & 7) === 0;
     switch (d.place) {
       case 'axis': st = face < 2 ? 0 : face < 4 ? 2 : 1; break;
-      case 'facing_h': st = d.model === 'glazed' ? OPP[L] : L; if (d.model === 'repeater' || d.model === 'comparator') st = L; if (d.name === 'campfire' || d.name === 'soul_campfire' || d.name === 'bell') st = OPP[L]; break;
+      case 'facing_h': st = d.model === 'glazed' ? OPP[L] : L; if (d.name === 'chiseled_bookshelf') st = L - 2; if (d.model === 'repeater' || d.model === 'comparator') st = L; if (d.name === 'campfire' || d.name === 'soul_campfire' || d.name === 'bell') st = OPP[L]; if (d.name === 'calibrated_sculk_sensor') st = OPP[L] << 2; break;
       case 'facing_h_opp': st = OPP[L]; if (d.model === 'repeater' || d.model === 'comparator') st = L; break;
       case 'facing_h_rot': st = { 2: 5, 5: 3, 3: 4, 4: 2 }[L]; if (d.name === 'grindstone') st = OPP[L]; break;
-      case 'facing6': st = face; if (d.name === 'observer') st = OPP[look6(p)]; break;
+      case 'facing6': st = face; if (d.name === 'observer') st = look6(p); break;
       case 'facing6_opp': st = OPP[look6(p)]; if (d.name === 'barrel' || d.name.endsWith('shulker_box')) st = face; break;
       case 'leaves': st = 8; break;
       case 'slab': st = (face === 0 || (face > 1 && fy > 0.5)) ? 1 << 3 : 0; break;
@@ -110,13 +110,17 @@ const Place = (() => {
       case 'lantern': st = face === 0 ? 8 : 0; if (!canSurvive(id, st, x, y, z)) st ^= 8; break;
       case 'sign': case 'banner':
         if (face === 0) return false;
-        if (face > 1 && d.place === 'sign') { id = it.wall; st = face; }
+        if (face > 1 && it.wall !== undefined) { id = it.wall; st = face; }
         else if (face > 1) return false;
         else st = Math.round((((-p.yaw * 180 / Math.PI) + 180) % 360 + 360) % 360 / 22.5) & 15;
         break;
       case 'skull': st = face > 1 ? face : 0; break;
       case 'hopper': st = face === 1 || face === 0 ? 0 : OPP[face]; break;
-      case 'vine': { if (face === 0) return false; st = face === 1 ? 16 : [0, 0, 2, 1, 8, 4][face]; break; }
+      case 'vine': {
+        // glow lichen and sculk veins cling to any face (floors and ceilings too); vines hang from sides and tops
+        if (d.name === 'glow_lichen' || d.name === 'sculk_vein') { st = [16, 32, 2, 1, 8, 4][face] | (waterHere ? 128 : 0); break; }
+        if (face === 0) return false; st = face === 1 ? 16 : [0, 0, 2, 1, 8, 4][face]; break;
+      }
       case 'pickle': st = waterHere ? 128 : 0; break;
       case 'rail': st = Rails.shapeFor(x, y, z, L); break;
       case 'chest': {
@@ -136,7 +140,7 @@ const Place = (() => {
         }
         break;
       }
-      case 'dripstone': st = face === 0 ? 8 : 0; break;
+      case 'dripstone': { const s2 = Dripstone.placeState(p, x, y, z); if (s2 < 0) return false; st = s2; break; }
       case 'water_plant': case 'water_plant_any':
         if (d.place === 'water_plant' && !waterHere) return false;
         if (face === 0) return false;
@@ -204,6 +208,7 @@ const Place = (() => {
     p.swingArm();
     if (!p.creative) { s.count--; if (s.count <= 0) { if (offhand) p.inv.set(40, null); else p.inv.held = null; } p.inv.changed(); }
     Stats.add('placed', BLOCKS[id].name);
+    if (p.isPlayer) Advancements.fire('placed_block', { pos: [x, y, z], item: s, block: BLOCKS[id].name });
     return true;
   }
   return { tryPlace, canSurvive, lookDir, look6, solidTop, sturdyFace, soil };

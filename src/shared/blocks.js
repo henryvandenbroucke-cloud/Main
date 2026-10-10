@@ -82,13 +82,13 @@ SHARED.push(function blocksModule(G) {
   reg('snow_block', { tex: 'snow', sound: 'snow' });
   // snow layer: bits 0-2 = layers - 1
   reg('snow', { model: 'layer', tex: 'snow', opacity: 0, replaceable: true, sound: 'snow', ticks: true });
-  reg('powder_snow', { solid: false, sound: 'snow' });
+  reg('powder_snow', { solid: false, sound: 'snow', opacity: 1, cullSame: true });
   reg('moss_block', { sound: 'moss' }); reg('moss_carpet', { model: 'carpet', tex: 'moss_block', sound: 'moss' });
   reg('magma_block', { light: 3, tex: 'magma', sound: 'stone' });
   reg('amethyst_block', { sound: 'amethyst' }); reg('budding_amethyst', { sound: 'amethyst', ticks: true });
   for (const n of ['small_amethyst_bud', 'medium_amethyst_bud', 'large_amethyst_bud', 'amethyst_cluster']) reg(n, plant({ model: 'cross', place: 'facing6', light: n === 'amethyst_cluster' ? 5 : n === 'large_amethyst_bud' ? 4 : n === 'medium_amethyst_bud' ? 2 : 1, sound: 'amethyst' }));
   // pointed dripstone: bits 0-2 thickness, bit 3 hanging down
-  reg('pointed_dripstone', plant({ model: 'cross', tex: 'pointed_dripstone_down_tip', place: 'dripstone', sound: 'stone' }));
+  reg('pointed_dripstone', { model: 'dripstone', layer: 1, opacity: 0, noAO: true, tex: 'pointed_dripstone', place: 'dripstone', sound: 'pointed_dripstone', waterlog: true, ticks: true });
 
   // ------------------------------------------------------------------ ores and storage blocks
   for (const o of ['coal', 'iron', 'copper', 'gold', 'redstone', 'emerald', 'lapis', 'diamond']) {
@@ -149,7 +149,7 @@ SHARED.push(function blocksModule(G) {
   reg('bamboo', { model: 'bamboo', tex: 'bamboo_stalk', layer: 1, opacity: 0, ticks: true, sound: 'bamboo', place: 'bamboo' });
   // vine: bits 0-4 attached faces (north, south, west, east, up)
   reg('vine', plant({ model: 'vine', tint: 'foliage', climb: true, replaceable: true, ticks: true, place: 'vine', flam: [15, 100] }));
-  reg('glow_lichen', plant({ model: 'vine', light: 7, replaceable: true, place: 'vine' }));
+  reg('glow_lichen', plant({ model: 'vine', light: 7, replaceable: true, place: 'vine', waterlog: true }));
   reg('lily_pad', plant({ model: 'lily', tint: 0x208030, solid: true, place: 'lily' }));
   reg('pumpkin', { tex: { side: 'pumpkin_side', end: 'pumpkin_top' }, sound: 'wood' });
   reg('carved_pumpkin', { tex: { side: 'pumpkin_side', end: 'pumpkin_top', front: 'carved_pumpkin' }, place: 'facing_h', sound: 'wood' });
@@ -181,8 +181,8 @@ SHARED.push(function blocksModule(G) {
   reg('spore_blossom', plant({ place: 'ceiling' }));
   reg('hanging_roots', plant({ place: 'ceiling' }));
   reg('cave_vines', plant({ climb: true, light: 0, item: false, tex: 'cave_vines', ticks: true })); reg('cave_vines_plant', plant({ climb: true, item: false }));
-  reg('big_dripleaf', { model: 'dripleaf', layer: 1, opacity: 0, place: 'facing_h', sound: 'big_dripleaf', tex: { top: 'big_dripleaf_top', side: 'big_dripleaf_stem' } });
-  reg('small_dripleaf', plant({ model: 'tall', place: 'tall_plant', tex: 'small_dripleaf_top' }));
+  reg('big_dripleaf', { model: 'dripleaf', layer: 1, opacity: 0, place: 'facing_h', sound: 'big_dripleaf', waterlog: true, tex: { top: 'big_dripleaf_top', side: 'big_dripleaf_stem' } });
+  reg('small_dripleaf', plant({ model: 'tall', place: 'tall_plant', tex: 'small_dripleaf_top', waterlog: true }));
   reg('cobweb', plant({ solid: false, opacity: 1, sound: 'stone' }));
   reg('chorus_plant', { model: 'chorus', layer: 1, opacity: 0, sound: 'wood', tex: 'chorus_plant' });
   reg('chorus_flower', { model: 'chorus', layer: 1, opacity: 0, sound: 'wood', ticks: true, place: 'chorus_flower' });
@@ -209,6 +209,7 @@ SHARED.push(function blocksModule(G) {
     reg(c + '_bed', { model: 'bed', layer: 0, opacity: 0, place: 'bed', sound: 'wood', tex: c + '_wool' });
     reg(c + '_shulker_box', { model: 'cube', place: 'facing6', tex: { side: c + '_shulker_box_side', top: c + '_shulker_box_top', bottom: c + '_shulker_box_bottom' }, sound: 'stone' });
     reg(c + '_banner', { model: 'banner', layer: 0, solid: false, opacity: 0, place: 'banner', sound: 'wood', tex: c + '_wool' });
+    reg(c + '_wall_banner', { model: 'wall_banner', layer: 0, solid: false, opacity: 0, item: false, sound: 'wood', tex: c + '_wool' });
   }
   reg('shulker_box', { place: 'facing6', tex: { side: 'shulker_box_side', top: 'shulker_box_top', bottom: 'shulker_box_bottom' } });
   reg('terracotta');
@@ -418,7 +419,7 @@ SHARED.push(function blocksModule(G) {
   reg('pitcher_crop', plant({ model: 'crop', ticks: true, item: false, tex: 'pitcher_crop_top_stage_4' }));
   reg('pitcher_plant', plant({ model: 'tall', place: 'tall_plant', tex: 'pitcher_plant_top' }));
   reg('bamboo_sapling', plant({ item: false, ticks: true, tex: 'bamboo_stage0', place: 'bamboo' }));
-  reg('big_dripleaf_stem', plant({ item: false, tex: 'big_dripleaf_stem' }));
+  reg('big_dripleaf_stem', plant({ item: false, tex: 'big_dripleaf_stem', waterlog: true }));
   reg('frosted_ice', { layer: 2, opacity: 2, slip: 0.98, ticks: true, item: false, sound: 'glass', tex: 'frosted_ice_0' });
   // eggs: turtle eggs (bits 0-1 count-1, bits 2-3 hatch stage), sniffer eggs (bits 0-1 hatch stage)
   reg('turtle_egg', { model: 'turtle_egg', layer: 1, opacity: 0, sound: 'stone', ticks: true });
@@ -443,8 +444,8 @@ SHARED.push(function blocksModule(G) {
   for (const [p2, src] of [['polished_tuff', 'polished_tuff'], ['tuff_brick', 'tuff_bricks']]) { const base = { tex: src, sound: 'tuff', waterlog: true }; reg(p2 + '_stairs', Object.assign({ model: 'stairs', place: 'stairs', opacity: 15 }, base)); reg(p2 + '_slab', Object.assign({ model: 'slab', place: 'slab', opacity: 15 }, base)); reg(p2 + '_wall', Object.assign({ model: 'wall' }, base)); }
   // sculk
   reg('sculk', { sound: 'sculk', tex: 'sculk' });
-  reg('sculk_vein', plant({ model: 'vine', place: 'vine', replaceable: true, sound: 'sculk', tex: 'sculk_vein', tint: null }));
-  reg('sculk_catalyst', { light: 6, sound: 'sculk', tex: { top: 'sculk_catalyst_top', side: 'sculk_catalyst_side', bottom: 'sculk_catalyst_bottom' } });
+  reg('sculk_vein', plant({ model: 'vine', place: 'vine', replaceable: true, sound: 'sculk', tex: 'sculk_vein', tint: null, waterlog: true }));
+  reg('sculk_catalyst', { light: 6, sound: 'sculk', stateTex: s => s & 1 ? { up: 'sculk_catalyst_top_bloom', down: 'sculk_catalyst_bottom', side: 'sculk_catalyst_side_bloom' } : { up: 'sculk_catalyst_top', down: 'sculk_catalyst_bottom', side: 'sculk_catalyst_side' }, tex: { top: 'sculk_catalyst_top', side: 'sculk_catalyst_side', bottom: 'sculk_catalyst_bottom' } });
   reg('sculk_shrieker', { model: 'shrieker', opacity: 0, sound: 'sculk', waterlog: true, tex: { top: 'sculk_shrieker_top', side: 'sculk_shrieker_side', bottom: 'sculk_shrieker_bottom' } });
   reg('sculk_sensor', { model: 'sensor', layer: 1, opacity: 0, light: 1, sound: 'sculk', waterlog: true, tex: { top: 'sculk_sensor_top', side: 'sculk_sensor_side', bottom: 'sculk_sensor_bottom', extra: 'sculk_sensor_tendril_inactive' } });
   reg('calibrated_sculk_sensor', { model: 'sensor', layer: 1, opacity: 0, light: 1, sound: 'sculk', waterlog: true, place: 'facing_h', tex: { top: 'calibrated_sculk_sensor_top', side: 'sculk_sensor_side', bottom: 'sculk_sensor_bottom', extra: 'calibrated_sculk_sensor_amethyst' } });
@@ -486,6 +487,10 @@ SHARED.push(function blocksModule(G) {
   // ------------------------------------------------------------------ light that depends on the block state
   // (LIGHT holds the most a block can give; lightFn gives the value for a state)
   const lit = (n, fn) => { const d = BLOCKS[BID[n]]; d.lightFn = fn; for (let st = 0; st < 256; st++) d.light = Math.max(d.light, fn(st)); };
+  // trial spawners glow by state (waiting 4, active and rewarding 8); vaults 6 when idle, 12 when lit
+  lit('trial_spawner', s => [0, 4, 8, 8, 8, 0, 0, 0][s & 7]);
+  lit('vault', s => ((s >> 3) & 3) ? 12 : 6);
+  BLOCKS[BID.trial_spawner].stateTex = s => { const k = s & 7, o = s & 8 ? '_ominous' : '', on = k >= 1 && k <= 4; return { up: 'trial_spawner_top_' + (k === 3 || k === 4 ? 'ejecting_reward' : on ? 'active' : 'inactive') + o, down: 'trial_spawner_bottom' + o, side: 'trial_spawner_side_' + (on ? 'active' : 'inactive') + o }; };
   for (const c of [''].concat(COLORS)) { const n = (c ? c + '_' : '') + 'candle'; BLOCKS[BID[n]].light = 12; lit(n, s => (s & 4) ? 3 * ((s & 3) + 1) : 0); lit(n + '_cake', s => (s & 4) ? 3 : 0); }
   OX.forEach((o, i) => {
     const level = [15, 12, 8, 4][i];

@@ -173,3 +173,60 @@ input { font-family: inherit; }
 .gpart.beaconpyr { color: #3a6a8a; font-size: calc(var(--fs) * 0.8); letter-spacing: calc(var(--s) * 0.5); }
 .gpart.beaconitems span { position: absolute; top: 0; }
 .gpart.beaconitems .icon { position: absolute; }
+
+/* ---------------------------------------------------------------- villager trading */
+.gpart.tradelistbg { background: #8b8b8b; box-shadow: inset var(--s) var(--s) 0 #373737, inset calc(var(--s) * -1) calc(var(--s) * -1) 0 #fff; }
+.gpart.tradelist { overflow: hidden; }
+.tradebtn { position: absolute; left: 0; width: calc(var(--s) * 88); height: calc(var(--s) * 20); box-sizing: border-box; background: #c6c6c6; border: var(--s) solid; border-color: #fff #555 #555 #fff; }
+.tradebtn:hover { background: #d8d8ff; }
+.tradebtn.sel { background: #a8a8e0; border-color: #373797 #fff #fff #373797; }
+.tradebtn.out { background: #8b8b8b; }
+.tradebtn > span { position: absolute; top: calc(var(--s) * 1); }
+.tradebtn .icon { position: absolute; }
+.tradebtn .count { position: absolute; }
+.tradebtn .ta { left: calc(var(--s) * 4); } .tradebtn .tb { left: calc(var(--s) * 30); } .tradebtn .tout { left: calc(var(--s) * 66); }
+.tradebtn .ta, .tradebtn .tb, .tradebtn .tout { width: calc(var(--s) * 16); height: calc(var(--s) * 16); }
+.tradebtn s { position: absolute; left: calc(var(--s) * -3); top: calc(var(--s) * -1); color: #ff5555; font-size: calc(var(--fs) * 0.7); }
+.tradebtn .tarrow { left: calc(var(--s) * 50); top: calc(var(--s) * 5); width: calc(var(--s) * 10); height: calc(var(--s) * 9); background: linear-gradient(#373737, #373737) 0 50% / 60% calc(var(--s) * 3) no-repeat; }
+.tradebtn .tarrow::after { content: ''; position: absolute; right: 0; top: 0; border: calc(var(--s) * 4.5) solid transparent; border-left: calc(var(--s) * 4) solid #373737; border-right: 0; }
+.tradebtn .tarrow.x::before { content: '✖'; position: absolute; left: 0; top: calc(var(--s) * -3); color: #ff3a3a; font-size: var(--fs); }
+.gpart.tradetitle { width: calc(var(--s) * 175); text-align: center; color: #404040; white-space: nowrap; line-height: var(--lh); margin-top: calc(var(--s) * -1); }
+.gpart.tradexp { width: calc(var(--s) * 102); height: calc(var(--s) * 5); background: #2a2a2a; box-shadow: 0 0 0 var(--s) #000; }
+.gpart.tradexp i, .gpart.tradexp b { position: absolute; top: 0; height: 100%; left: 0; }
+.gpart.tradexp i { background: #80ff20; } .gpart.tradexp b { background: #c8ffa0; }
+
+/* the crafter: switched-off grid slots and the redstone indicator */
+.gslot.disabled { background: repeating-linear-gradient(45deg, #8b8b8b 0 calc(var(--s) * 2), #6b6b6b calc(var(--s) * 2) calc(var(--s) * 4)); box-shadow: inset 0 0 0 calc(var(--s)) #555; }
+.gpart.crafterpower { width: calc(var(--s) * 16); height: calc(var(--s) * 4); background: #4a1010; border: calc(var(--s) * 0.5) solid #222; }
+.gpart.crafterpower.on { background: #ff2020; box-shadow: 0 0 calc(var(--s) * 3) #f22; }
+
+/* the loom: the pattern grid and the result preview */
+.gpart.loomgrid { overflow: hidden; }
+.loomcell { position: absolute; box-sizing: border-box; background: #8b8b8b; border: calc(var(--s) * 1) solid; border-color: #c6c6c6 #373737 #373737 #c6c6c6; cursor: pointer; }
+.loomcell.sel { background: #6a8aaa; }
+.loomcell:hover { background: #a0a0c0; }
+.gpart.loompreview { width: calc(var(--s) * 20); height: calc(var(--s) * 40); }
+
+/* a map held in the hand, and the cartography table's view */
+#mapHand { position: fixed; left: 50%; bottom: 3vh; width: min(46vh, 46vw); height: auto; transform: translateX(-50%) rotate(-1.5deg); image-rendering: pixelated; pointer-events: none; z-index: 4; box-shadow: 0 0 0.6vh rgba(0,0,0,0.5); }
+#mapHand.hidden { display: none; }
+.gpart.cartoview { background: #6b5a3a; }
+
+/* books: the game's 192 wide book screen, text in a 114 x 128 box, buttons under it */
+.book { position: absolute; left: 0; top: 0; width: calc(var(--s) * 192); height: calc(var(--s) * 216); font-size: var(--fs); line-height: var(--lh); color: #000; }
+.book::before { content: ''; position: absolute; left: calc(var(--s) * 20); top: calc(var(--s) * 2); width: calc(var(--s) * 146); height: calc(var(--s) * 180); background: #f3ead0; border: calc(var(--s) * 3) solid #7a4e24; box-sizing: border-box; box-shadow: inset calc(var(--s) * 4) 0 0 #e2d4ae, calc(var(--s) * 2) calc(var(--s) * 2) 0 rgba(0,0,0,0.35); }
+.bookhead { position: absolute; right: calc(var(--s) * 44); top: calc(var(--s) * 16); white-space: nowrap; }
+.bookpage { position: absolute; left: calc(var(--s) * 36); top: calc(var(--s) * 32); width: calc(var(--s) * 114); height: calc(var(--s) * 128); margin: 0; padding: 0; border: none; outline: none; resize: none; background: transparent; font: inherit; color: #000; white-space: pre-wrap; word-wrap: break-word; overflow: hidden; }
+.booknav { position: absolute; left: 0; top: calc(var(--s) * 159); width: 100%; }
+.bookarrow { position: absolute; width: calc(var(--s) * 23); height: calc(var(--s) * 13); color: #8a5a2a; cursor: pointer; text-align: center; line-height: calc(var(--s) * 13); }
+.bookarrow:hover { color: #c0392b; }
+.bookarrow.prev { left: calc(var(--s) * 43); }
+.bookarrow.next { left: calc(var(--s) * 116); }
+.mbtn.bookbtn { position: absolute; top: calc(var(--s) * 196); width: calc(var(--s) * 98); font-size: var(--fs); text-shadow: var(--s) var(--s) 0 #3f3f3f; }
+.mbtn.bookbtn.left { left: calc(var(--s) * -4); }
+.mbtn.bookbtn.right { left: calc(var(--s) * 98); }
+.mbtn.bookbtn.full { left: calc(var(--s) * -4); width: calc(var(--s) * 200); }
+.bookhead.center { left: calc(var(--s) * 36); right: auto; width: calc(var(--s) * 114); text-align: center; top: calc(var(--s) * 50); }
+.booktitle { position: absolute; left: calc(var(--s) * 36); top: calc(var(--s) * 66); width: calc(var(--s) * 114); text-align: center; border: none; outline: none; background: transparent; font: inherit; color: #000; }
+.bookby { position: absolute; left: calc(var(--s) * 36); top: calc(var(--s) * 78); width: calc(var(--s) * 114); text-align: center; color: #555; }
+.bookwarn { position: absolute; left: calc(var(--s) * 36); top: calc(var(--s) * 98); width: calc(var(--s) * 114); text-align: center; color: #000; }

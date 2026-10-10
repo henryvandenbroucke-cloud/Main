@@ -19,19 +19,26 @@ const Blocks = (() => {
     if (id === B.ice && !quiet && !(p && p.creative)) { const below = World.getBlock(x, y - 1, z); if (SOLID[below] || isFluid(below)) { World.setBlock(x, y, z, B.water, 0); Ticks.schedule(x, y, z, 5); } }
     if (d.name === 'nether_portal' || d.name === 'obsidian') Portals.onBreak(x, y, z);
     if (d.name === 'end_portal_frame') Portals.onEndFrameBreak(x, y, z);
+    // string cut with shears is disarmed first and does not set off its hooks
+    if (id === B.tripwire || id === B.tripwire_hook) Tripwire.removed(x, y, z, id, id === B.tripwire && p && p.inv && p.inv.held && ITEMS[p.inv.held.id].name === 'shears' ? st | 4 : st);
     World.setBE(x, y, z, null);
     updateAround(x, y, z);
     Redstone.update(x, y, z);
   }
   function onPlaced(x, y, z, id, st, p, s) {
     const d = BLOCKS[id];
+    GameEvents.emit('block_place', x + 0.5, y + 0.5, z + 0.5, p || GameEvents.actor, id);
     BlockExtras.onPlaced(x, y, z, id, st);
     // block entities for containers and machines
     const be = newBE(d.name);
     if (be) { if (s && s.tag && s.tag.items) be.items = s.tag.items.slice(); if (s && s.tag && s.tag.name) be.customName = s.tag.name; World.setBE(x, y, z, be); }
+    if (d.name === 'decorated_pot') Pots.placed(x, y, z, s);
+    if (d.name === 'bee_nest' || d.name === 'beehive') Bees.placed(x, y, z, s);
     if (d.name === 'redstone_wire' || d.model === 'repeater' || d.model === 'comparator' || d.name.includes('redstone') || d.model === 'lever' || d.model === 'door' || d.model === 'trapdoor' || d.model === 'piston' || d.name === 'observer' || d.name === 'tnt' || d.name === 'redstone_lamp' || d.name === 'note_block' || d.model === 'gate' || d.name === 'dispenser' || d.name === 'dropper' || d.name === 'hopper' || d.model === 'rail') Redstone.onPlaced(x, y, z, id, st);
     if (d.fluid) Ticks.schedule(x, y, z, Fluids.delay(id));
     if (d.gravity) Ticks.schedule(x, y, z, 2);
+    if (id === B.tripwire || id === B.tripwire_hook) Tripwire.placed(x, y, z, id, st);
+    if (d.model === 'banner' || d.model === 'wall_banner') Banners.placed(x, y, z, s);
     if (d.name === 'carved_pumpkin' || d.name === 'wither_skeleton_skull') Golems.check(x, y, z, p);
     if (d.name === 'fire') Portals.tryLight(x, y, z);
     if (d.name === 'sponge') Sponge.absorb(x, y, z);
@@ -40,18 +47,30 @@ const Blocks = (() => {
     Redstone.update(x, y, z);
   }
   function newBE(name) {
+    if (name === 'suspicious_sand' || name === 'suspicious_gravel') return Archaeology.newBE();
     if (name === 'chest' || name === 'trapped_chest' || name === 'barrel' || name.endsWith('shulker_box')) return { type: 'container', items: new Array(27).fill(null) };
     if (name === 'furnace' || name === 'blast_furnace' || name === 'smoker') return { type: 'furnace', items: [null, null, null], burn: 0, burnMax: 0, cook: 0, cookMax: 200, xp: 0 };
     if (name === 'dispenser' || name === 'dropper') return { type: 'container', items: new Array(9).fill(null) };
     if (name === 'hopper') return { type: 'hopper', items: new Array(5).fill(null), cooldown: 0 };
     if (name === 'brewing_stand') return { type: 'brewing', items: [null, null, null, null, null], fuel: 0, time: 0 };
     if (name === 'jukebox') return { type: 'jukebox', disc: null };
+    if (name === 'decorated_pot') return { type: 'pot', items: [null] };
+    if (name === 'chiseled_bookshelf') return { type: 'bookshelf', items: new Array(6).fill(null) };
+    if (name === 'sculk_sensor' || name === 'calibrated_sculk_sensor') return { type: 'sensor', power: 0, freq: 0 };
+    if (name === 'sculk_shrieker') return { type: 'shrieker', warning: 0 };
+    if (name === 'sculk_catalyst') return { type: 'catalyst', cursors: [] };
+    if (name === 'trial_spawner') return Trials.newBE();
+    if (name === 'bee_nest' || name === 'beehive') return Bees.newBE();
+    if (name === 'vault') return Trials.newVault();
     if (name === 'campfire' || name === 'soul_campfire') return { type: 'campfire', items: [null, null, null, null], times: [0, 0, 0, 0] };
     if (name === 'beacon') return { type: 'beacon', levels: 0, primary: null, secondary: null };
     if (name === 'lectern') return { type: 'lectern', book: null };
     if (name === 'spawner') return { type: 'spawner', mob: 'pig', delay: 20 };
     if (name === 'enchanting_table') return { type: 'enchanting' };
     if (name === 'end_gateway') return { type: 'gateway' };
+    if (name === 'comparator') return { type: 'comparator', out: 0 };
+    if (name === 'crafter') return { type: 'crafter', items: new Array(9).fill(null), disabled: new Array(9).fill(false), craftTicks: 0 };
+    if (name === 'daylight_detector') return { type: 'daylight' };
     return null;
   }
   // tell the six neighbours that something changed next to them
@@ -63,6 +82,7 @@ const Blocks = (() => {
     const d = BLOCKS[id], st = World.getState(x, y, z);
     if (d.fluid) { Ticks.schedule(x, y, z, Fluids.delay(id)); return; }
     BlockExtras.neighborChanged(x, y, z, id);
+    if (id === B.pointed_dripstone) { if (st & 128) Ticks.schedule(x, y, z, 5, B.water); Dripstone.neighbor(x, y, z, st); return; }
     if ((d.waterlog && (st & 128)) || d.fluidLog) Ticks.schedule(x, y, z, 5, B.water);
     if (d.gravity) Ticks.schedule(x, y, z, 2);
     if (d.name === 'redstone_wire' || d.model === 'repeater' || d.model === 'comparator' || d.model === 'piston' || d.name === 'redstone_lamp' || d.model === 'door' || d.model === 'trapdoor' || d.model === 'gate' || d.name === 'tnt' || d.name === 'note_block' || d.name === 'dispenser' || d.name === 'dropper' || d.name === 'observer' || d.name === 'hopper' || d.model === 'rail' || d.name.startsWith('redstone_') && d.model.includes('torch')) Redstone.neighbor(x, y, z, id, st, fx, fy, fz);
@@ -80,10 +100,12 @@ const Blocks = (() => {
     if (id === B.farmland && SOLID[World.getBlock(x, y + 1, z)] && BLOCKS[World.getBlock(x, y + 1, z)].model === 'cube') World.setBlock(x, y, z, B.dirt, 0);
   }
   // ---------------------------------------------------------------- scheduled ticks
-  function scheduledTick(x, y, z, id, st) {
+  function scheduledTick(x, y, z, id, st, water) {
     const d = BLOCKS[id];
     if (d.fluid) return Fluids.tick(x, y, z, id, st);
-    if ((d.waterlog && (st & 128)) || d.fluidLog) { Fluids.tick(x, y, z, B.water, 0); return; }
+    if (!water && typeof Sculk !== 'undefined' && Sculk.scheduledTick(x, y, z, id, st)) return;
+    if (!water && id === B.pointed_dripstone) return Dripstone.scheduled(x, y, z, st);
+    if (water || (((d.waterlog && (st & 128)) || d.fluidLog) && !Redstone.isComponent(id))) { Fluids.tick(x, y, z, B.water, 0); return; }
     if (d.gravity) return Falling.check(x, y, z, id, st);
     if (BlockExtras.scheduledTick(x, y, z, id, st)) return;
     if (Redstone.isComponent(id)) return Redstone.scheduled(x, y, z, id, st);
@@ -95,6 +117,7 @@ const Blocks = (() => {
   // ---------------------------------------------------------------- random ticks
   function randomTick(x, y, z, id, st) {
     if (BlockExtras.randomTick(x, y, z, id, st)) return;
+    if (id === B.pointed_dripstone) return Dripstone.randomTick(x, y, z, st);
     const d = BLOCKS[id], n = d.name;
     const light = World.lightLevel(x, y + 1, z);
     switch (n) {
@@ -172,7 +195,7 @@ const Blocks = (() => {
       case 'fire': return;
     }
     if (n.endsWith('_sapling') || n === 'mangrove_propagule') { if (light >= 9 && Math.random() < 1 / 7) growSapling(x, y, z, id, st); return; }
-    if (n.endsWith('_leaves')) { if (!(st & 8)) Leaves.check(x, y, z, id); return; }
+    if (n.endsWith('_leaves')) { if (!(st & 8)) Leaves.randomTick(x, y, z, id); return; }
   }
   function waterNear(x, y, z, r) { for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) for (let dy = 0; dy <= 1; dy++) { const b = World.getBlock(x + dx, y + dy, z + dz); if (BLOCKS[b].fluid === 'water' || BLOCKS[b].fluidLog || (BLOCKS[b].waterlog && World.getState(x + dx, y + dy, z + dz) & 128)) return true; } return false; }
   // the crop growth chance from the farmland around it (the game's getGrowthSpeed)
@@ -215,6 +238,7 @@ const Blocks = (() => {
     if (p.spectator) return false;
     const held = p.inv.held;
     if (BlockExtras.use(p, hit, id, st, held)) return true;
+    if (id === B.redstone_wire && !p.sneaking && p.gamemode !== 'adventure') return Redstone.useWire(x, y, z, st);
     switch (d.model) {
       case 'door': if (n === 'iron_door') return false; { const by = st & 8 ? y - 1 : y; const bs = World.getState(x, by, z); World.setBlock(x, by, z, id, bs ^ 16); World.setBlock(x, by + 1, z, id, World.getState(x, by + 1, z) ^ 16); Sound.play(bs & 16 ? 'door_close' : 'door_open', null, { x, y, z, iron: false }); return true; }
       case 'trapdoor': if (n === 'iron_trapdoor') return false; World.setBlock(x, y, z, id, st ^ 16); Sound.play(st & 16 ? 'trapdoor_close' : 'trapdoor_open', null, { x, y, z }); return true;
@@ -270,6 +294,9 @@ class FallingBlock extends Entity {
     this.fallDist = (this.fallDist || 0) + Math.max(0, -this.vy);
     if (this.onGround) {
       this.removed = true;
+      // suspicious sand and gravel break when they land, with whatever they held
+      if (d.name === 'pointed_dripstone') { Dripstone.landed(this, bx, by, bz); return; }
+      if (d.name.startsWith('suspicious_')) { Particles.blockBreak(bx, by, bz, this.block, 0); Sound.blockBreak(this.block, bx, by, bz); return; }
       const cur = World.getBlock(bx, by, bz);
       if (cur === 0 || BLOCKS[cur].replaceable || BLOCKS[cur].fluid) {
         let st = this.state;

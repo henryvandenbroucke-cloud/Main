@@ -15,7 +15,7 @@ scene.add(camera);
 const skyScene = new THREE.Scene(), skyCam = new THREE.PerspectiveCamera(70, 1, 0.5, 400); skyCam.rotation.order = 'YXZ';
 
 const LIGHT_GLSL = `
-uniform float uSkyLight; uniform vec3 uSkyTint; uniform float uGamma; uniform float uAmbient; uniform float uNV; uniform float uFlicker; uniform float uDark;
+uniform float uSkyLight; uniform vec3 uSkyTint; uniform float uGamma; uniform float uAmbient; uniform float uNV; uniform float uFlicker; uniform float uDark; uniform float uForceBright;
 float lmBr(float f){ return mix(f / (4.0 - 3.0 * f), 1.0, uAmbient); }
 vec3 lightmap(float sky, float blk){
   float s = lmBr(sky) * uSkyLight;
@@ -23,6 +23,8 @@ vec3 lightmap(float sky, float blk){
   vec3 bl = vec3(b, b * ((b * 0.6 + 0.4) * 0.6 + 0.4), b * (b * b * 0.6 + 0.4));
   vec3 lm = bl + uSkyTint * s;
   lm = mix(lm, vec3(0.75), 0.04);
+  // the End's lightmap is forced bright (DimensionSpecialEffects.forceBrightLightmap)
+  if (uForceBright > 0.0) lm = mix(lm, vec3(0.99, 1.12, 1.0), 0.25);
   lm = clamp(lm, 0.0, 1.0);
   if (uNV > 0.0) { float m = max(lm.r, max(lm.g, lm.b)); lm = mix(lm, lm / max(m, 0.001), uNV); }
   vec3 g = 1.0 - pow(1.0 - lm, vec3(4.0));
@@ -32,17 +34,30 @@ vec3 lightmap(float sky, float blk){
 }`;
 const U = {
   uTex: { value: null }, uTime: { value: 0 }, uSkyLight: { value: 1 }, uSkyTint: { value: new THREE.Color(1, 1, 1) }, uGamma: { value: 0.5 }, uAmbient: { value: 0 }, uNV: { value: 0 },
-  uFlicker: { value: 1 }, uDark: { value: 0 }, uFogColor: { value: new THREE.Color(0xc0d8ff) }, uFogStart: { value: 100 }, uFogEnd: { value: 128 },
+  uFlicker: { value: 1 }, uDark: { value: 0 }, uForceBright: { value: 0 }, uFogColor: { value: new THREE.Color(0xc0d8ff) }, uFogStart: { value: 100 }, uFogEnd: { value: 128 },
+  // for the optional shaders: where the sun is, the sky overhead, and which texture layers are water
+  uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSkyTop: { value: new THREE.Color(0x78a7ff) }, uWaterA: { value: -10 }, uWaterB: { value: -10 },
 };
 const VOX_VERT = `
 in vec4 aUV; in vec4 aLight; in vec4 aColor;
 uniform float uTime;
 out vec3 vUV; out vec2 vL; out float vShade; out vec3 vColor; out float vDist;
+#ifdef SHADERS
+uniform float uWaterA; uniform float uWaterB;
+out vec3 vWorld; out float vWater;
+#endif
 void main(){
   float layer = aUV.z;
   if (aUV.w > 0.5) layer += mod(floor(uTime * 10.0), aUV.w);
   vUV = vec3(aUV.xy, layer); vL = aLight.xy; vShade = aLight.z; vColor = aColor.rgb;
-  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+#ifdef SHADERS
+  // water: its surface rises and falls in slow waves (the bottom of each water block stays put)
+  vWater = (abs(aUV.z - uWaterA) < 0.5 || abs(aUV.z - uWaterB) < 0.5) ? 1.0 : 0.0;
+  if (vWater > 0.5 && fract(wp.y) > 0.05) wp.y += (sin(wp.x * 0.8 + uTime * 1.5) + sin(wp.z * 1.05 + uTime * 1.2) + sin((wp.x + wp.z) * 0.37 - uTime * 0.9)) * 0.016 - 0.04;
+  vWorld = wp.xyz;
+#endif
+  vec4 mv = viewMatrix * wp;
   vDist = length(mv.xyz);
   gl_Position = projectionMatrix * mv;
 }`;
@@ -51,6 +66,10 @@ precision highp float; precision highp sampler2DArray;
 uniform sampler2DArray uTex; uniform float uMode; uniform vec3 uFogColor; uniform float uFogStart; uniform float uFogEnd;
 ${LIGHT_GLSL}
 in vec3 vUV; in vec2 vL; in float vShade; in vec3 vColor; in float vDist;
+#ifdef SHADERS
+uniform vec3 uSunDir; uniform vec3 uSkyTop; uniform float uTime;
+in vec3 vWorld; in float vWater;
+#endif
 out vec4 fragColor;
 void main(){
   vec4 t = texture(uTex, vUV);
@@ -58,19 +77,42 @@ void main(){
   if (uMode < 0.5) c = mix(t.rgb * vColor, t.rgb, t.a);
   else { if (uMode < 1.5 && t.a < 0.5) discard; if (uMode > 1.5 && t.a < 0.01) discard; c = t.rgb * vColor; }
   c *= lightmap(vL.x, vL.y) * vShade;
+  float alpha = uMode > 1.5 ? t.a : 1.0;
+#ifdef SHADERS
+  if (vWater > 0.5 && uMode > 1.5) {
+    // ripples: a surface normal from a few moving waves; the sky reflects off it (more at grazing angles), the
+    // sun leaves a glint, and only where the sky reaches the water
+    vec2 p = vWorld.xz; float tt = uTime;
+    vec3 N = normalize(vec3(
+      sin(p.x * 1.7 + tt * 1.9) * 0.07 + sin(p.x * 3.3 - p.y * 2.1 + tt * 2.6) * 0.045 + cos(p.y * 2.3 + p.x * 0.7 + tt * 1.4) * 0.035,
+      1.0,
+      cos(p.y * 1.5 + tt * 1.6) * 0.07 + sin(p.y * 3.1 + p.x * 1.8 - tt * 2.2) * 0.045 + sin(p.x * 2.6 - tt * 1.1) * 0.03));
+    vec3 V = normalize(cameraPosition - vWorld);
+    float ndv = abs(dot(N, V)), fres = pow(1.0 - ndv, 3.0);
+    vec3 R = reflect(-V, N); if (R.y < 0.0) R.y = -R.y;
+    float sky = lmBr(vL.x) * uSkyLight;
+    vec3 refl = mix(uFogColor, uSkyTop, clamp(R.y * 1.5, 0.0, 1.0));
+    c = mix(c * 0.9, refl, clamp(fres * 0.8 + 0.12, 0.0, 0.85) * sky);
+    float spec = pow(max(dot(R, normalize(uSunDir)), 0.0), 180.0) * sky * smoothstep(-0.05, 0.15, uSunDir.y);
+    c += vec3(1.0, 0.94, 0.82) * spec * 2.0;
+    alpha = clamp(mix(t.a * 0.85, 1.0, fres * 0.9 + spec), 0.0, 1.0);
+  }
+#endif
   float fog = clamp((vDist - uFogStart) / max(uFogEnd - uFogStart, 0.001), 0.0, 1.0);
   c = mix(c, uFogColor, fog);
-  fragColor = vec4(c, uMode > 1.5 ? t.a : 1.0);
+  fragColor = vec4(c, alpha);
 }`;
 function voxMat(mode) {
   const m = new THREE.ShaderMaterial({
     uniforms: Object.assign({}, U, { uMode: { value: mode } }), vertexShader: VOX_VERT, fragmentShader: VOX_FRAG, glslVersion: THREE.GLSL3,
-    transparent: mode === 2, depthWrite: mode !== 2, side: THREE.FrontSide,
+    transparent: mode === 2, depthWrite: mode !== 2, side: THREE.FrontSide, defines: Settings.shaders ? { SHADERS: 1 } : {},
   });
   for (const k in U) m.uniforms[k] = U[k];
   return m;
 }
 const MATS = [voxMat(0), voxMat(1), voxMat(2)];
+// the Shaders option: the same materials recompiled with or without the extra water work
+function applyShaders() { for (const m of MATS) { if (Settings.shaders) m.defines.SHADERS = 1; else delete m.defines.SHADERS; m.needsUpdate = true; } }
 
 // entities: a box model lit by one light value (sky, block) and the same lightmap and fog
 const ENT_VERT = `
@@ -182,7 +224,9 @@ const SkyRender = (() => {
     }
     if (under === 'water') fogC.setRGB(0.02, 0.05, 0.2).lerp(new THREE.Color(0.05, 0.12, 0.35), Sky.skyFactor);
     if (under === 'lava') fogC.setRGB(0.6, 0.1, 0);
+    if (under === 'powder_snow') fogC.setRGB(0.623, 0.734, 0.785);
     domeMat.uniforms.top.value.copy(skyC); domeMat.uniforms.hor.value.copy(fogC);
+    U.uSkyTop.value.copy(skyC); U.uSunDir.value.set(-Math.sin(ang), Math.cos(ang), 0);
     U.uFogColor.value.copy(fogC);
     renderer.setClearColor(fogC);
     lowMat.color.setRGB(skyC.r * 0.2 + 0.04, skyC.g * 0.2 + 0.04, skyC.b * 0.6 + 0.1);
@@ -257,10 +301,20 @@ const Clouds = (() => {
 // ---------------------------------------------------------------- the world's meshes
 const Render = {
   meshQueue: [], built: 0,
+  // the solid and cut-out faces of each stack of four sections (64 blocks) are drawn as one mesh each: a quarter of
+  // the draw calls, still small enough to be culled when out of view; see-through faces (water, glass, ice) stay
+  // one mesh per section so they keep sorting by distance
   makeSection(c, sy, bufs) {
-    const objs = [];
-    for (let L = 0; L < 3; L++) {
-      const b = bufs[L]; if (!b.n) { objs.push(null); continue; }
+    const objs = [null, null, null];
+    if (!c.secBufs) c.secBufs = new Array(16).fill(null);
+    c.secBufs[sy] = null;
+    for (let L = 0; L < 2; L++) {
+      const b = bufs[L]; if (!b.n) continue;
+      (c.secBufs[sy] || (c.secBufs[sy] = [null, null]))[L] = { p: b.p.slice(0, b.n * 3), uv: b.uv.slice(0, b.n * 4), li: b.li.slice(0, b.n * 4), co: b.co.slice(0, b.n * 4), ix: b.ix.slice(0, b.ni), n: b.n, ni: b.ni };
+    }
+    c.grpDirty = (c.grpDirty || 0) | (1 << (sy >> 2));
+    const b = bufs[2];
+    if (b.n) {
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.BufferAttribute(b.p.slice(0, b.n * 3), 3));
       g.setAttribute('aUV', new THREE.BufferAttribute(b.uv.slice(0, b.n * 4), 4));
@@ -268,16 +322,55 @@ const Render = {
       g.setAttribute('aColor', new THREE.BufferAttribute(b.co.slice(0, b.n * 4), 4, true));
       g.setIndex(new THREE.BufferAttribute(b.n > 65535 ? b.ix.slice(0, b.ni) : new Uint16Array(b.ix.subarray(0, b.ni)), 1));
       g.boundingSphere = new THREE.Sphere(new THREE.Vector3(8, 8, 8), 14);
-      const m = new THREE.Mesh(g, MATS[L]);
+      const m = new THREE.Mesh(g, MATS[2]);
       m.position.set(c.cx * 16, sy * 16 - 64, c.cz * 16);
-      m.matrixAutoUpdate = false; m.updateMatrix();
-      if (L === 2) m.renderOrder = 2;
-      scene.add(m); objs.push(m);
+      m.matrixAutoUpdate = false; m.updateMatrix(); m.renderOrder = 2;
+      scene.add(m); objs[2] = m;
     }
-    return objs;
+    // a section with nothing in it stays null (block ticking skips those)
+    return objs[2] || c.secBufs[sy] ? objs : null;
+  },
+  // join the section buffers of each changed stack into one mesh per layer
+  buildColumn(c) {
+    const dirty = c.grpDirty || 0; c.grpDirty = 0;
+    if (!c.grpMesh) c.grpMesh = [[null, null], [null, null], [null, null], [null, null]];
+    for (let gi = 0; gi < 4; gi++) {
+      if (!(dirty & (1 << gi))) continue;
+      for (let L = 0; L < 2; L++) {
+        let n = 0, ni = 0, lo = 99, hi = -1;
+        for (let s = gi * 4; s < gi * 4 + 4; s++) { const q = c.secBufs && c.secBufs[s] && c.secBufs[s][L]; if (q) { n += q.n; ni += q.ni; lo = Math.min(lo, s); hi = Math.max(hi, s); } }
+        const old = c.grpMesh[gi][L];
+        if (!n) { if (old) { scene.remove(old); old.geometry.dispose(); c.grpMesh[gi][L] = null; } continue; }
+        const P = new Float32Array(n * 3), UV = new Float32Array(n * 4), LI = new Uint8Array(n * 4), CO = new Uint8Array(n * 4), IX = n > 65535 ? new Uint32Array(ni) : new Uint16Array(ni);
+        let vo = 0, io = 0;
+        for (let s = gi * 4; s < gi * 4 + 4; s++) {
+          const q = c.secBufs && c.secBufs[s] && c.secBufs[s][L]; if (!q) continue;
+          const yo = (s - gi * 4) * 16;
+          for (let i = 0; i < q.n; i++) { P[(vo + i) * 3] = q.p[i * 3]; P[(vo + i) * 3 + 1] = q.p[i * 3 + 1] + yo; P[(vo + i) * 3 + 2] = q.p[i * 3 + 2]; }
+          UV.set(q.uv, vo * 4); LI.set(q.li, vo * 4); CO.set(q.co, vo * 4);
+          for (let i = 0; i < q.ni; i++) IX[io + i] = q.ix[i] + vo;
+          vo += q.n; io += q.ni;
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(P, 3));
+        g.setAttribute('aUV', new THREE.BufferAttribute(UV, 4));
+        g.setAttribute('aLight', new THREE.BufferAttribute(LI, 4, true));
+        g.setAttribute('aColor', new THREE.BufferAttribute(CO, 4, true));
+        g.setIndex(new THREE.BufferAttribute(IX, 1));
+        const y0 = (lo - gi * 4) * 16, y1 = (hi - gi * 4 + 1) * 16;
+        g.boundingSphere = new THREE.Sphere(new THREE.Vector3(8, (y0 + y1) / 2, 8), Math.hypot(8, 8, (y1 - y0) / 2) + 0.5);
+        if (old) { old.geometry.dispose(); old.geometry = g; }
+        else { const m = new THREE.Mesh(g, MATS[L]); m.position.set(c.cx * 16, gi * 64 - 64, c.cz * 16); m.matrixAutoUpdate = false; m.updateMatrix(); scene.add(m); c.grpMesh[gi][L] = m; }
+      }
+    }
   },
   disposeSection(objs) { for (const m of objs) if (m) { scene.remove(m); m.geometry.dispose(); } },
-  // rebuild dirty sections, nearest first, within a time budget
+  disposeChunk(c) {
+    for (const m of c.meshes) if (m) Render.disposeSection(m);
+    if (c.grpMesh) for (const gm of c.grpMesh) for (const m of gm) if (m) { scene.remove(m); m.geometry.dispose(); }
+    c.grpMesh = null; c.secBufs = null; c.grpDirty = 0;
+  },
+  // rebuild dirty sections, nearest first, within a time budget; then rejoin the columns that changed
   updateMeshes(px, pz, budgetMs) {
     const t0 = performance.now();
     const pcx = Math.floor(px / 16), pcz = Math.floor(pz / 16), py = Math.floor((camera.position.y + 64) / 16);
@@ -296,19 +389,23 @@ const Render = {
     }
     list.sort((a, b) => a[0] - b[0]);
     let n = 0;
-    for (const [, c] of list) {
+    const touched = [];
+    outer: for (const [, c] of list) {
       const order = [];
       for (let s = 0; s < 16; s++) if (c.dirty[s]) order.push(s);
       order.sort((a, b) => Math.abs(a - py) - Math.abs(b - py));
+      touched.push(c);
       for (const s of order) {
         c.dirty[s] = 0;
         const bufs = Mesher.mesh(c, s);
         if (c.meshes[s]) Render.disposeSection(c.meshes[s]);
-        c.meshes[s] = bufs ? this.makeSection(c, s, bufs) : null;
+        if (bufs) c.meshes[s] = this.makeSection(c, s, bufs);
+        else { c.meshes[s] = null; if (c.secBufs && c.secBufs[s]) { c.secBufs[s] = null; c.grpDirty = (c.grpDirty || 0) | (1 << (s >> 2)); } }
         n++;
-        if (performance.now() - t0 > budgetMs) return n;
+        if (performance.now() - t0 > budgetMs) break outer;
       }
     }
+    for (const c of touched) if (c.grpDirty) this.buildColumn(c);
     return n;
   },
 };

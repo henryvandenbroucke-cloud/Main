@@ -58,7 +58,7 @@ const Save = (() => {
     return {
       v: 1, cx: c.cx, cz: c.cz,
       pal: pal.map(k => BLOCKS[Math.floor(k / 256)].name + ':' + (k & 255)),
-      runs: Uint16Array.from(runs), biomes: c.biomes.slice(),
+      runs: Uint16Array.from(runs), biomes: c.biomes.slice(), cave: c.cave ? c.cave.slice() : null,
       be: [...c.be.values()].map(pack), ents: ents || c.pendingEntities || [],
       ticks: Ticks.inChunk ? Ticks.inChunk(c) : [],
     };
@@ -68,7 +68,7 @@ const Save = (() => {
     const pal = r.pal.map(p => { const i = p.lastIndexOf(':'); const id = BID[p.slice(0, i)]; return id === undefined ? [0, 0] : [id, +p.slice(i + 1)]; });
     let o = 0;
     for (let i = 0; i < r.runs.length; i += 2) { const [id, st] = pal[r.runs[i + 1]], n = r.runs[i]; blocks.fill(id, o, o + n); states.fill(st, o, o + n); o += n; }
-    return { cx: r.cx, cz: r.cz, blocks, states, biomes: r.biomes, be: r.be.map(unpack), ents: r.ents || [], ticks: r.ticks || [] };
+    return { cx: r.cx, cz: r.cz, blocks, states, biomes: r.biomes, cave: r.cave || null, be: r.be.map(unpack), ents: r.ents || [], ticks: r.ticks || [] };
   }
   // entities standing in a chunk that should be kept with it (items, mobs, vehicles...)
   function entitiesIn(c) {
@@ -108,7 +108,7 @@ const Save = (() => {
       health: p.health, maxHealth: p.maxHealth, absorption: p.absorption, food: p.food, saturation: p.saturation, exhaustion: p.exhaustion,
       xpLevel: p.xpLevel, xpProgress: p.xpProgress, xpTotal: p.xpTotal, score: p.score, enchSeed: p.enchSeed, gamemode: p.gamemode, flying: p.flying,
       inv: p.inv.slots, selected: p.inv.selected, ender: p.enderChest.slots, effects: [...p.effects], spawn: p.spawn,
-      fire: p.fireTicks, air: p.air, fall: p.fallDistance, dead: p.dead, onGround: p.onGround, frozen: p.frozenTicks || 0,
+      fire: p.fireTicks, air: p.air, fall: p.fallDistance, dead: p.dead, onGround: p.onGround, frozen: p.freeze || 0,
       recipes: p.knownRecipes ? [...p.knownRecipes] : null, seenCredits: !!p.seenCredits, stats: typeof Stats.save === 'function' ? Stats.save() : null,
       adv: typeof Advancements.save === 'function' ? Advancements.save() : null,
     });
@@ -123,7 +123,7 @@ const Save = (() => {
     p.setGamemode(d.gamemode || 'survival'); p.flying = !!d.flying && p.mayFly;
     p.inv.load(d.inv); p.inv.selected = d.selected || 0; p.enderChest.load(d.ender);
     p.effects = new Map(d.effects || []); p.spawn = d.spawn || null;
-    p.fireTicks = d.fire || 0; p.air = d.air ?? 300; p.fallDistance = d.fall || 0; p.frozenTicks = d.frozen || 0;
+    p.fireTicks = d.fire || 0; p.air = d.air ?? 300; p.fallDistance = d.fall || 0; p.freeze = d.frozen || 0;
     if (d.recipes) p.knownRecipes = new Set(d.recipes);
     p.seenCredits = !!d.seenCredits;
     if (d.stats && typeof Stats.load === 'function') Stats.load(d.stats);
@@ -133,8 +133,8 @@ const Save = (() => {
   function worldState() {
     return {
       player: playerData(Game.player), dayTime: Game.dayTime, gameTime: Game.gameTime, rules: Object.assign({}, Game.rules), spawn: Game.spawn,
-      difficulty: Game.difficulty, weather: typeof Weather.save === 'function' ? Weather.save() : null,
-      dragon: typeof Dragon !== 'undefined' && Dragon.save ? Dragon.save() : null, extra: Game.extra || null,
+      difficulty: Game.difficulty, weather: typeof Weather.save === 'function' ? Weather.save() : null, maps: Maps.save(),
+      dragon: typeof EndFight !== 'undefined' && EndFight.save ? EndFight.save() : null, portals: Portals.save(), extra: Game.extra || null,
     };
   }
 
@@ -183,13 +183,16 @@ const Save = (() => {
     meta = m; dirty.clear(); lastSave = 0;
     World.savedChunks = state && state.chunks ? state.chunks : { overworld: new Map(), nether: new Map(), end: new Map() };
     if (state && state.weather && typeof Weather.load === 'function') Weather.pending = state.weather;
-    if (state && state.dragon && typeof Dragon !== 'undefined' && Dragon.load) Dragon.pending = state.dragon;
+    if (typeof EndFight !== 'undefined' && EndFight.load) EndFight.load(state && state.dragon);
+    Portals.load(state && state.portals);
+    Maps.load(state && state.maps);
     Game.extra = state && state.extra ? state.extra : null;
   }
   async function saveGame() {
     if (!meta || !Game.running || saving) return;
     saving = true;
     try {
+      if (typeof Pistons !== 'undefined') Pistons.finishAll();
       for (const d in World.dims) for (const c of World.dims[d].values()) storeChunk(c, false);
       const st = worldState();
       meta.lastPlayed = Date.now(); meta.gamemode = Game.player.gamemode; meta.difficulty = Game.difficulty;

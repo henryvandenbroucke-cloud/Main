@@ -233,12 +233,12 @@ G.NearestAttackableTarget = class extends Goal {
   canUse() {
     const m = this.m; if (m.target && !m.target.dead) return false;
     if (this.prob > 1 && rnd(this.prob) !== 0) return false;
-    const c = m.nearest(e => e !== m && !e.dead && this.pred(e) && (!e.isPlayer || (!e.creative && !e.spectator && Game.difficulty !== 'peaceful')), this.range * (this.pred === TARGET_PLAYER && Game.player.sneaking ? 0.8 : 1));
+    const c = m.nearest(e => e !== m && !e.dead && !e.untargetable && this.pred(e) && (!e.isPlayer || (!e.creative && !e.spectator && Game.difficulty !== 'peaceful')), this.range * (this.pred === TARGET_PLAYER && Game.player.sneaking ? 0.8 : 1));
     if (!c || (this.mustSee && !m.canSee(c))) return false;
     this.c = c; return true;
   }
   start() { this.m.target = this.c; this.unseen = 0; }
-  canContinue() { const m = this.m, t = m.target; if (!t || t.dead || t.removed || (t.isPlayer && (t.creative || t.spectator))) return false; if (m.distTo(t) > this.range * 1.5) return false; if (this.mustSee) { if (m.canSee(t)) this.unseen = 0; else if (++this.unseen > 60) return false; } return true; }
+  canContinue() { const m = this.m, t = m.target; if (!t || t.dead || t.removed || t.untargetable || (t.isPlayer && (t.creative || t.spectator))) return false; if (m.distTo(t) > this.range * 1.5) return false; if (this.mustSee) { if (m.canSee(t)) this.unseen = 0; else if (++this.unseen > 60) return false; } return true; }
   stop() { this.m.target = null; }
 };
 const TARGET_PLAYER = e => e.isPlayer;
@@ -362,8 +362,9 @@ class Mob extends Living {
       if (this.inLove > 0) { this.inLove--; if (this.inLove % 10 === 0) Particles.heart && Particles.heart(this); }
       if (this.target && (this.target.dead || this.target.removed)) this.target = null;
       this.forward = 0; this.strafe = 0; this.jumping = false; this.speedMod = 1;
-      this.targets.tick(this.age); this.goals.tick(this.age); this.nav.tick();
-      this.aiStep && this.aiStep();
+      // a player riding it in control steers instead of its own AI
+      const rider = this.passengers[0];
+      if (!(rider && rider.isPlayer && Vehicles.control(this, rider))) { this.targets.tick(this.age); this.goals.tick(this.age); this.nav.tick(); this.aiStep && this.aiStep(); }
       this.tickLook();
     }
     this.tickLiving();
@@ -378,9 +379,11 @@ class Mob extends Living {
     if (this.persistent || this.dead || this.customName || this.leashed || this.passengers.length) return;
     const p = Game.player; if (!p) return;
     const d2 = this.dist2(p.x, p.y, p.z);
-    const canGo = this.hostile || this.group === 'ambient' || this.group === 'water_ambient' || this.despawnable;
+    // the game's categories: creatures and misc stay; monsters, bats, fish, squid, dolphins and axolotls go
+    const canGo = (this.hostile || this.group === 'ambient' || this.group === 'water_ambient' || this.group === 'water' || this.despawnable) && !this.fromBucket;
     if (!canGo) return;
-    if (d2 > 128 * 128) { this.removed = true; return; }
+    const far = this.group === 'water_ambient' ? 64 : 128;
+    if (d2 > far * far) { this.removed = true; return; }
     if (this.noActionTime > 600 && d2 > 32 * 32 && rnd(800) === 0) this.removed = true;
     else if (d2 < 32 * 32) this.noActionTime = 0;
     if (Game.difficulty === 'peaceful' && this.hostile && !this.peacefulOk) this.removed = true;
@@ -394,10 +397,13 @@ class Mob extends Living {
     // inside the invulnerability window only a bigger hit counts, and only by the difference
     if (this.invul > 10) { if (amount <= this.lastDamage) return false; const extra = amount - this.lastDamage; this.lastDamage = amount; amount = extra; }
     else { this.lastDamage = amount; this.invul = 20; this.hurtTime = 10; }
-    if (this.armorPts && !['outOfWorld', 'starve', 'magic', 'wither', 'drown', 'fall', 'kill'].includes(source)) amount *= 1 - Math.min(20, Math.max(this.armorPts / 5, this.armorPts - 4 * amount / 8)) / 25;
+    if (this.armorPts && !['outOfWorld', 'starve', 'magic', 'wither', 'drown', 'fall', 'kill', 'sonic_boom'].includes(source)) amount *= 1 - Math.min(20, Math.max(this.armorPts / 5, this.armorPts - 4 * amount / 8)) / 25 * (1 - 0.15 * ((attacker && attacker.breach) || 0));
     const res = this.effect('resistance'); if (res) amount *= Math.max(0, 1 - 0.2 * (res.amp + 1));
     if (attacker) { this.lastHurtBy = attacker.owner || attacker; this.lastHurtTime = this.age; if (attacker.isPlayer || (attacker.owner && attacker.owner.isPlayer)) this.lastHurtByPlayer = 100; }
     this.health -= amount;
+    const byPlayer = attacker && (attacker.isPlayer || (attacker.owner && attacker.owner.isPlayer));
+    if (byPlayer) { this.lastDmgCtx = Advancements.damageCtx(this, amount, source, attacker); Advancements.fire('player_hurt_entity', this.lastDmgCtx); }
+    GameEvents.emit('entity_damage', this.x, this.y, this.z, attacker ? attacker.owner || attacker : null);
     if (this.onHurt) this.onHurt(amount, source, attacker);
     if (this.health <= 0) this.die(source, attacker);
     else Sound.play(this.type + '_hurt', this, { mob: this });
@@ -412,9 +418,8 @@ class Mob extends Living {
   }
   // melee: damage with the held weapon, knockback and fire aspect
   doHurtTarget(t) {
-    let dmg = Game.scaleDamage(this.attackDamage);
-    const w = this.equip.main; if (w && ITEMS[w.id].dmg > 1) dmg = Game.scaleDamage(this.attackDamage + ITEMS[w.id].dmg - 1);
-    if (!t.isPlayer) dmg = this.attackDamage;
+    let dmg = this.attackDamage;
+    const w = this.equip.main; if (w && ITEMS[w.id].dmg > 1) dmg = this.attackDamage + ITEMS[w.id].dmg - 1;
     if (dmg <= 0 && !t.isPlayer) return false;
     const ok = t.hurt(dmg, 'mob', this);
     if (ok) {
@@ -430,9 +435,18 @@ class Mob extends Living {
     if (this.dead) return;
     this.dead = true; this.health = 0; this.deathTime = 0; this.goals.stopAll(); this.targets.stopAll(); this.nav.stop();
     Sound.play(this.type + '_death', this, { mob: this });
+    GameEvents.emit('entity_die', this.x, this.y, this.z, this);
     this.killer = attacker;
     if (Game.rules.doMobLoot && !this.baby) this.dropLoot(source, attacker);
     if (attacker && attacker.isPlayer) Stats.add('killed', this.type);
+    if (attacker && (attacker.isPlayer || (attacker.owner && attacker.owner.isPlayer))) {
+      const x = this.lastDmgCtx || Advancements.damageCtx(this, 0, source, attacker);
+      Advancements.fire('player_killed_entity', x);
+      // killed by a crossbow bolt: the bolt remembers everything it killed (Arbalistic, Two Birds, One Arrow)
+      const bolt = x.direct; if (bolt && bolt.fromCrossbow) { (bolt.victims = bolt.victims || []).push(this); Advancements.fire('killed_by_arrow', { victims: bolt.victims, weapon: stack('crossbow') }); }
+      // a kill a sculk catalyst blooms for
+      if (typeof GameEvents !== 'undefined') for (let dx = -8; dx <= 8; dx += 1) { let found = false; for (let dy = -8; dy <= 8 && !found; dy++) for (let dz = -8; dz <= 8 && !found; dz++) if (World.getBlock(Math.floor(this.x) + dx, Math.floor(this.y) + dy, Math.floor(this.z) + dz) === BID.sculk_catalyst) found = true; if (found) { Advancements.fire('kill_mob_near_sculk_catalyst', { entity: this }); break; } }
+    }
     if (this.onDeath) this.onDeath(source, attacker);
     const k = attacker && (attacker.owner || attacker); if (k && k.onKill) k.onKill(this);
   }
@@ -454,7 +468,7 @@ class Mob extends Living {
     if (this.hostile && n > 0) for (const k in this.equip) if (this.equip[k]) n += 1 + rnd(3);
     return this.lastHurtByPlayer > 0 ? n : 0;
   }
-  dropXp() { if (!Game.rules.doMobLoot) return; const n = this.xpValue(); if (n > 0) Drops.spawnXp(this.x, this.y + 0.5, this.z, n); }
+  dropXp() { if (!Game.rules.doMobLoot || this.xpConsumed) return; const n = this.xpValue(); if (n > 0) Drops.spawnXp(this.x, this.y + 0.5, this.z, n); }
   // ---------------------------------------------------------------- breeding
   breedWith(q) {
     this.inLove = 0; q.inLove = 0; this.ageTicks = 6000; q.ageTicks = 6000;
@@ -463,7 +477,7 @@ class Mob extends Living {
     Entities.add(baby);
     Drops.spawnXp(this.x, this.y + 0.5, this.z, 1 + rnd(7));
     Stats.add('bred', this.type);
-    Advancements.check && Advancements.check('breed', this.type);
+    Advancements.fire('bred_animals', { child: baby, parent: this, partner: q });
   }
   setBaby() { this.baby = true; this.ageTicks = -24000; this.w0 = this.w0 || this.w; this.h0 = this.h0 || this.h; this.w = this.w0 / 2; this.h = this.h0 / 2; }
   growUp() { this.baby = false; this.ageTicks = 0; if (this.w0) { this.w = this.w0; this.h = this.h0; } }
@@ -472,7 +486,8 @@ class Mob extends Living {
   interact(p, s) {
     if (this.dead) return false;
     if (s && ITEMS[s.id].name === 'name_tag' && s.tag && s.tag.name) { this.customName = s.tag.name; this.persistent = true; if (!p.creative) { s.count--; if (!s.count) p.inv.held = null; } return true; }
-    if (s && ITEMS[s.id].name === 'lead' && this.leashable && !this.leashed) { Leads.attach && Leads.attach(this, p); return true; }
+    if (this.leashed === p) { this.leashed = null; if (!p.creative && Game.rules.doEntityDrops) Drops.spawnItem(this.x, this.y + 0.5, this.z, stack('lead')); Sound.play('leash_untie', this); return true; }
+    if (s && ITEMS[s.id].name === 'lead' && Leads.can(this) && !this.leashed) { Leads.attach(this, p); return true; }
     if (this.isFood(s) && this.food) {
       if (this.baby) { this.ageTicks = Math.min(0, this.ageTicks + Math.floor(-this.ageTicks / 10)); this.useFood(p, s); Particles.happy && Particles.happy(this); return true; }
       if (this.ageTicks === 0 && !this.inLove) { this.inLove = 600; this.useFood(p, s); Sound.play(this.type + '_eat', this); return true; }
@@ -484,12 +499,14 @@ class Mob extends Living {
   // ---------------------------------------------------------------- saving
   save() {
     const d = { type: this.type, x: this.x, y: this.y, z: this.z, yaw: this.yaw, health: this.health, baby: this.baby, ageTicks: this.ageTicks, persistent: this.persistent, customName: this.customName || null, fire: this.fireTicks, equip: this.equip, effects: [...this.effects] };
+    if (this.leashed) d.leash = this.leashed.isPlayer ? 'player' : this.leashed.bx !== undefined ? [this.leashed.bx, this.leashed.by, this.leashed.bz] : null;
     if (this.saveExtra) this.saveExtra(d);
     return d;
   }
   load(d) {
     this.yaw = this.bodyYaw = this.lookYaw = d.yaw || 0; this.health = d.health || this.maxHealth; if (d.baby) { this.setBaby(); this.ageTicks = d.ageTicks; } else this.ageTicks = d.ageTicks || 0;
     this.persistent = !!d.persistent; this.customName = d.customName; this.fireTicks = d.fire || 0; if (d.equip) Object.assign(this.equip, d.equip); this.effects = new Map(d.effects || []);
+    if (d.leash) this.leashPending = d.leash;
     if (this.loadExtra) this.loadExtra(d);
   }
 }

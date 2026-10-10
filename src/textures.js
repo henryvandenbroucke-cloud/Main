@@ -7,13 +7,13 @@ const Tex = (() => {
   const layers = [], index = {}, painters = {};
   const H = h => [(h >> 16) & 255, (h >> 8) & 255, h & 255];
   const mixc = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-  const mul = (c, f) => [c[0] * f, c[1] * f, c[2] * f];
+  const mul = (c, f) => [Math.min(255, c[0] * f), Math.min(255, c[1] * f), Math.min(255, c[2] * f)]; // clamped: bright rims must not wrap around to dark
   const cl01 = v => v < 0 ? 0 : v > 0.9999 ? 0.9999 : v;
   const pick = (pal, t) => H(pal[Math.floor(cl01(t) * pal.length)]);
   function hashName(name) { let h = 7; for (const ch of name) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; }
 
   function ctx(name, frame) {
-    const data = new Uint8Array(1024), seed = hashName(name) % 100003;
+    const data = new Uint8ClampedArray(1024), seed = hashName(name) % 100003;
     let rs = (hashName(name) + (frame || 0) * 7919) % 2147483646 + 1;
     const c = {
       data, frame: frame || 0, mask: false,
@@ -749,6 +749,7 @@ const Tex = (() => {
   // redstone
   def('redstone_dust_dot', c => { c.clear(); for (let y = 5; y < 11; y++) for (let x = 5; x < 11; x++) if (Math.hypot(x - 7.5, y - 7.5) < 3.2) c.px(x, y, [220, 220, 220]); c.px(7, 7, [255, 255, 255]); });
   def('redstone_dust_line0', c => { c.clear(); for (let y = 0; y < 16; y++) for (let x = 6; x < 10; x++) if (c.n(x, y, 291) > 0.1) c.px(x, y, [200 + c.n(x, y, 292) * 55, 200 + c.n(x, y, 292) * 55, 200 + c.n(x, y, 292) * 55]); });
+  def('redstone_dust_line1', c => { c.clear(); for (let y = 6; y < 10; y++) for (let x = 0; x < 16; x++) if (c.n(y, x, 291) > 0.1) c.px(x, y, [200 + c.n(y, x, 292) * 55, 200 + c.n(y, x, 292) * 55, 200 + c.n(y, x, 292) * 55]); });
   def('repeater', c => { c.copy('smooth_stone'); c.rect(7, 3, 8, 13, H(0x6a1a1a)); c.rect(6, 12, 9, 12, H(0x6a1a1a)); });
   def('repeater_on', c => { c.copy('smooth_stone'); c.rect(7, 3, 8, 13, H(0xff2a1a)); c.rect(6, 12, 9, 12, H(0xff2a1a)); });
   def('comparator', c => { c.copy('smooth_stone'); c.rect(4, 3, 11, 4, H(0x6a1a1a)); c.rect(7, 4, 8, 12, H(0x6a1a1a)); });

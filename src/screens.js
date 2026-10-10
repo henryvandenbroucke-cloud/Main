@@ -150,7 +150,8 @@ const RARITY = ['#ffffff', '#ffff55', '#55ffff', '#ff55ff'];
 function iconHTML(s, opts) {
   if (!s) return '';
   const it = ITEMS[s.id], S = GUI.S, size = 16 * S;
-  let h = `<div class="icon${enchOf(s) || it.name === 'enchanted_golden_apple' || it.name === 'enchanted_book' || it.name === 'nether_star' || it.name === 'experience_bottle' || it.name === 'end_crystal' ? ' glint' : ''}" style="${Icons.style(s.id, size)}width:${size}px;height:${size}px"></div>`;
+  const cu = Icons.customURL(s), custom = cu ? `background-image:url(${cu});background-size:100% 100%;background-position:0 0;-webkit-mask:none;mask:none;` : '';
+  let h = `<div class="icon${enchOf(s) || it.name === 'enchanted_golden_apple' || it.name === 'enchanted_book' || it.name === 'nether_star' || it.name === 'experience_bottle' || it.name === 'end_crystal' ? ' glint' : ''}" style="${custom || Icons.style(s.id, size)}width:${size}px;height:${size}px"></div>`;
   if (it.dur && s.dmg > 0) { const f = 1 - s.dmg / it.dur, w = Math.round(13 * f); const col = `hsl(${Math.round(f * 120)},100%,50%)`; h += `<div class="dura"><i style="width:${w * S}px;background:${col}"></i></div>`; }
   if (s.count > 1 || (s.count !== 1 && s.count !== undefined)) h += `<div class="count${s.count <= 0 ? ' red' : ''}">${s.count}</div>`;
   return h;
@@ -167,6 +168,12 @@ function tooltipHTML(s) {
   if (s.tag && s.tag.stored) for (const e in s.tag.stored) h += `<div style="color:#aaaaaa">${enchName(e, s.tag.stored[e])}</div>`;
   if (s.tag && s.tag.potion && typeof Potions !== 'undefined') h += Potions.tooltip(s);
   if (s.tag && s.tag.trim && typeof SmithingScreen !== 'undefined') h += SmithingScreen.trimTooltip(s);
+  if (s.tag && s.tag.patterns && typeof Banners !== 'undefined') h += Banners.tooltip(s);
+  if (s.tag && s.tag.banner && it.name === 'shield' && typeof Banners !== 'undefined') h += `<div style="color:#aaaaaa">${escapeHTML(itemName(stack(s.tag.banner.base + '_banner')).replace(' Banner', ''))}</div>` + Banners.tooltip({ tag: { patterns: s.tag.banner.patterns || [] } });
+  if (it.name === 'filled_map' && typeof Maps !== 'undefined') h += Maps.tooltip(s);
+  if (it.name === 'written_book') h += Books.tooltip(s);
+  if (it.name === 'decorated_pot') h += Pots.tooltip(s);
+  if (typeof Creatures !== 'undefined') h += Creatures.tooltip(s);
   if (it.name === 'firework_rocket' && s.tag && s.tag.flight) h += `<div style="color:#aaa">Flight Duration: ${s.tag.flight}</div>`;
   if (it.name.endsWith('shulker_box') && s.tag && s.tag.items) { const list = s.tag.items.filter(x => x).slice(0, 5); for (const x of list) h += `<div style="color:#fff">${escapeHTML(itemName(x))} x${x.count}</div>`; }
   if (it.armor && it.armor.pts) h += `<br><div style="color:#aaa">When on ${['Head', 'Body', 'Legs', 'Feet'][it.armor.slot]}:</div><div style="color:#5555ff">+${it.armor.pts} Armor</div>` + (it.armor.tough ? `<div style="color:#5555ff">+${it.armor.tough} Armor Toughness</div>` : '') + (it.armor.kb ? `<div style="color:#5555ff">+${Math.round(it.armor.kb * 10)} Knockback Resistance</div>` : '');
@@ -285,6 +292,7 @@ class CraftGrid {
   consume() {
     for (let i = 0; i < this.inv.size; i++) {
       const s = this.inv.get(i); if (!s) continue;
+      if (this.recipe && this.recipe.recipe && this.recipe.recipe.keep === i) continue;
       const n = ITEMS[s.id].name;
       const leftover = { milk_bucket: 'bucket', water_bucket: 'bucket', lava_bucket: 'bucket', honey_bottle: 'glass_bottle', dragon_breath: 'glass_bottle' }[n];
       s.count--;
@@ -296,7 +304,7 @@ class CraftGrid {
   returnAll() { for (let i = 0; i < this.inv.size; i++) { const s = this.inv.get(i); if (s) { const left = Game.player.inv.add(s, 0, 36); if (left) ItemUse.drop(Game.player, left); this.inv.slots[i] = null; } } this.update(); }
 }
 function craftOutputSlot(scr, grid, x, y) {
-  return scr.slot(grid.out, 0, x, y, { output: true, big: true, onTake: r => { grid.consume(); Stats.add('crafted', ITEMS[r.id].name); Advancements.onCraft(ITEMS[r.id].name); Sound.play('craft'); } });
+  return scr.slot(grid.out, 0, x, y, { output: true, big: true, onTake: r => { const rec = grid.recipe && grid.recipe.recipe, ing = grid.inv.slots.filter(Boolean).map(s => Object.assign({}, s)); grid.consume(); Stats.add('crafted', ITEMS[r.id].name); Advancements.fire('recipe_crafted', { recipe: rec ? rec.special || rec.id || rec.r : ITEMS[r.id].name, ingredients: ing }); Sound.play('craft'); } });
 }
 
 // the survival inventory: armour, 2x2 crafting, off hand

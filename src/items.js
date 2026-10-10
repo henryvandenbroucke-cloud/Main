@@ -49,6 +49,7 @@ const SLOTS = ['helmet', 'chestplate', 'leggings', 'boots'];
   for (const k in wallOf) ITEMS[IID[k]].wall = BID[wallOf[k]];
   for (const w of WOODS.concat(STEMS, ['bamboo'])) ITEMS[IID[w + '_sign']].wall = BID[w + '_wall_sign'];
   for (const w of WOODS.concat(STEMS, ['bamboo'])) ITEMS[IID[w + '_hanging_sign']].wall = BID[w + '_wall_hanging_sign'];
+  for (const c of COLORS) ITEMS[IID[c + '_banner']].wall = BID[c + '_wall_banner'];
   for (const k of ['tube', 'brain', 'bubble', 'fire', 'horn']) { ITEMS[IID[k + '_coral_fan']].wall = BID[k + '_coral_wall_fan']; ITEMS[IID['dead_' + k + '_coral_fan']].wall = BID['dead_' + k + '_coral_wall_fan']; }
   // tools and weapons
   for (const mat in TIERS) {
@@ -147,6 +148,7 @@ for (const it of ITEMS) if (it.block >= 0 && ITEM_OF_BLOCK[it.block] < 0) ITEM_O
 for (const [w, f] of [['wall_torch', 'torch'], ['soul_wall_torch', 'soul_torch'], ['redstone_wall_torch', 'redstone_torch']]) ITEM_OF_BLOCK[BID[w]] = IID[f];
 for (const w of WOODS.concat(STEMS, ['bamboo'])) ITEM_OF_BLOCK[BID[w + '_wall_sign']] = IID[w + '_sign'];
 for (const w of WOODS.concat(STEMS, ['bamboo'])) ITEM_OF_BLOCK[BID[w + '_wall_hanging_sign']] = IID[w + '_hanging_sign'];
+for (const c of COLORS) ITEM_OF_BLOCK[BID[c + '_wall_banner']] = IID[c + '_banner'];
 for (const k of ['tube', 'brain', 'bubble', 'fire', 'horn']) { ITEM_OF_BLOCK[BID[k + '_coral_wall_fan']] = IID[k + '_coral_fan']; ITEM_OF_BLOCK[BID['dead_' + k + '_coral_wall_fan']] = IID['dead_' + k + '_coral_fan']; }
 for (const c of [''].concat(COLORS)) ITEM_OF_BLOCK[BID[(c ? c + '_' : '') + 'candle_cake']] = IID.cake;
 ITEM_OF_BLOCK[BID.pitcher_crop] = IID.pitcher_pod; ITEM_OF_BLOCK[BID.torchflower_crop] = IID.torchflower_seeds; ITEM_OF_BLOCK[BID.bamboo_sapling] = IID.bamboo;
@@ -160,7 +162,7 @@ ITEM_OF_BLOCK[BID.piston_head] = IID.piston; ITEM_OF_BLOCK[BID.fire] = IID.flint
 function stack(name, count, o) { const id = typeof name === 'number' ? name : IID[name]; if (id === undefined) throw new Error('unknown item ' + name); return Object.assign({ id, count: count === undefined ? 1 : count, dmg: 0 }, o || {}); }
 const sameItem = (a, b) => a && b && a.id === b.id && a.dmg === b.dmg && JSON.stringify(a.tag || null) === JSON.stringify(b.tag || null);
 const maxStack = s => ITEMS[s.id].stack;
-const itemName = s => (s.tag && s.tag.name) || potionName(s) || ITEMS[s.id].display;
+const itemName = s => (s.tag && s.tag.name) || (s.tag && s.tag.title) || potionName(s) || ITEMS[s.id].display;
 function potionName(s) { if (!s.tag || !s.tag.potion) return null; const it = ITEMS[s.id]; if (!/potion|tipped_arrow/.test(it.name)) return null; return typeof Potions !== 'undefined' ? Potions.displayName(s) : null; }
 const enchOf = s => (s && s.tag && s.tag.ench) || null;
 const enchLevel = (s, e) => (s && s.tag && s.tag.ench && s.tag.ench[e]) || 0;
@@ -230,8 +232,20 @@ const Recipes = (() => {
     if (items.length >= 2 && items.length <= 4 && items.some(s => ITEMS[s.id].name === 'paper') && items.filter(s => ITEMS[s.id].name === 'gunpowder').length === items.length - 1) {
       const g = items.length - 1; return { result: stack('firework_rocket', 3, { tag: { flight: g } }), recipe: { special: 'firework' } };
     }
+    // copying a banner: a patterned banner and a blank one of the same colour (the patterned one stays)
+    if (items.length === 2 && items.every(s => ITEMS[s.id].name.endsWith('_banner')) && items[0].id === items[1].id) {
+      const pat = items.filter(s => s.tag && s.tag.patterns && s.tag.patterns.length), blank = items.filter(s => !(s.tag && s.tag.patterns && s.tag.patterns.length));
+      if (pat.length === 1 && blank.length === 1) return { result: stack(pat[0].id, 1, { tag: JSON.parse(JSON.stringify(pat[0].tag)) }), recipe: { special: 'banner_duplicate', keep: grid.indexOf(pat[0]) } };
+    }
+    // a shield and a banner: the shield takes the banner's design
+    if (items.length === 2 && items.some(s => ITEMS[s.id].name === 'shield' && !(s.tag && s.tag.banner)) && items.some(s => ITEMS[s.id].name.endsWith('_banner'))) {
+      const sh = items.find(s => ITEMS[s.id].name === 'shield'), b = items.find(s => ITEMS[s.id].name.endsWith('_banner'));
+      return { result: Object.assign({}, sh, { count: 1, tag: Object.assign({}, sh.tag || {}, { banner: { base: ITEMS[b.id].name.replace('_banner', ''), patterns: (b.tag && b.tag.patterns) || [] } }) }), recipe: { special: 'shield_decoration' } };
+    }
     // tipped arrows: 8 arrows around a lingering potion
     if (w === 3 && grid.length === 9 && grid[4] && ITEMS[grid[4].id].name === 'lingering_potion' && grid.every((s, i) => i === 4 || (s && ITEMS[s.id].name === 'arrow'))) return { result: stack('tipped_arrow', 8, { tag: { potion: grid[4].tag && grid[4].tag.potion } }), recipe: { special: 'tipped' } };
+    // copying a written book, and decorated pots from bricks and sherds
+    if (typeof Books !== 'undefined') { const r = Books.copyRecipe(items, grid) || Pots.recipe(grid, w); if (r) return r; }
     return null;
   }
   // every recipe that makes an item (for the recipe book)

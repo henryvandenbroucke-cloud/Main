@@ -48,16 +48,16 @@ SHARED.push(function biomesModule(G) {
     taiga: { passive: PASSIVE.concat([['wolf', 8, 4, 4], ['rabbit', 4, 2, 3], ['fox', 8, 2, 4]]) }, old_growth_pine_taiga: { passive: PASSIVE.concat([['wolf', 8, 4, 4], ['rabbit', 4, 2, 3], ['fox', 8, 2, 4]]) },
     old_growth_spruce_taiga: { passive: PASSIVE.concat([['wolf', 8, 4, 4], ['rabbit', 4, 2, 3], ['fox', 8, 2, 4]]) },
     snowy_taiga: { passive: PASSIVE.concat([['wolf', 8, 4, 4], ['rabbit', 4, 2, 3], ['fox', 8, 2, 4]]), hostile: HOSTILE.filter(m => m[0] !== 'skeleton').concat([['skeleton', 20, 4, 4], ['stray', 80, 4, 4]]) },
-    savanna: { passive: PASSIVE.concat([['horse', 1, 2, 6], ['donkey', 1, 1, 1], ['llama', 8, 4, 4], ['armadillo', 10, 2, 3]]) }, savanna_plateau: { passive: PASSIVE.concat([['horse', 1, 2, 6], ['llama', 8, 4, 4], ['armadillo', 10, 2, 3]]) },
+    savanna: { passive: PASSIVE.concat([['horse', 1, 2, 6], ['donkey', 1, 1, 1], ['llama', 8, 4, 4], ['armadillo', 10, 2, 3]]) }, savanna_plateau: { passive: PASSIVE.concat([['horse', 1, 2, 6], ['llama', 8, 4, 4], ['armadillo', 10, 2, 3], ['wolf', 8, 4, 8]]) },
     windswept_savanna: { passive: PASSIVE.concat([['llama', 8, 4, 4]]) },
     windswept_hills: { passive: PASSIVE.concat([['llama', 5, 4, 6]]) }, windswept_gravelly_hills: { passive: PASSIVE.concat([['llama', 5, 4, 6]]) }, windswept_forest: { passive: PASSIVE.concat([['llama', 5, 4, 6]]) },
-    jungle: { passive: PASSIVE.concat([['parrot', 40, 1, 2], ['panda', 1, 1, 2], ['chicken', 10, 4, 4], ['ocelot', 2, 1, 3]]) }, sparse_jungle: { passive: PASSIVE.concat([['parrot', 40, 1, 2], ['ocelot', 2, 1, 3]]) },
+    jungle: { passive: PASSIVE.concat([['parrot', 40, 1, 2], ['panda', 1, 1, 2], ['chicken', 10, 4, 4], ['ocelot', 2, 1, 3]]) }, sparse_jungle: { passive: PASSIVE.concat([['parrot', 40, 1, 2], ['ocelot', 2, 1, 3], ['wolf', 8, 2, 4]]) },
     bamboo_jungle: { passive: PASSIVE.concat([['parrot', 40, 1, 2], ['panda', 80, 1, 2], ['ocelot', 2, 1, 1]]) },
-    badlands: { passive: [['armadillo', 6, 1, 2]] }, eroded_badlands: { passive: [['armadillo', 6, 1, 2]] }, wooded_badlands: { passive: [['armadillo', 6, 1, 2]] },
+    badlands: { passive: [['armadillo', 6, 1, 2]] }, eroded_badlands: { passive: [['armadillo', 6, 1, 2]] }, wooded_badlands: { passive: [['armadillo', 6, 1, 2], ['wolf', 2, 4, 8]] },
     meadow: { passive: [['donkey', 1, 1, 2], ['rabbit', 2, 2, 6], ['sheep', 2, 2, 4]] }, cherry_grove: { passive: [['pig', 1, 1, 2], ['rabbit', 2, 2, 6], ['sheep', 2, 2, 4], ['bee', 2, 2, 3]] },
-    grove: { passive: [['wolf', 8, 4, 4], ['rabbit', 4, 2, 3], ['fox', 8, 2, 4]] }, snowy_slopes: { passive: [['rabbit', 4, 2, 3], ['goat', 5, 1, 3]] },
+    grove: { passive: [['wolf', 1, 1, 1], ['rabbit', 4, 2, 3], ['fox', 8, 2, 4]] }, snowy_slopes: { passive: [['rabbit', 4, 2, 3], ['goat', 5, 1, 3]] },
     frozen_peaks: { passive: [['goat', 5, 1, 3]] }, jagged_peaks: { passive: [['goat', 5, 1, 3]] }, stony_peaks: { passive: [] },
-    river: { passive: [], water: [['squid', 2, 1, 4], ['salmon', 5, 1, 5]] }, frozen_river: { passive: [], water: [['squid', 2, 1, 4], ['salmon', 5, 1, 5]] },
+    river: { passive: [], hostile: HOSTILE.concat([['drowned', 100, 1, 1]]), water: [['squid', 2, 1, 4], ['salmon', 5, 1, 5]] }, frozen_river: { passive: [], hostile: HOSTILE.concat([['drowned', 1, 1, 1]]), water: [['squid', 2, 1, 4], ['salmon', 5, 1, 5]] },
     beach: { passive: [['turtle', 5, 2, 5]] }, snowy_beach: { passive: [] }, stony_shore: { passive: [] },
     warm_ocean: { passive: [], water: [['pufferfish', 15, 1, 3], ['tropical_fish', 25, 8, 8], ['dolphin', 2, 1, 2]] },
     lukewarm_ocean: { passive: [], water: [['squid', 10, 1, 2], ['cod', 15, 3, 6], ['pufferfish', 5, 1, 3], ['tropical_fish', 25, 8, 8], ['dolphin', 2, 1, 2]] },
@@ -73,6 +73,9 @@ SHARED.push(function biomesModule(G) {
     basalt_deltas: { passive: [], hostile: [['ghast', 40, 1, 1], ['magma_cube', 100, 2, 5]], strider: true },
     the_end: { passive: [], hostile: [['enderman', 10, 4, 4]] }, end_highlands: { passive: [], hostile: [['enderman', 10, 4, 4]] }, end_midlands: { passive: [], hostile: [['enderman', 10, 4, 4]] },
     end_barrens: { passive: [], hostile: [['enderman', 10, 4, 4]] }, small_end_islands: { passive: [], hostile: [['enderman', 10, 4, 4]] },
+    // cave biomes: tropical fish in lush cave pools, drowned in dripstone caves, nothing at all in the deep dark
+    lush_caves: { passive: [], water: [['tropical_fish', 25, 8, 8]] }, dripstone_caves: { passive: [], hostile: HOSTILE.concat([['drowned', 95, 4, 4]]), water: [] },
+    deep_dark: { passive: [], hostile: [], water: [], ambient: [] },
   };
   for (const [name, temp, down, grass, foliage, water, precip, dim] of LIST) {
     const id = BIOMES.length;
@@ -83,7 +86,7 @@ SHARED.push(function biomesModule(G) {
     const b = {
       id, name, temp, down, grass, foliage, water, precip, dim: dim || 'overworld', sky,
       display: name.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' '),
-      passive: sp.passive || PASSIVE, hostile: sp.hostile || HOSTILE, waterMobs: sp.water || [['squid', 1, 1, 2]],
+      passive: sp.passive || PASSIVE, hostile: sp.hostile || (name.includes('ocean') ? HOSTILE.concat([['drowned', 5, 1, 1]]) : HOSTILE), waterMobs: sp.water || [['squid', 1, 1, 2]], ambient: sp.ambient || [['bat', 10, 8, 8]],
       ocean: name.includes('ocean'), snowy: precip === 's',
     };
     if (name === 'dark_forest') b.foliageDark = true;

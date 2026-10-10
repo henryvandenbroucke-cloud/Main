@@ -56,6 +56,8 @@ const Models = (() => {
     fence: (d, s, c, x, y, z) => { let m = 0; for (let f = 2; f < 6; f++) { const n = c(x + DX[f], y, z + DZ[f]); const nd = D[n]; if (isFull(n) || (nd.model === 'fence' && (d.name === 'nether_brick_fence') === (nd.name === 'nether_brick_fence')) || nd.model === 'gate') m |= 1 << f; } return m; },
     pane: (d, s, c, x, y, z) => { let m = 0; for (let f = 2; f < 6; f++) { const n = c(x + DX[f], y, z + DZ[f]); const nd = D[n]; if (isFull(n) || nd.model === 'pane' || nd.model === 'wall') m |= 1 << f; } return m; },
     wall: (d, s, c, x, y, z) => { let m = 0; for (let f = 2; f < 6; f++) { const n = c(x + DX[f], y, z + DZ[f]); const nd = D[n]; if (isFull(n) || nd.model === 'wall' || nd.model === 'pane' || nd.model === 'gate') m |= 1 << f; } const up = c(x, y + 1, z); if (up && D[up].model !== 'none' && !D[up].replaceable) m |= 64; if (D[up].model === 'wall') m |= 64; return m; },
+    // a decorated pot's sides (see Pots)
+    decorated_pot: (d, s, c, x, y, z) => c.conn !== undefined ? c.conn : typeof Pots !== 'undefined' ? Pots.design(x, y, z) : 0,
     stairs: (d, s, c, x, y, z) => {
       // vanilla stair shapes: straight, inner or outer corner, from the stairs in front and behind
       const f = s & 7, top = s & 8;
@@ -109,6 +111,10 @@ const Models = (() => {
       if (n === 'redstone_lamp' && (s & 1)) return [box(0, 0, 0, 16, 16, 16, 'redstone_lamp_on')];
       if (n === 'respawn_anchor') return [box(0, 0, 0, 16, 16, 16, { up: (s & 7) ? 'respawn_anchor_top' : 'respawn_anchor_top_off', down: 'respawn_anchor_bottom', side: 'respawn_anchor_side' + Math.min(4, s & 7) })];
       if (n === 'jukebox' && (s & 1)) return [box(0, 0, 0, 16, 16, 16, t)];
+      // the vault: its face lights up, opens while ejecting, and turns blue when ominous
+      if (n === 'vault') { const vs = (s >> 3) & 3, o = s & 32 ? '_ominous' : '', side = (vs ? 'vault_side_on' : 'vault_side_off') + o; return rotY([box(0, 0, 0, 16, 16, 16, { up: (vs === 3 ? 'vault_top_ejecting' : 'vault_top') + o, down: 'vault_bottom' + o, north: (vs === 0 ? 'vault_front_off' : vs === 3 ? 'vault_front_ejecting' : 'vault_front_on') + o, south: side, west: side, east: side })], TURNS[s & 7] || 0); }
+      // the chiseled bookshelf: facing in the low two bits, the six filled slots above them
+      if (n === 'chiseled_bookshelf') { const m = s >> 2, side = 'chiseled_bookshelf_side'; return rotY([box(0, 0, 0, 16, 16, 16, { up: 'chiseled_bookshelf_top', down: 'chiseled_bookshelf_top', north: m ? 'chiseled_bookshelf_' + m : 'chiseled_bookshelf_empty', south: side, west: side, east: side })], TURNS[(s & 3) + 2]); }
       if (d.place === 'facing_h' || d.place === 'facing_h_opp' || d.place === 'facing6' || d.place === 'facing6_opp') {
         const f = s & 7;
         let front = d.tex.front;
@@ -201,7 +207,8 @@ const Models = (() => {
       if (s & 2) els.push(box(0, 0, 16 - o, 16, 16, 16 - o, { north: t, south: t }, { tint: true, noCull: true }));
       if (s & 4) els.push(box(o, 0, 0, o, 16, 16, { west: t, east: t }, { tint: true, noCull: true }));
       if (s & 8) els.push(box(16 - o, 0, 0, 16 - o, 16, 16, { west: t, east: t }, { tint: true, noCull: true }));
-      if (s & 16 || !s) els.push(box(0, 16 - o, 0, 16, 16 - o, 16, { up: t, down: t }, { tint: true, noCull: true }));
+      if (s & 16 || !(s & 63)) els.push(box(0, 16 - o, 0, 16, 16 - o, 16, { up: t, down: t }, { tint: true, noCull: true }));
+      if (s & 32) els.push(box(0, o, 0, 16, o, 16, { up: t, down: t }, { tint: true, noCull: true }));
       return els;
     },
     carpet: d => [box(0, 0, 0, 16, 1, 16, d.tex.side)],
@@ -305,7 +312,9 @@ const Models = (() => {
     wire: (d, s, conn) => {
       const els = [], p = s & 15;
       const dot = 'redstone_dust_dot', line = 'redstone_dust_line0';
-      const n = !!(conn & 4), so = !!(conn & 8), w = !!(conn & 16), e = !!(conn & 32);
+      // dust with no connections is a cross, or a dot after it was clicked (bit 4)
+      const lone = !(conn & 60), cross = lone && !(s & 16);
+      const n = !!(conn & 4) || cross, so = !!(conn & 8) || cross, w = !!(conn & 16) || cross, e = !!(conn & 32) || cross;
       const cnt = n + so + w + e;
       const flat = (x0, z0, x1, z1, tex, rot) => els.push(box(x0, 0.25, z0, x1, 0.25, z1, { up: tex, down: null }, { tint: true, noCull: true, rot: [0, rot || 0, 0, 0, 0, 0], uv: [null, [x0, z0, x1, z1], null, null, null, null] }));
       if (cnt === 0) { flat(0, 0, 16, 16, dot); }
@@ -314,7 +323,8 @@ const Models = (() => {
         else if ((w || e) && !(n || so)) { els.push(box(0, 0.25, 0, 16, 0.25, 16, { up: line }, { tint: true, noCull: true, rot: [0, 90, 0, 0, 0, 0] })); }
         else {
           flat(5, 5, 11, 11, dot);
-          if (n) flat(5, 0, 11, 5, dot); if (so) flat(5, 11, 11, 16, dot); if (w) flat(0, 5, 5, 11, dot); if (e) flat(11, 5, 16, 11, dot);
+          const l0 = 'redstone_dust_line0', l1 = 'redstone_dust_line1';
+          if (n) flat(5, 0, 11, 5, l0); if (so) flat(5, 11, 11, 16, l0); if (w) flat(0, 5, 5, 11, l1); if (e) flat(11, 5, 16, 11, l1);
         }
       }
       // climbing up the side of a block
@@ -337,6 +347,8 @@ const Models = (() => {
       const rot = shape === 1 ? 1 : shape === 7 ? 1 : shape === 8 ? 2 : shape === 9 ? 3 : 0;
       return rotY([box(0, 1, 0, 16, 1, 16, { up: tex, down: tex }, { noCull: true })], rot);
     },
+    // pointed dripstone: up or down, five thicknesses
+    dripstone: (d, s) => crossEls('pointed_dripstone_' + (s & 8 ? 'down' : 'up') + '_' + ['tip', 'tip_merge', 'frustum', 'middle', 'base'][Math.min(4, s & 7)], false),
     cross: (d, s) => {
       let t = d.tex.side;
       if (d.name === 'sweet_berry_bush') t = 'sweet_berry_bush_stage' + Math.min(3, s & 3);
@@ -416,13 +428,18 @@ const Models = (() => {
       return els;
     },
     lectern: (d, s) => rotY([box(0, 0, 0, 16, 2, 16, { up: 'lectern_base', down: 'oak_planks', side: 'lectern_base' }), box(4, 2, 4, 12, 15, 12, { side: d.tex.side, north: d.tex.front, up: 'oak_planks', down: 'oak_planks' }),
-      box(0, 12, 3, 16, 16, 16, { up: d.tex.up, down: 'oak_planks', side: d.tex.side }, { r: { axis: 'x', angle: -22.5, origin: [8, 12, 16] } })], turnsOf(s)),
+      box(0, 12, 3, 16, 16, 16, { up: d.tex.up, down: 'oak_planks', side: d.tex.side }, { r: { axis: 'x', angle: -22.5, origin: [8, 12, 16] } }),
+      // the open book lying on it
+      ...(s & 8 ? [box(1, 16, 4, 15, 17, 15, { up: 'lectern_book', down: 'lectern_book_cover', side: 'lectern_book_edge' }, { r: { axis: 'x', angle: -22.5, origin: [8, 12, 16] } })] : [])], turnsOf(s)),
     stonecutter: (d, s) => rotY([box(0, 0, 0, 16, 9, 16, { up: d.tex.up, down: d.tex.down, side: d.tex.side }), box(1, 9, 8, 15, 16, 8, { north: d.tex.front, south: d.tex.front }, { noCull: true, uv: [null, null, [1, 9, 15, 16], [1, 9, 15, 16], null, null] })], turnsOf(s)),
     bell: (d, s) => rotY([box(5, 6, 5, 11, 13, 11, 'bell_body'), box(4, 4, 4, 12, 6, 12, 'bell_body'), box(2, 13, 7, 14, 15, 9, 'dark_oak_planks'), box(0, 0, 6, 2, 16, 10, 'stone'), box(14, 0, 6, 16, 16, 10, 'stone')], turnsOf(s)),
     skull: (d, s) => [box(4, 0, 4, 12, 8, 12, d.tex.side)],
-    sign: (d, s) => { const t = d.tex.side; const els = [box(-4, 7, 7.25, 20, 19, 8.75, t), box(7.25, 0, 7.25, 8.75, 7, 8.75, t.replace('_planks', '_log').replace('crimson_log', 'crimson_stem').replace('warped_log', 'warped_stem').replace('bamboo_log', 'bamboo_block'))]; return rotYdeg(els, (s & 15) * 22.5); },
-    wall_sign: (d, s) => rotY([box(-4, 4.5, 14, 20, 16.5, 16, d.tex.side)], turnsOf(s)),
-    banner: (d, s) => { const t = d.tex.side; return rotYdeg([box(-2, 1, 7, 18, 30, 8, t), box(7, 0, 7, 9, 31, 9, 'oak_planks'), box(-2, 30, 7, 18, 32, 9, 'oak_planks')], (s & 15) * 22.5); },
+    // the game's sign: a 16 x 8 board, 4/3 thick, on a post (the 24 x 12 model drawn at 2/3 size)
+    sign: (d, s) => { const t = d.tex.side; const els = [box(0, 9.333, 7.333, 16, 17.333, 8.667, t), box(7.333, 0, 7.333, 8.667, 9.333, 8.667, t.replace('_planks', '_log').replace('crimson_log', 'crimson_stem').replace('warped_log', 'warped_stem').replace('bamboo_log', 'bamboo_block'))]; return rotYdeg(els, (s & 15) * 22.5); },
+    wall_sign: (d, s) => rotY([box(0, 4.333, 14.333, 16, 12.333, 15.667, d.tex.side)], turnsOf(s)),
+    // banners: the pole and bar (the game's model at 2/3 size); the flag itself is drawn by Banners with its patterns
+    wall_banner: (d, s) => rotY([box(1.333, 12.333, 14.333, 14.667, 13.667, 15.333, 'oak_planks')], turnsOf(s)),
+    banner: (d, s) => { return rotYdeg([box(7.333, 0, 7.333, 8.667, 28, 8.667, 'oak_planks'), box(1.333, 28, 7.333, 14.667, 29.333, 8.667, 'oak_planks')], (s & 15) * 22.5); },
     glazed: (d, s) => { const k = turnsOf(s); const t = d.tex.side; return [box(0, 0, 0, 16, 16, 16, t, { rot: [k * 90, k * 90, 0, 0, 0, 0] })]; },
     piston: (d, s) => {
       const ext = s & 8, inner = d.tex.extra;
@@ -507,7 +524,7 @@ const Models = (() => {
       }
       return els;
     },
-    decorated_pot: (d, s) => rotY([box(1, 0, 1, 15, 16, 15, { up: 'decorated_pot_base', down: 'decorated_pot_base', side: d.tex.side }),
+    decorated_pot: (d, s, conn) => conn === 0xffff ? [] : rotY([box(1, 0, 1, 15, 16, 15, (() => { const sh = (conn && Pots.DESIGNS[conn]) || [], t = Pots.sideTex; return { up: 'decorated_pot_base', down: 'decorated_pot_base', north: t(sh[0]), west: t(sh[1]), east: t(sh[2]), south: t(sh[3]) }; })()),
       box(5, 16, 5, 11, 17, 11, d.tex.side, { uv: [[5, 5, 11, 11], [5, 5, 11, 11], [5, 2, 11, 3], [5, 2, 11, 3], [5, 2, 11, 3], [5, 2, 11, 3]] }),
       box(4, 17, 4, 12, 20, 12, d.tex.side, { uv: [[4, 4, 12, 12], [4, 4, 12, 12], [4, 0, 12, 3], [4, 0, 12, 3], [4, 0, 12, 3], [4, 0, 12, 3]] })], turnsOf(s)),
     heavy_core: d => [box(4, 0, 4, 12, 8, 12, { up: d.tex.up, down: d.tex.down, side: d.tex.side }, { uv: [[4, 4, 12, 12], [4, 4, 12, 12], [4, 4, 12, 12], [4, 4, 12, 12], [4, 4, 12, 12], [4, 4, 12, 12]] })],
@@ -640,6 +657,7 @@ const Models = (() => {
     // thin selection boxes for non-solid things
     switch (d.model) {
       case 'cross': case 'tall': return [[2 / 16, 0, 2 / 16, 14 / 16, 13 / 16, 14 / 16]];
+      case 'dripstone': { const t = st & 7, dn = st & 8; if (t === 0) return [dn ? [5 / 16, 5 / 16, 5 / 16, 11 / 16, 1, 11 / 16] : [5 / 16, 0, 5 / 16, 11 / 16, 11 / 16, 11 / 16]]; const r = [5, 5, 4, 3, 2][Math.min(4, t)] / 16; return [[r, 0, r, 1 - r, 1, 1 - r]]; }
       case 'crop': return [[0, 0, 0, 1, Math.max(2, ((st & 7) + 1) * 2) / 16, 1]];
       case 'torch': return [[6 / 16, 0, 6 / 16, 10 / 16, 10 / 16, 10 / 16]];
       case 'wall_torch': { const b = { 5: [0, 3 / 16, 5.5 / 16, 5 / 16, 13 / 16, 10.5 / 16], 4: [11 / 16, 3 / 16, 5.5 / 16, 1, 13 / 16, 10.5 / 16], 3: [5.5 / 16, 3 / 16, 0, 10.5 / 16, 13 / 16, 5 / 16], 2: [5.5 / 16, 3 / 16, 11 / 16, 10.5 / 16, 13 / 16, 1] }[f]; return [b || [0.4, 0, 0.4, 0.6, 0.6, 0.6]]; }
@@ -651,6 +669,7 @@ const Models = (() => {
       case 'portal': return st & 1 ? [[6 / 16, 0, 0, 10 / 16, 1, 1]] : [[0, 0, 6 / 16, 1, 1, 10 / 16]];
       case 'end_portal': return [[0, 0, 0, 1, 12 / 16, 1]];
       case 'banner': return [[0.25, 0, 0.25, 0.75, 1, 0.75]];
+      case 'wall_banner': return col ? null : [rot([0, 0, 14 / 16, 1, 12.5 / 16, 1])];
       case 'tripwire_hook': return [rot([5 / 16, 0, 10 / 16, 11 / 16, 10 / 16, 1])];
       case 'wall_fan': return [rot([0, 4 / 16, 5 / 16, 1, 12 / 16, 1])];
     }

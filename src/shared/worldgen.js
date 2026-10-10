@@ -19,7 +19,11 @@ SHARED.push(function worldgenModule(G) {
     inside(x, z) { x -= this.x0; z -= this.z0; return x >= 0 && x < 16 && z >= 0 && z < 16; }
     get(x, y, z) { x -= this.x0; z -= this.z0; if (x < 0 || x > 15 || z < 0 || z > 15 || y < MINY || y > MAXY) return 0; return this.b[I(x, y, z)]; }
     getState(x, y, z) { x -= this.x0; z -= this.z0; if (x < 0 || x > 15 || z < 0 || z > 15 || y < MINY || y > MAXY) return 0; return this.s[I(x, y, z)]; }
-    set(x, y, z, id, st) { x -= this.x0; z -= this.z0; if (x < 0 || x > 15 || z < 0 || z > 15 || y < MINY || y > MAXY) return; const i = I(x, y, z); this.b[i] = id; this.s[i] = st || 0; }
+    set(x, y, z, id, st) {
+      const wx = x, wz = z; x -= this.x0; z -= this.z0; if (x < 0 || x > 15 || z < 0 || z > 15 || y < MINY || y > MAXY) return; const i = I(x, y, z); this.b[i] = id; this.s[i] = st || 0;
+      // a block entity whose block is replaced goes with it (structures carving through sculk, chests...)
+      const be = this.o.be; for (let k = be.length - 1; k >= 0; k--) { const e = be[k]; if (e.x === wx && e.y === y && e.z === wz) be.splice(k, 1); }
+    }
     blockEntity(x, y, z, data) { if (this.inside(x, z)) this.o.be.push(Object.assign({ x, y, z }, data)); }
     entity(type, x, y, z, data) { if (this.inside(Math.floor(x), Math.floor(z))) this.o.ents.push(Object.assign({ type, x, y, z }, data || {})); }
   }
@@ -61,6 +65,8 @@ SHARED.push(function worldgenModule(G) {
       this.seed = seed;
       // world types: default, superflat (bedrock, two dirt, grass) and large biomes (climate noise four times wider)
       this.flat = !!(opts && opts.type === 'flat'); this.bs = opts && opts.type === 'large' ? 4 : 1;
+      // amplified: the land above the sea stretched to the sky (squeezed under this world's ceiling)
+      this.amp = !!(opts && opts.type === 'amplified');
       this.structures = !(opts && opts.structures === false);
       const h = k => hashInt(seed, k, 31, 17);
       this.nC = new Octaves(h(1), 6, 0.5); this.nE = new Octaves(h(2), 5, 0.5); this.nW = new Octaves(h(3), 5, 0.5);
@@ -104,7 +110,8 @@ SHARED.push(function worldgenModule(G) {
       // mushroom islands rise from the deepest oceans
       const mush = C < -0.95 ? smooth(0.42, 0.55, this.nM.n2(x / 180, z / 180)) : 0;
       if (mush > 0) h = h + (SEA + 3 + this.nD.n2(x / 30, z / 30) * 4 - h) * mush;
-      if (h > 150) h = 150 + (h - 150) * 0.55;
+      if (this.amp && h > SEA) { h = SEA + (h - SEA) * 2.2 + Math.max(0, this.nR.n2(x / 90, z / 90)) * 20 * inland; if (h > 140) h = 140 + (h - 140) * 0.45; }
+      else if (h > 150) h = 150 + (h - 150) * 0.55;
       h = Math.round(clamp(h, -40, 186));
       o.h = h; o.C = C; o.E = E; o.PV = PV; o.Wn = Wn; o.T = T; o.Hm = Hm; o.m = m; o.river = river;
       o.biome = this.pickBiome(o, mush > 0.5);
@@ -165,6 +172,7 @@ SHARED.push(function worldgenModule(G) {
         HH[(dx + 1) + (dz + 1) * 18] = c.h;
         if (dx >= 0 && dx < 16 && dz >= 0 && dz < 16) { cols[dx + dz * 16] = c; out.biomes[dx + dz * 16] = c.biome; out.heights[dx + dz * 16] = c.h; }
       }
+      if (G.Caves) out.cave = G.Caves.encode(cols);
       const cf = this.caveFields(cx, cz), NY = 65;
       const rnd = new Rand(hashInt(this.seed, cx, cz, 101));
       for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
@@ -211,6 +219,8 @@ SHARED.push(function worldgenModule(G) {
       // ores and features of this chunk and its neighbours (clipped to this chunk)
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) this.ores(w, cx + dx, cz + dz);
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) this.decorate(w, cx + dx, cz + dz);
+      // cave biomes, glow lichen, geodes and fossils
+      if (G.Caves) G.Caves.decorate(this, w, cx, cz, cols, out);
       if (this.structures && G.Structures) G.Structures.place(this, w, cx, cz);
       this.freeze(out, cols);
       return out;
@@ -366,8 +376,11 @@ SHARED.push(function worldgenModule(G) {
         snowy_taiga: 10, savanna: 1, savanna_plateau: 2, windswept_forest: 10, windswept_hills: 0.2, windswept_savanna: 2, jungle: 50, sparse_jungle: 3, bamboo_jungle: 12,
         wooded_badlands: 5, meadow: 0.1, cherry_grove: 1.5, grove: 10, snowy_plains: 0.1, swamp: 2, mangrove_swamp: 8, plains: 0.05, sunflower_plains: 0.05, mushroom_fields: 1, ice_spikes: 0 }[bio] || 0;
       let n = Math.floor(T) + (r.next() < T - Math.floor(T) ? 1 : 0);
+      // no trees on village streets and lots
+      const bare = n && this.structures && G.Structures ? G.Structures.treeless(this, cx, cz) : null;
       for (let k = 0; k < n; k++) {
         const x = cx * 16 + r.int(16), z = cz * 16 + r.int(16);
+        if (bare && bare.some(q => x >= q[0] - 3 && x <= q[2] + 3 && z >= q[1] - 3 && z <= q[3] + 3)) continue;
         at(x, z); const y = c.h + 1, b = BIOMES[c.biome].name;
         if (c.h < SEA && b !== 'mangrove_swamp') continue;
         // only checks that give the same answer from every chunk (noise, not blocks), so a tree is never cut in half
@@ -444,8 +457,8 @@ SHARED.push(function worldgenModule(G) {
     topAt(w, x, z) { let y = MAXY; while (y > MINY && (w.get(x, y, z) === 0)) y--; return y <= MINY ? null : y; }
     tree(w, r, x, y, z, b) {
       switch (b) {
-        case 'forest': case 'flower_forest': if (r.chance(0.2)) F.oak(w, r, x, y, z, { log: B.birch_log, leaves: B.birch_leaves, base: 5 }); else if (r.chance(0.1)) F.fancyOak(w, r, x, y, z); else F.oak(w, r, x, y, z, { bees: b === 'flower_forest' }); break;
-        case 'birch_forest': F.oak(w, r, x, y, z, { log: B.birch_log, leaves: B.birch_leaves, base: 5, bees: true }); break;
+        case 'forest': case 'flower_forest': { const bc = b === 'flower_forest' ? 0.02 : 0.002; if (r.chance(0.2)) F.oak(w, r, x, y, z, { log: B.birch_log, leaves: B.birch_leaves, base: 5, bees: true, beeChance: bc }); else if (r.chance(0.1)) F.fancyOak(w, r, x, y, z); else F.oak(w, r, x, y, z, { bees: true, beeChance: bc }); break; }
+        case 'birch_forest': F.oak(w, r, x, y, z, { log: B.birch_log, leaves: B.birch_leaves, base: 5, bees: true, beeChance: 0.002 }); break;
         case 'old_growth_birch_forest': F.oak(w, r, x, y, z, { log: B.birch_log, leaves: B.birch_leaves, base: 5 + r.int(4), extra: 6 }); break;
         case 'dark_forest': if (r.chance(0.08)) F.hugeMushroom(w, r, x, y, z, r.chance(0.5)); else if (r.chance(0.12)) F.oak(w, r, x, y, z); else if (r.chance(0.05)) F.oak(w, r, x, y, z, { log: B.birch_log, leaves: B.birch_leaves, base: 5 }); else F.darkOak(w, r, x, y, z); break;
         case 'taiga': case 'snowy_taiga': case 'grove': if (r.chance(0.33)) F.pine(w, r, x, y, z); else F.spruce(w, r, x, y, z, { snow: b !== 'taiga' }); break;
@@ -456,7 +469,7 @@ SHARED.push(function worldgenModule(G) {
         case 'jungle': case 'bamboo_jungle': if (r.chance(0.1)) F.megaJungle(w, r, x, y, z); else if (r.chance(0.5)) F.jungleBush(w, r, x, y, z); else if (r.chance(0.1)) F.fancyOak(w, r, x, y, z); else F.jungle(w, r, x, y, z); break;
         case 'sparse_jungle': if (r.chance(0.5)) F.jungleBush(w, r, x, y, z); else F.jungle(w, r, x, y, z); break;
         case 'wooded_badlands': F.oak(w, r, x, y, z); break;
-        case 'meadow': if (r.chance(0.5)) F.oak(w, r, x, y, z, { log: B.birch_log, leaves: B.birch_leaves, base: 5, bees: true }); else F.oak(w, r, x, y, z, { bees: true }); break;
+        case 'meadow': if (r.chance(0.5)) F.oak(w, r, x, y, z, { log: B.birch_log, leaves: B.birch_leaves, base: 5, bees: true, beeChance: 0.002 }); else F.oak(w, r, x, y, z, { bees: true, beeChance: 1 }); break;
         case 'cherry_grove': F.cherry(w, r, x, y, z); break;
         case 'swamp': F.swampOak(w, r, x, y, z); break;
         case 'mangrove_swamp': F.mangrove(w, r, x, y, z); break;
@@ -705,6 +718,19 @@ SHARED.push(function worldgenModule(G) {
         out.heights[x + z * 16] = top;
       }
       const w = new ChunkWriter(out, cx, cz);
+      // the ten obsidian spikes around the main island (the game's SpikeFeature)
+      for (const sp of this.spikes()) {
+        if (sp.x + sp.r < x0 || sp.x - sp.r > x0 + 15 || sp.z + sp.r < z0 || sp.z - sp.r > z0 + 15) continue;
+        for (let x = sp.x - sp.r; x <= sp.x + sp.r; x++) for (let z = sp.z - sp.r; z <= sp.z + sp.r; z++) {
+          if (!w.inside(x, z)) continue;
+          const d2 = (x - sp.x) ** 2 + (z - sp.z) ** 2;
+          for (let y = 0; y <= sp.h + 10; y++) { if (d2 <= sp.r * sp.r + 1 && y < sp.h) w.set(x, y, z, B.obsidian, 0); else if (y > 65) w.set(x, y, z, 0, 0); }
+        }
+        if (sp.guarded) for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) for (let dy = 0; dy <= 3; dy++) {
+          if (Math.abs(dx) === 2 || Math.abs(dz) === 2 || dy === 3) w.set(sp.x + dx, sp.h + dy, sp.z + dz, B.iron_bars, 0);
+        }
+        w.set(sp.x, sp.h, sp.z, B.bedrock, 0); w.set(sp.x, sp.h + 1, sp.z, B.fire, 0);
+      }
       if (G.Structures) G.Structures.placeEnd(this, w, cx, cz);
       // chorus plants on the outer islands
       for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
@@ -717,6 +743,18 @@ SHARED.push(function worldgenModule(G) {
         }
       }
       return out;
+    }
+    // spike i stands at angle i * 36 degrees, 42 blocks out; its size comes from a shuffled index
+    spikes() {
+      if (this._spikes) return this._spikes;
+      const idx = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], r = new Rand(hashInt(this.seed, 5, 5, 31));
+      for (let i = idx.length - 1; i > 0; i--) { const j = r.int(i + 1); const t = idx[i]; idx[i] = idx[j]; idx[j] = t; }
+      const out = [];
+      for (let i = 0; i < 10; i++) {
+        const a = 2 * (-Math.PI + Math.PI / 10 * i), l = idx[i];
+        out.push({ x: Math.floor(42 * Math.cos(a)), z: Math.floor(42 * Math.sin(a)), r: 2 + Math.floor(l / 3), h: 76 + l * 3, guarded: l === 1 || l === 2 });
+      }
+      return (this._spikes = out);
     }
     chorus(w, r, x, y, z, depth) {
       const h = 1 + r.int(depth ? 3 : 4);

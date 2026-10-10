@@ -12,7 +12,15 @@ const BlockEntities = (() => {
           case 'hopper': if (typeof Hoppers !== 'undefined') Hoppers.tick(be); break;
           case 'campfire': campfire(be); break;
           case 'beacon': if (typeof Beacons !== 'undefined') Beacons.tick(be); break;
-          case 'spawner': if (typeof Spawners !== 'undefined') Spawners.tick(be); break;
+          case 'spawner': Spawners.tick(be); break;
+          case 'catalyst': Sculk.catalystTick(be); break;
+          case 'trial_spawner': Trials.tick(be); break;
+          case 'vault': Trials.vaultTick(be); break;
+          case 'hive': Bees.tick(be); break;
+          case 'brushable': Archaeology.tick(be); break;
+          case 'comparator': Redstone.comparatorPoll(be); break;
+          case 'daylight': Redstone.daylightTick(be); break;
+          case 'crafter': Crafter.tick(be); break;
         }
       }
     }
@@ -88,13 +96,13 @@ const BlockUse = (() => {
             let be2 = World.getBE(ox, y, oz); if (!be2) { be2 = Blocks.newBE(n); World.setBE(ox, y, oz, be2); } LootTables.unpackContainer(be2, p);
             const [a, b] = t === 1 ? [be, be2] : [be2, be];
             const items = { get: i => i < 27 ? a.items[i] : b.items[i - 27], set: (i, v) => { v = v && v.count > 0 ? v : null; if (i < 27) a.items[i] = v; else b.items[i - 27] = v; World.chunkAt(x, z).modified = true; } };
-            Screens.open(new ChestScreen(items, 6, 'Large Chest', { onClose: () => Sound.play('chest_close', null, { x, y, z }) }));
+            Screens.open(new ChestScreen(items, 6, 'Large Chest', { onClose: () => { Sound.play('chest_close', null, { x, y, z }); ChestAnim.close(x, y, z); ChestAnim.close(ox, y, oz); if (n === 'trapped_chest') { Redstone.update(x, y, z); Redstone.update(ox, y, oz); } } }));
             Sound.play('chest_open', null, { x, y, z }); ChestAnim.open(x, y, z); ChestAnim.open(ox, y, oz);
-            if (n === 'trapped_chest') Redstone.update(x, y, z);
+            if (n === 'trapped_chest') { Redstone.update(x, y, z); Redstone.update(ox, y, oz); }
             return true;
           }
         }
-        Screens.open(new ChestScreen(be.items, 3, 'Chest', { onClose: () => { Sound.play('chest_close', null, { x, y, z }); ChestAnim.close(x, y, z); } }));
+        Screens.open(new ChestScreen(be.items, 3, 'Chest', { onClose: () => { Sound.play('chest_close', null, { x, y, z }); ChestAnim.close(x, y, z); if (n === 'trapped_chest') Redstone.update(x, y, z); } }));
         Sound.play('chest_open', null, { x, y, z }); ChestAnim.open(x, y, z);
         if (n === 'trapped_chest') Redstone.update(x, y, z);
         return true;
@@ -102,6 +110,7 @@ const BlockUse = (() => {
       case 'barrel': { let be = World.getBE(x, y, z); if (!be) { be = Blocks.newBE(n); World.setBE(x, y, z, be); } LootTables.unpackContainer(be, p); World.setBlock(x, y, z, id, st | 8, 4); Screens.open(new ChestScreen(be.items, 3, 'Barrel', { onClose: () => World.setBlock(x, y, z, id, World.getState(x, y, z) & ~8, 4) })); Sound.play('barrel_open', null, { x, y, z }); return true; }
       case 'ender_chest': Screens.open(new ChestScreen(p.enderChest, 3, 'Ender Chest')); Sound.play('chest_open', null, { x, y, z }); return true;
       case 'dispenser': case 'dropper': { let be = World.getBE(x, y, z); if (!be) { be = Blocks.newBE(n); World.setBE(x, y, z, be); } LootTables.unpackContainer(be, p); Screens.open(new ChestScreen(be.items, 3, ITEMS[IID[n]].display, { cols: 3, dispenser: true })); return true; }
+      case 'crafter': Screens.open(new CrafterScreen(x, y, z)); return true;
       case 'hopper': { let be = World.getBE(x, y, z); if (!be) { be = Blocks.newBE(n); World.setBE(x, y, z, be); } Screens.open(new ChestScreen(be.items, 1, 'Item Hopper', { cols: 5, hopper: true })); return true; }
       case 'enchanting_table': Screens.open(new EnchantScreen(x, y, z)); return true;
       case 'anvil': case 'chipped_anvil': case 'damaged_anvil': Screens.open(new AnvilScreen(x, y, z)); return true;
@@ -116,7 +125,7 @@ const BlockUse = (() => {
       case 'jukebox': {
         const be = World.getBE(x, y, z) || { type: 'jukebox', disc: null };
         if (be.disc) { Drops.spawnItem(x + 0.5, y + 1.2, z + 0.5, be.disc); be.disc = null; World.setBE(x, y, z, be); World.setBlock(x, y, z, id, 0); Sound.stopDisc(x, y, z); return true; }
-        if (hn.startsWith('music_disc_')) { be.disc = Object.assign({}, held, { count: 1 }); World.setBE(x, y, z, be); World.setBlock(x, y, z, id, 1); consume(p); Sound.playDisc(hn, x, y, z); HUD.actionBar('Now Playing: C418 - ' + ITEMS[IID[hn]].display.replace('Music Disc', '').trim()); return true; }
+        if (hn.startsWith('music_disc_')) { be.disc = Object.assign({}, held, { count: 1 }); World.setBE(x, y, z, be); World.setBlock(x, y, z, id, 1); consume(p); Sound.playDisc(hn, x, y, z); HUD.actionBar('Now Playing: ' + (typeof Creatures !== 'undefined' && Creatures.Jukebox.title(hn) || ITEMS[IID[hn]].display.replace('Music Disc', '').trim())); return true; }
         return false;
       }
       case 'flower_pot': {
@@ -148,18 +157,20 @@ const BlockUse = (() => {
         if ((st & 7) > 0) { if (World.dim !== 'nether') { Explosions.explode(x + 0.5, y + 0.5, z + 0.5, 5, true, null); return true; } p.spawn = { dim: 'nether', x: x + 0.5, y: y + 1, z: z + 0.5, anchor: true }; Chat.system('Respawn point set'); Sound.play('anchor_set', null, { x, y, z }); return true; }
         return false;
       }
-      case 'lectern': if (typeof Books !== 'undefined') return Books.lectern(p, x, y, z, st, held); return false;
-      case 'bell': Sound.play('bell', null, { x, y, z }); return true;
+      case 'lectern': return Books.lectern(p, x, y, z, st, held);
+      case 'bell': Sound.play('bell', null, { x, y, z }); Raids.bellRung(x, y, z); return true;
       case 'end_portal_frame': if (hn === 'ender_eye' && !(st & 8)) { World.setBlock(x, y, z, id, st | 8); consume(p); Sound.play('eye_place', null, { x, y, z }); Portals.checkEndPortal(x, y, z); return true; } return false;
       case 'redstone_ore': case 'deepslate_redstone_ore': World.setBlock(x, y, z, id, 1); return false;
       case 'dragon_egg': DragonEgg.teleport(x, y, z); return true;
       case 'pumpkin': if (hn === 'shears') { World.setBlock(x, y, z, B.carved_pumpkin, hit.face > 1 ? hit.face : OPP[Place.lookDir(p)]); Drops.spawnItem(x + 0.5, y + 0.5, z + 0.5, stack('pumpkin_seeds', 4)); p.inv.damageHeld(1, p); Sound.play('pumpkin_carve', null, { x, y, z }); return true; } return false;
-      case 'bee_nest': case 'beehive': if ((st >> 3 & 7) >= 5 && (hn === 'shears' || hn === 'glass_bottle')) { if (hn === 'shears') { Drops.spawnItem(x + 0.5, y + 1, z + 0.5, stack('honeycomb', 3)); p.inv.damageHeld(1, p); } else { consume(p); give(p, stack('honey_bottle')); } World.setBlock(x, y, z, id, st & 7); return true; } return false;
+      case 'bee_nest': case 'beehive': return Bees.use(p, x, y, z, st, held);
       case 'cake': return false;
-      case 'chiseled_bookshelf': return false;
+      case 'chiseled_bookshelf': return Shelves.use(p, hit, held);
+      case 'decorated_pot': return Shelves.pot(p, x, y, z, held);
+      case 'vault': return Trials.vaultUse(p, x, y, z, held);
       case 'tnt': if (hn === 'flint_and_steel' || hn === 'fire_charge') { Explosions.primeTnt(x, y, z, p); if (hn === 'flint_and_steel') p.inv.damageHeld(1, p); else consume(p); return true; } return false;
       case 'sign': case 'oak_sign': default:
-        if (d.model === 'sign' || d.model === 'wall_sign') { if (hn.endsWith('_dye') || hn === 'glow_ink_sac' || hn === 'ink_sac') { const be = World.getBE(x, y, z); if (be) { if (hn === 'glow_ink_sac') be.glow = true; else if (hn === 'ink_sac') be.glow = false; else be.color = hn.replace('_dye', ''); World.setBE(x, y, z, be); consume(p); return true; } } UI.open('sign', { x, y, z }); return true; }
+        if (Signs.isSign(id)) return Signs.use(p, x, y, z, held);
         if (d.name.endsWith('shulker_box')) { const be = World.getBE(x, y, z) || (World.setBE(x, y, z, Blocks.newBE(d.name)), World.getBE(x, y, z)); Screens.open(new ChestScreen(be.items, 3, 'Shulker Box', { filter: s => !ITEMS[s.id].name.endsWith('shulker_box') })); return true; }
     }
     return false;

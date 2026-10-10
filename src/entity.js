@@ -47,6 +47,9 @@ class Entity {
     if (ewater) { const st = World.getState(ex, Math.floor(ey), ez); const top = Math.floor(ey) + (ed.fluid && BLOCKS[World.getBlock(ex, Math.floor(ey) + 1, ez)].fluid !== 'water' ? (8 - (st & 7)) / 9 : 1); this.eyesInWater = ey < top; }
     else this.eyesInWater = false;
     this.eyesInLava = ed.fluid === 'lava';
+    // falling into water: a splash
+    if (this.inWater && this.wasInWater === false && (this.living || this.isPlayer) && !this.spectator) Sound.play('splash', this);
+    this.wasInWater = this.inWater;
     if (this.inWater) { this.fallDistance = 0; }
   }
   distTo(e) { const dx = this.x - e.x, dy = this.y - e.y, dz = this.z - e.z; return Math.sqrt(dx * dx + dy * dy + dz * dz); }
@@ -56,6 +59,10 @@ class Entity {
   lookVec() { const cp = Math.cos(this.pitch); return [-Math.sin(this.yaw) * cp, -Math.sin(this.pitch), -Math.cos(this.yaw) * cp]; }
 }
 
+const STUCK = { web: [0.25, 0.05], berry: [0.8, 0.75], snow: [0.9, 1.5] };
+const FREEZE_IMMUNE = new Set(['stray', 'polar_bear', 'snow_golem', 'wither', 'skeleton']), FREEZE_EXTRA = new Set(['strider', 'blaze', 'magma_cube']);
+const SNOW_WALKERS = new Set(['rabbit', 'fox', 'silverfish', 'endermite']);
+const LEATHER_ARMOR = new Set(['leather_helmet', 'leather_chestplate', 'leather_leggings', 'leather_boots']);
 class Living extends Entity {
   constructor(type, x, y, z) {
     super(type, x, y, z);
@@ -66,7 +73,7 @@ class Living extends Entity {
     this.armorPts = 0; this.toughness = 0; this.kbResist = 0; this.attackStrength = 1;
     this.walkDist = 0; this.pwalkDist = 0; this.limbSwing = 0; this.limbAmount = 0; this.plimbAmount = 0; this.jumpCooldown = 0;
     this.bodyYaw = 0; this.pbodyYaw = 0; this.headYaw = 0; this.pheadYaw = 0; this.swing = 0; this.pswing = 0; this.swinging = false; this.swingTime = 0;
-    this.air = 300; this.lastHurtBy = null; this.lastHurtTime = 0;
+    this.air = 300; this.lastHurtBy = null; this.lastHurtTime = 0; this.freeze = 0;
   }
   effect(name) { return this.effects.get(name); }
   addEffect(name, dur, amp, o) {
@@ -92,7 +99,8 @@ class Living extends Entity {
   }
   heal(n) { if (this.dead) return; this.health = Math.min(this.maxHealth, this.health + n); }
   get speedAttr() {
-    let s = this.speed;
+    // the cold of powder snow slows you, up to half a player's walking speed
+    let s = this.freeze > 0 ? Math.max(0, this.speed - 0.05 * this.freeze / 140) : this.speed;
     const sp = this.effect('speed'), sl = this.effect('slowness');
     if (sp) s *= 1 + 0.2 * (sp.amp + 1);
     if (sl) s *= Math.max(0, 1 - 0.15 * (sl.amp + 1));
@@ -123,10 +131,16 @@ class Living extends Entity {
     this.vz += strafe * s - forward * c;
   }
   travel() {
+    if (this.gliding && !this.inWater && !this.inLava) { this.glideTravel(); return; }
     const strafe = this.strafe * 0.98, forward = this.forward * 0.98;
     const flying = this.flying;
     if (this.inWater && !flying) {
       const y0 = this.y;
+      // swimming: rise and dive the way you look
+      if (this.swimming && !this.vehicle) {
+        const d = this.lookVec()[1], e = d < -0.2 ? 0.085 : 0.06, ab = BLOCKS[World.getBlock(Math.floor(this.x), Math.floor(this.y + 0.9), Math.floor(this.z))];
+        if (d <= 0 || this.jumping || ab.fluid === 'water') this.vy += (d - this.vy) * e;
+      }
       let f = this.sprinting ? 0.9 : 0.8, sp = 0.02;
       const ds = this.depthStrider || 0; if (ds > 0) { const k = Math.min(3, ds) / 3 * (this.onGround ? 1 : 0.5); f += (0.546 - f) * k; sp += (this.speedAttr - sp) * k; }
       if (this.effect('dolphins_grace')) f = 0.96;
@@ -156,17 +170,36 @@ class Living extends Entity {
         this.vy = Math.max(this.vy, -0.15);
         if (this.vy < 0 && this.sneaking && this.isPlayer) this.vy = 0;
       }
-      // cobwebs slow everything to a crawl
-      if (this.inWeb) { this.vx *= 0.25; this.vy *= 0.05; this.vz *= 0.25; }
+      // cobwebs, berry bushes and powder snow hold you back (the game's stuck multipliers)
+      const st = this.stuck;
+      if (st) { this.vx *= st[0]; this.vy *= st[1]; this.vz *= st[0]; }
       Phys.move(this, this.vx, this.vy, this.vz);
-      if (this.inWeb) { this.vx = this.vy = this.vz = 0; this.fallDistance = 0; }
-      if ((this.hitH || this.jumping) && climb) this.vy = 0.2;
+      if (st) { this.vx = this.vy = this.vz = 0; this.fallDistance = 0; }
+      // leather boots climb up out of powder snow
+      if ((this.hitH || this.jumping) && (climb || (this.snowAtFeet && this.canWalkOnPowderSnow()))) this.vy = 0.2;
       const lev = this.effect('levitation');
       if (lev) this.vy += (0.05 * (lev.amp + 1) - this.vy) * 0.2;
       else if (!this.noGravity && !flying) this.vy -= (this.vy <= 0 && this.effect('slow_falling')) ? 0.01 : 0.08;
       if (flying) this.vy *= 0.6; else this.vy *= 0.98;
       this.vx *= slip; this.vz *= slip;
     }
+  }
+  // gliding on an elytra (the game's fall-flying movement): pitch trades height for speed and back again
+  glideTravel() {
+    if (this.vy > -0.5) this.fallDistance = 1;
+    const lv = this.lookVec(), pitch = this.pitch;
+    const d = Math.hypot(lv[0], lv[2]), e = Math.hypot(this.vx, this.vz), g = Math.hypot(lv[0], lv[1], lv[2]);
+    let h = Math.cos(pitch); h = h * h * Math.min(1, g / 0.4);
+    const grav = this.vy <= 0 && this.effect('slow_falling') ? 0.01 : 0.08;
+    this.vy += grav * (-1 + h * 0.75);
+    if (this.vy < 0 && d > 0) { const i = this.vy * -0.1 * h; this.vx += lv[0] * i / d; this.vy += i; this.vz += lv[2] * i / d; }
+    if (pitch < 0 && d > 0) { const i = e * -Math.sin(pitch) * 0.04; this.vx += -lv[0] * i / d; this.vy += i * 3.2; this.vz += -lv[2] * i / d; }
+    if (d > 0) { this.vx += (lv[0] / d * e - this.vx) * 0.1; this.vz += (lv[2] / d * e - this.vz) * 0.1; }
+    this.vx *= 0.99; this.vy *= 0.98; this.vz *= 0.99;
+    Phys.move(this, this.vx, this.vy, this.vz);
+    // flying into a wall hurts by how much speed was lost
+    if (this.hitH) { const l = (e - Math.hypot(this.vx, this.vz)) * 10 - 3; if (l > 0) { Sound.play('fall', this); this.hurt(l, 'flyIntoWall'); } }
+    if (this.onGround) this.gliding = false;
   }
   // fall damage when landing (fall distance - 3, less with jump boost and feather falling)
   updateFall(prevY) {
@@ -176,14 +209,17 @@ class Living extends Entity {
       if (World.getBlock(ex, ey, ez) === BID.turtle_egg && this.type !== 'item' && this.type !== 'xp_orb') BlockExtras.trample(this, ex, ey, ez, this.fallDistance > 0);
       if (this.fallDistance > 0) {
         const land = World.getBlock(Math.floor(this.x), Math.floor(this.y - 0.2), Math.floor(this.z));
+        if (this.living || this.isPlayer) GameEvents.emit('hit_ground', this.x, this.y, this.z, this, land);
         this.onLand && this.onLand(this.fallDistance, land);
         let dmg = Math.ceil(this.fallDistance - 3 - (this.effect('jump_boost') ? this.effect('jump_boost').amp + 1 : 0));
+        const spike = Dripstone.fallMultiplier(land, Math.floor(this.x), Math.floor(this.y - 0.2), Math.floor(this.z));
+        if (spike) dmg = Math.ceil((this.fallDistance + spike.extra - 3 - (this.effect('jump_boost') ? this.effect('jump_boost').amp + 1 : 0)) * spike.mult);
         if (land === BID.hay_block) dmg = Math.ceil(dmg * 0.2);
         if (land === BID.slime_block && !this.sneaking) dmg = 0;
         if (BLOCKS[land].fluid === 'water' || this.inWater) dmg = 0;
         if (land === BID.powder_snow) dmg = 0;
         if (BLOCKS[land].name.endsWith('_bed')) dmg = Math.ceil(dmg * 0.5);
-        if (dmg > 0 && !this.noFallDamage) this.hurt(dmg, 'fall');
+        if (dmg > 0 && !this.noFallDamage) this.hurt(dmg, spike ? 'stalagmite' : 'fall');
         this.fallDistance = 0;
         // slime blocks bounce you back up
         if (land === BID.slime_block && !this.sneaking && this.vyBeforeMove < -0.1) { this.vy = -this.vyBeforeMove; this.onGround = false; }
@@ -191,11 +227,45 @@ class Living extends Entity {
     } else if (dy < 0) this.fallDistance -= dy;
     if (this.inWater || this.flying || this.onClimbable()) this.fallDistance = 0;
   }
+  // what the entity stands in: cobwebs, sweet berry bushes and powder snow slow it; powder snow freezes it
+  tickStuck() {
+    let stuck = null, snow = false;
+    Phys.touching(this, id => {
+      if (id === BID.cobweb) stuck = STUCK.web;
+      else if (id === BID.sweet_berry_bush) { if (!stuck && this.type !== 'fox' && this.type !== 'bee') stuck = STUCK.berry; }
+      else if (id === BID.powder_snow) snow = true;
+      return false;
+    });
+    const fx = Math.floor(this.x), fy = Math.floor(this.y), fz = Math.floor(this.z);
+    this.snowAtFeet = snow && World.getBlock(fx, fy, fz) === BID.powder_snow;
+    if (this.snowAtFeet && !stuck) stuck = STUCK.snow;
+    this.stuck = stuck; this.inWeb = !!stuck; this.inPowderSnow = snow;
+    if (this.dead) return;
+    // the cold builds up over 7 seconds, then hurts every 2 seconds
+    if (snow && this.canFreeze()) this.freeze = Math.min(140, this.freeze + 1); else if (this.freeze > 0) this.freeze = Math.max(0, this.freeze - 2);
+    if (this.freeze >= 140 && this.age % 40 === 0 && this.canFreeze()) this.hurt(FREEZE_EXTRA.has(this.type) ? 5 : 1, 'freeze');
+    // powder snow puts out fire, and melts away
+    if (snow && this.fireTicks > 0) {
+      this.fireTicks = 0;
+      if (Game.rules.mobGriefing || this.isPlayer) Phys.touching(this, (id, x, y, z) => { if (id === BID.powder_snow) { World.setBlock(x, y, z, 0, 0); Sound.play('fizz', null, { x: x + 0.5, y: y + 0.5, z: z + 0.5 }); return true; } return false; });
+    }
+  }
+  wornArmor() { return this.isPlayer ? [0, 1, 2, 3].map(i => this.inv.armor(i)) : this.equip ? [this.equip.head, this.equip.chest, this.equip.legs, this.equip.feet] : []; }
+  // any piece of leather armour keeps the cold out; strays, polar bears, snow golems and the wither never freeze
+  canFreeze() {
+    if (this.spectator || (this.isPlayer && this.creative) || FREEZE_IMMUNE.has(this.type)) return false;
+    return !this.wornArmor().some(s => s && LEATHER_ARMOR.has(ITEMS[s.id].name));
+  }
+  // leather boots (and light-footed rabbits, foxes, silverfish and endermites) stand on powder snow
+  canWalkOnPowderSnow() { if (SNOW_WALKERS.has(this.type)) return true; const f = this.wornArmor()[3]; return !!f && ITEMS[f.id].name === 'leather_boots'; }
+  get fullyFrozen() { return this.freeze >= 140; }
+  // the jitter of a mob that is converting into another (or frozen solid)
+  isShaking() { return this.fullyFrozen; }
   tickLiving() {
     if (this.hurtTime > 0) this.hurtTime--;
     if (this.invul > 0) this.invul--;
     this.tickEffects();
-    this.inWeb = Phys.touching(this, id => id === BID.cobweb || id === BID.sweet_berry_bush || id === BID.powder_snow);
+    this.tickStuck();
     if (this.jumpCooldown > 0) this.jumpCooldown--;
     if (this.jumping) {
       if (this.inWater || this.inLava) { this.vy += 0.04; this.swimmingUp = true; }
@@ -204,7 +274,7 @@ class Living extends Entity {
     if (Math.abs(this.vx) < 0.003) this.vx = 0; if (Math.abs(this.vy) < 0.003) this.vy = 0; if (Math.abs(this.vz) < 0.003) this.vz = 0;
     const py = this.y;
     this.vyBeforeMove = this.vy;
-    if (!this.dead) this.travel(); else { this.vx *= 0.8; this.vz *= 0.8; this.vy -= 0.08; Phys.move(this, this.vx, this.vy, this.vz); this.vy *= 0.98; }
+    if (!this.dead) { if (!this.vehicle) this.travel(); } else { this.vx *= 0.8; this.vz *= 0.8; this.vy -= 0.08; Phys.move(this, this.vx, this.vy, this.vz); this.vy *= 0.98; }
     this.updateFall(py);
     // limb animation
     this.plimbAmount = this.limbAmount; this.pwalkDist = this.walkDist;
@@ -212,6 +282,14 @@ class Living extends Entity {
     let d = Math.sqrt(dx * dx + dz * dz) * 4; if (d > 1) d = 1;
     this.limbAmount += (d - this.limbAmount) * 0.4; this.limbSwing += this.limbAmount;
     this.walkDist += Math.sqrt(dx * dx + dz * dz) * 0.6;
+    // mobs' steps, strokes and wingbeats are game events (the player's are counted in Player)
+    if (!this.isPlayer && !this.dead && this.walkDist > (this.nextStep || 1)) {
+      this.nextStep = Math.floor(this.walkDist) + 1;
+      if (this.onGround) GameEvents.emit('step', this.x, this.y, this.z, this, World.getBlock(Math.floor(this.x), Math.floor(this.y - 0.2), Math.floor(this.z)));
+      else if (this.inWater) GameEvents.emit('swim', this.x, this.y, this.z, this);
+      else if (FLAPPERS.has(this.type)) GameEvents.emit('flap', this.x, this.y, this.z, this);
+    }
+    if (!this.isPlayer && this.onGround && !this.dead) { const bx = Math.floor(this.x), by = Math.floor(this.y - 0.2), bz = Math.floor(this.z), b = World.getBlock(bx, by, bz); if (GameEvents.KIND.has(b) && b !== BID.sculk_catalyst) GameEvents.stepOn(this, bx, by, bz, b); }
     // swinging the arm
     this.pswing = this.swing;
     if (this.swinging) { this.swingTime++; if (this.swingTime >= 6) { this.swingTime = 0; this.swinging = false; } } else this.swingTime = 0;
@@ -225,5 +303,7 @@ class Living extends Entity {
   }
   swingArm() { if (!this.swinging || this.swingTime >= 3) { this.swingTime = -1; this.swinging = true; } }
 }
+// mobs whose wingbeats are game events
+const FLAPPERS = new Set(['bat', 'bee', 'parrot', 'allay', 'phantom', 'vex', 'chicken']);
 function angleDiff(a, b) { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; }
 function turnToward(a, b, max) { const d = angleDiff(b, a); return a + Math.max(-max, Math.min(max, d)); }

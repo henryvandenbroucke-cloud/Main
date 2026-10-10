@@ -7,7 +7,7 @@ const MOB_STATS = {
   mooshroom: [10, 0.2, 0, '1-3', 'creature'], horse: [22, 0.225, 0, '1-3', 'creature'], donkey: [22, 0.175, 0, '1-3', 'creature'], mule: [22, 0.175, 0, '1-3', 'creature'],
   rabbit: [3, 0.3, 0, '1-3', 'creature'], wolf: [8, 0.3, 4, '1-3', 'creature'], cat: [10, 0.3, 3, '1-3', 'creature'], ocelot: [10, 0.3, 0, '1-3', 'creature'],
   fox: [10, 0.3, 2, '1-3', 'creature'], parrot: [6, 0.2, 0, '1-3', 'creature'], bat: [6, 0.1, 0, '0', 'ambient'], squid: [10, 0.7, 0, '1-3', 'water'], glow_squid: [10, 0.7, 0, '1-3', 'water'],
-  cod: [3, 0.7, 0, '1-3', 'water'], salmon: [3, 0.7, 0, '1-3', 'water'], tropical_fish: [3, 0.7, 0, '1-3', 'water'], pufferfish: [3, 0.7, 0, '1-3', 'water'], dolphin: [10, 1.2, 3, '1-3', 'water'],
+  cod: [3, 0.7, 0, '1-3', 'water_ambient'], salmon: [3, 0.7, 0, '1-3', 'water_ambient'], tropical_fish: [3, 0.7, 0, '1-3', 'water_ambient'], pufferfish: [3, 0.7, 0, '1-3', 'water_ambient'], dolphin: [10, 1.2, 3, '1-3', 'water'],
   turtle: [30, 0.25, 0, '1-3', 'creature'], polar_bear: [30, 0.25, 6, '1-3', 'creature'], panda: [20, 0.15, 6, '1-3', 'creature'], bee: [10, 0.3, 2, '1-3', 'creature'],
   goat: [10, 0.2, 2, '1-3', 'creature'], llama: [22, 0.175, 1, '1-3', 'creature'], frog: [10, 1.0, 0, '1-3', 'creature'], axolotl: [14, 1.0, 2, '1-3', 'water'], camel: [32, 0.09, 0, '1-3', 'creature'],
   armadillo: [12, 0.14, 0, '1-3', 'creature'], strider: [20, 0.175, 0, '1-3', 'creature'], villager: [20, 0.5, 0, '0', 'misc'], wandering_trader: [20, 0.5, 0, '0', 'misc'],

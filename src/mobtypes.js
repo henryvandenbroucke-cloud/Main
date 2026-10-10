@@ -85,7 +85,7 @@ class Chicken extends Animal {
     this.flap += this.flapSpeed * 2;
     if (!this.baby && !this.jockey && --this.eggTime <= 0) { Sound.play('chicken_egg', this); Drops.spawnItem(this.x, this.y, this.z, stack('egg')); this.eggTime = 6000 + rnd(6000); }
   }
-  hurt(n, s, a) { if (s === 'fall') return false; return super.hurt(n, s, a); }
+  hurt(n, s, a) { if (s === 'fall' || s === 'stalagmite') return false; return super.hurt(n, s, a); }
   animState(s, a) { const f = this.oFlap + (this.flap - this.oFlap) * a; s.flap = (Math.sin(f) + 1) * this.flapSpeed; }
 }
 reg('chicken', Chicken);
@@ -93,14 +93,21 @@ reg('chicken', Chicken);
 // ---------------------------------------------------------------- undead
 const ZOMBIE_TARGETS = e => e.isPlayer || e.type === 'villager' || e.type === 'wandering_trader' || e.type === 'iron_golem' || (e.type === 'turtle' && e.baby);
 class Zombie extends Monster {
-  constructor(t, x, y, z) { super(t || 'zombie', x, y, z); this.attackKnockback = 0; this.opensDoors = false; }
+  constructor(t, x, y, z) { super(t || 'zombie', x, y, z); this.attackKnockback = 0; this.opensDoors = false; this.underwater = 0; this.drownConvert = 0; }
   get undead() { return true; }
   registerGoals() {
     const g = this.goals, t = this.targets;
     g.add(0, new G.Float(this)); g.add(2, new G.MeleeAttack(this, 1, false)); g.add(7, new G.RandomStroll(this, 1)); g.add(8, new G.LookAtPlayer(this, 8)); g.add(8, new G.RandomLookAround(this));
     t.add(1, new G.HurtByTarget(this, true)); t.add(2, new G.NearestAttackableTarget(this, TARGET_PLAYER, 35)); t.add(3, new G.NearestAttackableTarget(this, e => e.type === 'villager' || e.type === 'wandering_trader', 35, false)); t.add(3, new G.NearestAttackableTarget(this, e => e.type === 'iron_golem', 35));
   }
-  aiStep() { super.aiStep(); if (this.burns !== false) this.burnsInDay(); if (this.type === 'zombie' && this.eyesInWater) { if (++this.underwater > 600) this.convert('drowned'); } else this.underwater = 0; }
+  // 30 seconds under water and a zombie starts turning into a drowned (a husk into a zombie): 15 more seconds of shaking
+  aiStep() {
+    super.aiStep(); if (this.burns !== false) this.burnsInDay();
+    if (this.type !== 'zombie' && this.type !== 'husk') return;
+    if (this.drownConvert > 0) { if (--this.drownConvert === 0) { Sound.play(this.type === 'husk' ? 'husk_converted_to_zombie' : 'zombie_converted_to_drowned', this); this.convert(this.type === 'husk' ? 'zombie' : 'drowned'); } }
+    else if (this.eyesInWater) { if (++this.underwater >= 600) this.drownConvert = 300; } else this.underwater = 0;
+  }
+  isShaking() { return this.drownConvert > 0 || super.isShaking(); }
   onAttack(t) { if (this.type === 'husk' && t.addEffect) t.addEffect('hunger', 140 * (Game.difficulty === 'hard' ? 2 : 1), 0); }
   convert(to) { const z = Mobs.spawnEntity(to, this.x, this.y, this.z); if (z) { z.yaw = z.bodyYaw = this.yaw; z.equip = this.equip; if (this.baby) z.setBaby(); z.persistent = this.persistent; } this.removed = true; }
   onDeath(src, a) { if (a && a.type === 'zombie' || false) return; }
@@ -119,8 +126,9 @@ class Drowned extends Zombie {
 reg('drowned', Drowned);
 class ZombieVillager extends Zombie {
   constructor(t, x, y, z) { super('zombie_villager', x, y, z); this.curing = 0; }
-  onInteract(p, s) { if (s && ITEMS[s.id].name === 'golden_apple' && this.effect('weakness') && !this.curing) { this.curing = 3600 + rnd(2400); if (!p.creative) { s.count--; if (!s.count) p.inv.held = null; } this.persistent = true; Sound.play('zombie_villager_cure', this); return true; } return false; }
-  aiStep() { super.aiStep(); if (this.curing > 0 && --this.curing === 0) { const v = Mobs.spawnEntity('villager', this.x, this.y, this.z); if (v) { v.addEffect('nausea', 200, 0); v.profession = this.profession || null; } this.removed = true; } }
+  onInteract(p, s) { if (s && ITEMS[s.id].name === 'golden_apple' && this.effect('weakness') && !this.curing) { this.curing = 3600 + rnd(2400); this.curer = p; if (!p.creative) { s.count--; if (!s.count) p.inv.held = null; } this.persistent = true; Sound.play('zombie_villager_cure', this); return true; } return false; }
+  isShaking() { return this.curing > 0 || super.isShaking(); }
+  aiStep() { super.aiStep(); if (this.curing > 0 && --this.curing === 0) { const v = Mobs.spawnEntity('villager', this.x, this.y, this.z); if (v) { v.addEffect('nausea', 200, 0); v.profession = this.profession || null; if (this.curer && this.curer.isPlayer) { Trading.gossip(v, 'major_positive', 20); Trading.gossip(v, 'minor_positive', 25); Advancements.fire('cured_zombie_villager', { zombie: this, villager: v }); } } this.removed = true; } }
 }
 reg('zombie_villager', ZombieVillager);
 class AbstractSkeleton extends Monster {
@@ -147,7 +155,18 @@ class AbstractSkeleton extends Monster {
   }
   animState(s) { s.holdingBow = this.holdingBow(); s.aggressive = this.aggressive; }
 }
-class Skeleton extends AbstractSkeleton { constructor(t, x, y, z) { super(t || 'skeleton', x, y, z); this.equip.main = stack('bow'); } }
+class Skeleton extends AbstractSkeleton {
+  constructor(t, x, y, z) { super(t || 'skeleton', x, y, z); this.equip.main = stack('bow'); this.snowTime = 0; this.freezeConvert = 0; }
+  // 7 seconds in powder snow and a skeleton starts to freeze into a stray, shaking for 15 seconds
+  aiStep() {
+    super.aiStep();
+    if (this.type !== 'skeleton') return;
+    if (!this.inPowderSnow) { this.snowTime = 0; this.freezeConvert = 0; return; }
+    if (this.freezeConvert > 0) { if (--this.freezeConvert === 0) { Sound.play('skeleton_converted_to_stray', this); const z = Mobs.spawnEntity('stray', this.x, this.y, this.z); if (z) { z.yaw = z.bodyYaw = this.yaw; z.equip = this.equip; z.persistent = this.persistent; } this.removed = true; } }
+    else if (++this.snowTime >= 140) this.freezeConvert = 300;
+  }
+  isShaking() { return this.freezeConvert > 0 || super.isShaking(); }
+}
 reg('skeleton', Skeleton);
 class Stray extends Skeleton { constructor(t, x, y, z) { super('stray', x, y, z); } arrowKind() { return { potion: 'slowness', dur: 600 }; } }
 reg('stray', Stray);
@@ -338,10 +357,19 @@ class Villager extends Mob {
     g.add(1, new G.Panic(this, 0.6)); g.add(3, new G.RandomStroll(this, 0.6)); g.add(4, new G.LookAtPlayer(this, 8, 0.05)); g.add(5, new G.LookAtPlayer(this, 8, 0.03, 'villager')); g.add(6, new G.RandomLookAround(this));
   }
   onInteract(p, s) { if (this.baby) { this.shake = 40; Sound.play('villager_no', this); return true; } if (typeof Trading !== 'undefined') { Trading.open(p, this); return true; } this.shake = 40; Sound.play('villager_no', this); return true; }
-  aiStep() { if (this.shake > 0) this.shake--; }
+  aiStep() {
+    if (Game.gameTime - (this.lastDecay || 0) >= 24000) { this.lastDecay = Game.gameTime; Trading.decayGossip(this); }
+    if (this.shake > 0) this.shake--;
+    if (this.tradingWith) { const p = this.tradingWith; this.nav.stop && this.nav.stop(); this.lookAt(p.x, p.eyeY, p.z); if (this.distTo(p) > 8 || p.dead) this.tradingWith = null; }
+    Trading.jobTick(this);
+  }
   animState(s) { s.unhappy = this.shake > 0; }
   onLightning() { const w = Mobs.spawnEntity('witch', this.x, this.y, this.z); if (w) w.persistent = true; this.removed = true; }
-  saveExtra(d) { d.profession = this.profession; d.level = this.level; d.trades = this.trades; d.xp = this.xp || 0; } loadExtra(d) { this.profession = d.profession; this.level = d.level || 1; this.trades = d.trades; this.xp = d.xp || 0; }
+  // hurting a villager is remembered; killing one is remembered by those who saw it; gossip fades a little each day
+  hurt(n, s, a) { const ok = super.hurt(n, s, a); const pl = a && (a.isPlayer ? a : a.owner && a.owner.isPlayer ? a.owner : null); if (ok && pl && !this.dead) Trading.gossip(this, 'minor_negative', 25); return ok; }
+  onDeath(s, a) { const pl = a && (a.isPlayer ? a : a.owner && a.owner.isPlayer ? a.owner : null); if (pl) for (const e of Entities.list) if (e !== this && e.type === 'villager' && !e.dead && e.dist2(this.x, this.y, this.z) < 256) Trading.gossip(e, 'major_negative', 25); }
+  saveExtra(d) { d.gossip = this.gossip; d.profession = this.profession; d.level = this.level; d.trades = this.trades; d.xp = this.xp || 0; d.job = this.job; d.vtype = this.vtype; d.restocks = this.restocks; d.lastRestock = this.lastRestock; }
+  loadExtra(d) { this.gossip = d.gossip || null; this.profession = d.profession; this.level = d.level || 1; this.trades = d.trades; this.xp = d.xp || 0; this.job = d.job || null; this.vtype = d.vtype; this.restocks = d.restocks || 0; this.lastRestock = d.lastRestock; if (this.profession && this.type === 'villager') this.model = 'villager_' + this.profession; }
 }
 reg('villager', Villager);
 class WanderingTrader extends Villager { constructor(t, x, y, z) { super('wandering_trader', x, y, z); this.persistent = false; this.despawnTime = 48000; } aiStep() { super.aiStep(); if (--this.despawnTime <= 0) this.removed = true; } }
@@ -351,13 +379,14 @@ class IronGolem extends Mob {
   registerGoals() {
     const g = this.goals, t = this.targets;
     g.add(1, new G.MeleeAttack(this, 1, true)); g.add(6, new G.RandomStroll(this, 0.6, 240)); g.add(7, new G.LookAtPlayer(this, 6)); g.add(8, new G.RandomLookAround(this));
+    t.add(1, new G.NearestAttackableTarget(this, e => e.isPlayer && !e.dead && !e.creative && !e.spectator && !this.playerMade && Entities.list.some(v => v.type === 'villager' && !v.dead && Math.abs(v.x - this.x) <= 10.5 && Math.abs(v.y - this.y) <= 8.5 && Math.abs(v.z - this.z) <= 10.5 && Trading.reputation(v) <= -100), 16, false, 10));
     t.add(2, new G.HurtByTarget(this)); t.add(3, new G.NearestAttackableTarget(this, e => e.hostile && e.type !== 'creeper' && !e.dead, 16, false, 1));
   }
   get noFallDamage() { return true; }
   doHurtTarget(t) {
     this.attackT = 10; Sound.play('iron_golem_attack', this);
     const base = 15, dmg = base / 2 + rnd(base);
-    const ok = t.hurt(t.isPlayer ? Game.scaleDamage(dmg) : dmg, 'mob', this);
+    const ok = t.hurt(dmg, 'mob', this);
     if (ok) { t.vy += 0.4; t.knockback && t.knockback(0.5, this.x - t.x, this.z - t.z); }
     return ok;
   }
@@ -407,6 +436,7 @@ class Witch extends Monster {
     if (d) { this.drink = d; this.drinking = 32; this.equip.main = stack('potion', 1, { tag: { potion: d } }); Sound.play('witch_drink', this); }
   }
   hurt(n, s, a) { if (s === 'magic' && a === this) n *= 0.15; return super.hurt(n, s, a); }
+  animState(s) { s.holding = this.drinking > 0; }
 }
 class PotionAttack extends Goal {
   constructor(m) { super(m, 'ML'); this.cool = 0; }
@@ -460,7 +490,7 @@ class Wolf extends Tameable {
   get angry() { return !!this.target && !this.target.dead; }
   onInteract(p, s) {
     const n = s ? ITEMS[s.id].name : '';
-    if (!this.tame && n === 'bone' && !this.angry) { if (!p.creative) { s.count--; if (!s.count) p.inv.held = null; } if (rnd(3) === 0) { this.tame = true; this.persistent = true; this.sitting = true; this.nav.stop(); this.target = null; this.maxHealth = 40; this.health = 40; Particles.heart && Particles.heart(this, 7); } else Particles.smoke && Particles.smoke(this); return true; }
+    if (!this.tame && n === 'bone' && !this.angry) { if (!p.creative) { s.count--; if (!s.count) p.inv.held = null; } if (rnd(3) === 0) { this.tame = true; Advancements.fire('tame_animal', { entity: this }); this.persistent = true; this.sitting = true; this.nav.stop(); this.target = null; this.maxHealth = 40; this.health = 40; Particles.heart && Particles.heart(this, 7); } else Particles.smoke && Particles.smoke(this); return true; }
     if (this.tame) {
       if (this.isFood(s) && this.health < this.maxHealth) { this.heal(ITEMS[s.id].food ? ITEMS[s.id].food[0] : 2); this.useFood(p, s); return true; }
       if (n.endsWith('_dye')) { this.collar = n.replace('_dye', ''); if (!p.creative) { s.count--; if (!s.count) p.inv.held = null; } return true; }
@@ -468,8 +498,19 @@ class Wolf extends Tameable {
     }
     return false;
   }
-  animState(s) { s.sitting = this.sitting; s.angry = this.angry; s.tail = this.tame ? (0.55 - (this.maxHealth - this.health) * 0.02) * Math.PI : this.angry ? 1.5393804 : Math.PI / 5; }
-  get tint() { return null; }
+  // out of the water (or rain), a wet wolf stops on dry ground and shakes itself off, flinging drops about
+  aiStep() {
+    if (this.inWater || Weather.rainingAt(this.x, this.y + 1, this.z)) { this.isWet = true; this.shaking = false; this.shakeAnim = this.shakeAnimO = 0; return; }
+    if (this.shaking) {
+      if (this.shakeAnim === 0) Sound.play('wolf_shake', this);
+      this.shakeAnimO = this.shakeAnim; this.shakeAnim += 0.05;
+      if (this.shakeAnimO >= 2) { this.isWet = this.shaking = false; this.shakeAnim = this.shakeAnimO = 0; return; }
+      if (this.shakeAnim > 0.4) { const n = Math.floor(Math.sin((this.shakeAnim - 0.4) * Math.PI) * 7); for (let i = 0; i < n; i++) Particles.splash(this.x + (Math.random() * 2 - 1) * this.w * 0.5, this.y + 0.8, this.z + (Math.random() * 2 - 1) * this.w * 0.5); }
+    } else if (this.isWet && this.onGround && this.nav.done()) { this.shaking = true; this.shakeAnim = this.shakeAnimO = 0; }
+  }
+  animState(s, a) { s.sitting = this.sitting; s.angry = this.angry; s.tail = this.tame ? (0.55 - (this.maxHealth - this.health) * 0.02) * Math.PI : this.angry ? 1.5393804 : Math.PI / 5; if (this.shaking) s.shake = this.shakeAnimO + (this.shakeAnim - this.shakeAnimO) * a; }
+  // wet fur looks darker until it is shaken dry
+  get tint() { if (!this.isWet) return null; const f = Math.min(1, 0.75 + (this.shakeAnim || 0) / 2 * 0.25); return [f, f, f]; }
 }
 class OwnerHurtTarget extends Goal {
   constructor(m) { super(m, 'T'); this.last = -1; }
@@ -491,7 +532,7 @@ class Cat extends Tameable {
   }
   onInteract(p, s) {
     const n = s ? ITEMS[s.id].name : '';
-    if (!this.tame && (n === 'cod' || n === 'salmon') && this.type === 'cat') { this.useFood(p, s); if (rnd(3) === 0) { this.tame = true; this.persistent = true; this.sitting = true; Particles.heart && Particles.heart(this, 7); } else Particles.smoke && Particles.smoke(this); return true; }
+    if (!this.tame && (n === 'cod' || n === 'salmon') && this.type === 'cat') { this.useFood(p, s); if (rnd(3) === 0) { this.tame = true; Advancements.fire('tame_animal', { entity: this }); this.persistent = true; this.sitting = true; Particles.heart && Particles.heart(this, 7); } else Particles.smoke && Particles.smoke(this); return true; }
     if (this.tame && !this.isFood(s)) { this.sitting = !this.sitting; this.nav.stop(); return true; }
     return false;
   }
@@ -574,14 +615,19 @@ const Mobs = (() => {
     if (type === 'sheep' && o.color) m.color = o.color;
     if (o.persistent) m.persistent = true;
     if (o.slimeSize && m.setSize) m.setSize(o.slimeSize);
+    // the game's finalizeSpawn: variants picked per spawn group; a mob out of a bucket keeps what the bucket held
+    if (m.finalizeSpawn && !o.fromBucket) m.finalizeSpawn(o.group || {}, o);
+    if (o.fromBucket) { m.fromBucket = true; m.persistent = true; const d = o.fromBucket; if (d.health) m.health = Math.min(m.maxHealth, d.health); if (d.name) m.customName = d.name; if (m.loadBucket) m.loadBucket(d); }
     Entities.add(m);
     return m;
   }
   // /summon, spawn eggs
   function spawn(type, x, y, z, o) { o = o || {}; const m = spawnEntity(type, x, y, z, Object.assign({ persistent: !!o.force }, o)); if (m && o.force) m.persistent = true; return m; }
   // ---------------------------------------------------------------- natural spawning
-  const CAPS = { monster: 70, creature: 10, ambient: 15, water: 5 };
-  function counts() { const c = { monster: 0, creature: 0, ambient: 0, water: 0 }; for (const e of Entities.list) if (e instanceof Mob && !e.dead) { const g = e.group === 'misc' ? null : e.group; if (g && c[g] !== undefined) c[g]++; } return c; }
+  const CAPS = { monster: 70, creature: 10, ambient: 15, water: 5, water_ambient: 20, underground_water: 5, axolotls: 5 };
+  // glow squid and axolotls have their own spawn categories (and caps) in the game
+  const CAT_OF = { glow_squid: 'underground_water', axolotl: 'axolotls' };
+  function counts() { const c = { monster: 0, creature: 0, ambient: 0, water: 0, water_ambient: 0, underground_water: 0, axolotls: 0 }; for (const e of Entities.list) if (e instanceof Mob && !e.dead) { const g = CAT_OF[e.type] || (e.group === 'misc' ? null : e.group); if (g && c[g] !== undefined) c[g]++; } return c; }
   function pickWeighted(list) { let t = 0; for (const s of list) t += s[1]; let k = Math.random() * t; for (const s of list) { k -= s[1]; if (k < 0) return s; } return list[0]; }
   // may a monster spawn here? (light 0 for block light, darkness from the sky with a random allowance)
   function darkEnough(x, y, z) {
@@ -592,10 +638,24 @@ const Mobs = (() => {
     if (bl > 0) return false;
     return Math.max(0, sky - Sky.skyDarken) <= rnd(8);
   }
+  const OPAQUE_SOLID = id => SOLID[id] && BLOCKS[id].opaque;
   function spawnable(type, x, y, z) {
     const below = World.getBlock(x, y - 1, z), bd = BLOCKS[below];
     const st = MOB_STATS[type], group = st ? st[4] : 'monster';
-    if (group === 'water') return BLOCKS[World.getBlock(x, y, z)].fluid === 'water' && BLOCKS[World.getBlock(x, y + 1, z)].fluid === 'water';
+    // drowned rise from dark water: often in rivers, otherwise one try in 40 and more than 5 below sea level
+    if (type === 'drowned') {
+      if (BLOCKS[World.getBlock(x, y - 1, z)].fluid !== 'water' || BLOCKS[World.getBlock(x, y, z)].fluid !== 'water' || !darkEnough(x, y, z)) return false;
+      const bn = BIOMES[World.biomeAt3(x, y, z)].name; return bn === 'river' || bn === 'frozen_river' ? rnd(15) === 0 : rnd(40) === 0 && y < 58;
+    }
+    if (group === 'water' || group === 'water_ambient' || type === 'guardian') {
+      if (BLOCKS[World.getBlock(x, y, z)].fluid !== 'water' || OPAQUE_SOLID(World.getBlock(x, y + 1, z))) return false;
+      // glow squid: dark water at least 33 below sea level; axolotls: water over clay; others near the surface (lush caves' fish anywhere)
+      if (type === 'glow_squid') return y <= 30 && World.getLight(x, y, z) === 0;
+      if (type === 'axolotl') return below === BID.clay;
+      if (type === 'guardian') return true;
+      if (type === 'tropical_fish' && BIOMES[World.biomeAt3(x, y, z)].name === 'lush_caves') return true;
+      return y >= 50 && y <= 63;
+    }
     if (group === 'ambient') return World.getBlock(x, y, z) === 0 && y < 63 && World.lightLevel(x, y, z) <= rnd(4);
     if (!SOLID[below] || !bd.opaque && bd.model !== 'slab' && !bd.name.endsWith('_leaves') || below === BID.bedrock || below === BID.barrier || bd.name.endsWith('glass')) return false;
     if (bd.model === 'slab' && !((World.getState(x, y - 1, z) >> 3) & 2) && ((World.getState(x, y - 1, z) >> 3) & 3) === 0) return false;
@@ -617,6 +677,8 @@ const Mobs = (() => {
     if (Game.gameTime % 400 === 0 && c.creature < CAPS.creature) cats.push('creature');
     if (c.ambient < CAPS.ambient && World.dim === 'overworld') cats.push('ambient');
     if (c.water < CAPS.water && World.dim === 'overworld') cats.push('water');
+    if (c.water_ambient < CAPS.water_ambient && World.dim === 'overworld') cats.push('water_ambient');
+    if (World.dim === 'overworld') for (const k of ['underground_water', 'axolotls']) if (c[k] < CAPS[k]) cats.push(k);
     if (!cats.length) return;
     const pcx = Math.floor(p.x / 16), pcz = Math.floor(p.z / 16), R = Math.min(8, Settings.renderDist);
     // try a handful of random chunks each tick (the game tries every chunk; this keeps the cost down)
@@ -626,28 +688,46 @@ const Mobs = (() => {
       for (const cat of cats) spawnCluster(cat, ch, p);
     }
   }
+  // the fish are the water_ambient category in the game; squid and dolphins are water creatures
+  const FISH = new Set(['cod', 'salmon', 'tropical_fish', 'pufferfish']);
+  function listFor(cat, b) {
+    return cat === 'monster' ? b.hostile : cat === 'creature' ? b.passive : cat === 'water' ? b.waterMobs.filter(m => !FISH.has(m[0])) : cat === 'water_ambient' ? b.waterMobs.filter(m => FISH.has(m[0])) : cat === 'ambient' ? b.ambient
+      : cat === 'underground_water' ? (b.name === 'deep_dark' ? [] : [['glow_squid', 10, 4, 6]]) : b.name === 'lush_caves' ? [['axolotl', 10, 4, 6]] : [];
+  }
   function spawnCluster(cat, ch, p) {
     const x0 = ch.cx * 16 + rnd(16), z0 = ch.cz * 16 + rnd(16);
     const top = ch.height[(x0 & 15) + (z0 & 15) * 16] + 1;
     const y0 = MINY + rnd(Math.max(1, top - MINY + 1));
-    const bi = World.biomeAt(x0, z0), b = BIOMES[bi];
-    let list = cat === 'monster' ? b.hostile : cat === 'creature' ? b.passive : cat === 'water' ? b.waterMobs : [['bat', 10, 8, 8]];
+    const b = BIOMES[World.biomeAt3(x0, y0, z0)];
+    let list = listFor(cat, b), own = false;
+    // structures with their own spawns (the game's structure spawn overrides)
+    if (cat === 'monster' || World.dim === 'overworld') {
+      const here = Structures.at(x0, y0, z0, World.dim === 'nether' ? ['fortress'] : ['ocean_monument', 'swamp_hut', 'pillager_outpost', 'ancient_city', 'trial_chambers']);
+      // nothing at all spawns in ancient cities or trial chambers
+      if (here.includes('ancient_city') || here.includes('trial_chambers')) return;
+      if (here.includes('fortress') && cat === 'monster') list = [['blaze', 10, 2, 3], ['zombified_piglin', 5, 4, 4], ['wither_skeleton', 8, 5, 5], ['skeleton', 2, 5, 5], ['magma_cube', 3, 4, 4]];
+      else if (here.includes('ocean_monument') && cat === 'monster') list = [['guardian', 1, 2, 4]];
+      else if (here.includes('swamp_hut')) list = cat === 'monster' ? [['witch', 1, 1, 1]] : [['cat', 1, 1, 1]];
+      else if (here.includes('pillager_outpost') && cat === 'monster') list = [['pillager', 1, 1, 1]];
+      own = here.length > 0;
+    }
     if (cat === 'monster' && World.dim === 'overworld' && b.name === 'mushroom_fields') return;
-    if (cat === 'monster' && World.dim === 'overworld' && y0 < 0 && b.name === 'deep_dark') return;
     if (!list || !list.length) return;
     let x = x0, y = y0, z = z0, type = null, n = 0;
     for (let pack = 0; pack < 3; pack++) {
-      const g = pickWeighted(list);
+      const g = pickWeighted(list), grp = {};
       if (!MobTypes[g[0]] && !EntityModels.DEFS[g[0]]) continue;
       const size = g[2] + rnd(g[3] - g[2] + 1);
       for (let i = 0; i < size; i++) {
         x += rnd(6) - rnd(6); z += rnd(6) - rnd(6);
         if (!World.loaded(x, z)) continue;
+        // each spot's own biome must allow the mob (so nothing wanders in from the edge of the deep dark)
+        if (!own && !listFor(cat, BIOMES[World.biomeAt3(x, y, z)]).some(m => m[0] === g[0])) continue;
         const d2 = (x + 0.5 - p.x) ** 2 + (y - p.y) ** 2 + (z + 0.5 - p.z) ** 2;
         if (d2 < 24 * 24 || d2 > 128 * 128) continue;
         if (!spawnable(g[0], x, y, z)) continue;
         if (g[0] === 'slime' && !slimeOk(x, y, z)) continue;
-        const m = spawnEntity(g[0], x + 0.5, y, z + 0.5);
+        const m = spawnEntity(g[0], x + 0.5, y, z + 0.5, { group: grp });
         if (m) n++;
         type = g[0];
         if (n >= (cat === 'monster' ? 4 : 8)) return;
@@ -669,13 +749,13 @@ const Mobs = (() => {
     const x0 = c.cx * 16 + rnd(16), z0 = c.cz * 16 + rnd(16), b = BIOMES[c.biomes[(x0 & 15) + (z0 & 15) * 16]];
     const list = b.passive; if (!list || !list.length) return;
     const g = pickWeighted(list); if (!MobTypes[g[0]] && !EntityModels.DEFS[g[0]]) return;
-    const size = g[2] + rnd(g[3] - g[2] + 1);
+    const size = g[2] + rnd(g[3] - g[2] + 1), grp = {};
     for (let i = 0; i < size; i++) {
       const x = x0 + rnd(5) - 2, z = z0 + rnd(5) - 2;
       if ((x >> 4) !== c.cx || (z >> 4) !== c.cz) continue;
       const y = c.height[(x & 15) + (z & 15) * 16] + 1;
       if (!spawnable(g[0], x, y, z)) continue;
-      const m = spawnEntity(g[0], x + 0.5, y, z + 0.5, { noEquip: true }); if (m) m.persistent = true;
+      const m = spawnEntity(g[0], x + 0.5, y, z + 0.5, { noEquip: true, group: grp }); if (m) m.persistent = true;
     }
   }
   World.listeners.chunkLoaded.push(c => { if (Game.running && Game.structures !== undefined) chunkAnimals(c); });
@@ -688,6 +768,8 @@ Entities.restore = (d, dim) => {
   if (d.type === 'xp_orb') { const e = new XpOrb(d.x, d.y, d.z, d.value); e.age = d.age || 0; return Entities.add(e); }
   if (Projectiles.restore && Projectiles.restore(d)) return;
   if (Vehicles.restore && Vehicles.restore(d)) return;
+  if (Decor.restore(d)) return;
+  if (Leads.restore(d)) return;
   const m = Mobs.create(d.type, d.x, d.y, d.z); if (!m) return;
   m.load(d); m.dim = dim; Entities.add(m);
 };

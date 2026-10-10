@@ -61,7 +61,7 @@ const Sound = (() => {
   const rp = (a, b) => a + Math.random() * (b - a);
   // ---------------------------------------------------------------- block materials
   const MAT = {
-    stone: { f: 1500, q: 0.9, type: 'bandpass', dur: 0.12, thump: 140 }, deepslate: { f: 1100, q: 0.9, type: 'bandpass', dur: 0.13, thump: 110 }, tuff: { f: 1300, q: 0.9, type: 'bandpass', dur: 0.12, thump: 120 },
+    stone: { f: 1500, q: 0.9, type: 'bandpass', dur: 0.12, thump: 140 }, pointed_dripstone: { f: 1900, q: 1.3, type: 'bandpass', dur: 0.1, thump: 170 }, deepslate: { f: 1100, q: 0.9, type: 'bandpass', dur: 0.13, thump: 110 }, tuff: { f: 1300, q: 0.9, type: 'bandpass', dur: 0.12, thump: 120 },
     netherrack: { f: 900, q: 1.2, type: 'bandpass', dur: 0.1, thump: 120 }, nether_bricks: { f: 1700, q: 1.5, type: 'bandpass', dur: 0.1, thump: 160 }, basalt: { f: 1300, q: 1.1, type: 'bandpass', dur: 0.12, thump: 130 }, nether_ore: { f: 1200, q: 1, type: 'bandpass', dur: 0.12, thump: 120 }, ancient_debris: { f: 800, q: 1.4, type: 'bandpass', dur: 0.16, thump: 100 }, lodestone: { f: 1500, q: 1, type: 'bandpass', dur: 0.12, thump: 140 }, bone: { f: 2200, q: 2, type: 'bandpass', dur: 0.08, thump: 0 },
     wood: { f: 650, q: 3, type: 'bandpass', dur: 0.09, knock: 260 }, nether_wood: { f: 700, q: 3, type: 'bandpass', dur: 0.09, knock: 280 }, bamboo_wood: { f: 900, q: 3, type: 'bandpass', dur: 0.08, knock: 340 }, ladder: { f: 700, q: 3, type: 'bandpass', dur: 0.08, knock: 300 }, scaffolding: { f: 900, q: 3, type: 'bandpass', dur: 0.07, knock: 400 }, bamboo: { f: 1100, q: 3, type: 'bandpass', dur: 0.06, knock: 420 }, stem: { f: 600, q: 2, type: 'bandpass', dur: 0.1, knock: 220 },
     gravel: { f: 1100, q: 0.6, type: 'highpass', dur: 0.14, grains: 4 }, grass: { f: 2600, q: 0.5, type: 'highpass', dur: 0.1, grains: 2 }, wet_grass: { f: 2000, q: 0.7, type: 'highpass', dur: 0.1, grains: 2 }, vine: { f: 2400, q: 0.5, type: 'highpass', dur: 0.08, grains: 2 }, roots: { f: 1800, q: 0.6, type: 'highpass', dur: 0.09, grains: 2 }, azalea: { f: 2200, q: 0.5, type: 'highpass', dur: 0.09, grains: 2 }, moss: { f: 1200, q: 0.4, type: 'lowpass', dur: 0.1, grains: 1 }, fungus: { f: 1500, q: 0.6, type: 'highpass', dur: 0.08, grains: 1 }, nylium: { f: 1500, q: 0.7, type: 'bandpass', dur: 0.1, grains: 2 }, wart: { f: 1100, q: 0.6, type: 'lowpass', dur: 0.1, grains: 1 }, shroomlight: { f: 1100, q: 0.6, type: 'lowpass', dur: 0.1, grains: 1 }, big_dripleaf: { f: 1600, q: 0.5, type: 'highpass', dur: 0.09, grains: 1 },
@@ -133,6 +133,71 @@ const Sound = (() => {
   N.iron_door_close = d => { tone(d, T(), 'sine', 100, 0.1, 0.4, { to: 50 }); noise(d, T(), 0.1, 'bandpass', 1500, 3, 0.3); };
   N.lever = d => { tone(d, T(), 'square', 700, 0.02, 0.15, { lp: 2500 }); };
   N.button = N.lever; N.click_off = d => tone(d, T(), 'square', 550, 0.02, 0.12, { lp: 2000 });
+  // trapdoors, fence gates and the redstone machines
+  N.trapdoor_open = d => { tone(d, T(), 'sawtooth', 260, 0.15, 0.1, { to: 340, lp: 1200 }); noise(d, T(), 0.06, 'bandpass', 800, 2, 0.2); };
+  N.trapdoor_close = d => { tone(d, T(), 'sine', 150, 0.07, 0.3, { to: 80 }); noise(d, T(), 0.05, 'bandpass', 800, 2, 0.25); };
+  N.iron_trapdoor_open = N.iron_door_open; N.iron_trapdoor_close = N.iron_door_close;
+  N.gate_open = d => { tone(d, T(), 'sawtooth', 240, 0.18, 0.1, { to: 320, lp: 1000, vib: [20, 10] }); noise(d, T(), 0.06, 'bandpass', 650, 2, 0.2); };
+  N.gate_close = d => { tone(d, T(), 'sine', 140, 0.07, 0.3, { to: 75 }); noise(d, T(), 0.05, 'bandpass', 650, 2, 0.25); };
+  N.piston_extend = d => { noise(d, T(), 0.18, 'bandpass', 500, 1.5, 0.45); tone(d, T(), 'sawtooth', 90, 0.15, 0.15, { to: 160, lp: 700 }); };
+  N.piston_contract = d => { noise(d, T(), 0.16, 'bandpass', 420, 1.5, 0.4); tone(d, T(), 'sawtooth', 150, 0.14, 0.13, { to: 80, lp: 700 }); };
+  N.dispense = d => { tone(d, T(), 'square', 1000, 0.03, 0.12, { lp: 3000 }); tone(d, T() + 0.04, 'square', 1000, 0.03, 0.1, { lp: 3000 }); };
+  N.dispense_fail = d => { tone(d, T(), 'square', 1200, 0.03, 0.12, { lp: 3500 }); tone(d, T() + 0.04, 'square', 1200, 0.03, 0.1, { lp: 3500 }); };
+  N.tripwire_click_on = d => tone(d, T(), 'square', 900, 0.02, 0.12, { lp: 3000 }); N.tripwire_click_off = d => tone(d, T(), 'square', 700, 0.02, 0.1, { lp: 3000 });
+  N.tripwire_attach = d => tone(d, T(), 'triangle', 600, 0.05, 0.12); N.tripwire_detach = d => tone(d, T(), 'triangle', 400, 0.05, 0.12);
+  N.copper_bulb_on = d => { tone(d, T(), 'sine', 1400, 0.12, 0.12); tone(d, T(), 'sine', 2100, 0.08, 0.05); }; N.copper_bulb_off = d => tone(d, T(), 'sine', 900, 0.1, 0.1, { to: 600 });
+  N.crafter_craft = d => { noise(d, T(), 0.08, 'bandpass', 1500, 3, 0.25); tone(d, T(), 'square', 500, 0.05, 0.08, { lp: 2000 }); };
+  N.crafter_fail = d => tone(d, T(), 'square', 300, 0.06, 0.1, { lp: 1500 });
+  N.torch_burnout = d => noise(d, T(), 0.25, 'highpass', 2500, 0.7, 0.3);
+  // hanging things, armor stands and signs
+  N.painting_place = d => { noise(d, T(), 0.08, 'bandpass', 900, 2, 0.3); tone(d, T(), 'sine', 180, 0.06, 0.2, { to: 120 }); };
+  N.painting_break = d => { noise(d, T(), 0.15, 'bandpass', 700, 1.5, 0.4); tone(d, T(), 'sawtooth', 140, 0.1, 0.12, { lp: 800, to: 70 }); };
+  N.item_frame_place = N.painting_place; N.item_frame_break = N.painting_break;
+  N.item_frame_add = d => { tone(d, T(), 'triangle', 520, 0.06, 0.15); noise(d, T(), 0.04, 'highpass', 2500, 1, 0.1); };
+  N.item_frame_rotate = d => tone(d, T(), 'triangle', 760, 0.05, 0.12);
+  N.item_frame_remove = d => tone(d, T(), 'triangle', 380, 0.07, 0.15, { to: 260 });
+  N.armor_stand_place = d => { tone(d, T(), 'sine', 160, 0.08, 0.3, { to: 90 }); noise(d, T(), 0.06, 'bandpass', 600, 2, 0.2); };
+  N.armor_stand_hit = d => { noise(d, T(), 0.06, 'bandpass', 1200, 2, 0.3); tone(d, T(), 'triangle', 300, 0.05, 0.15); };
+  N.armor_stand_break = d => { noise(d, T(), 0.2, 'bandpass', 800, 1.2, 0.4); tone(d, T(), 'sawtooth', 120, 0.12, 0.12, { lp: 700, to: 60 }); };
+  N.honeycomb_wax = d => { noise(d, T(), 0.12, 'bandpass', 3000, 3, 0.2); tone(d, T(), 'sine', 900, 0.1, 0.08, { to: 1200 }); };
+  N.waxed_sign_fail = d => tone(d, T(), 'square', 220, 0.06, 0.08, { lp: 1200 });
+  N.dye_use = d => { noise(d, T(), 0.1, 'bandpass', 2000, 2, 0.18); };
+  // books, bookshelves and pots
+  N.book_put = d => { noise(d, T(), 0.08, 'lowpass', 900, 1, 0.35); tone(d, T(), 'sine', 160, 0.08, 0.15, { to: 90 }); };
+  N.book_page_turn = d => { noise(d, T(), 0.16, 'bandpass', 3500, 0.8, 0.14, 0.03); };
+  N.chiseled_bookshelf_insert = d => { noise(d, T(), 0.1, 'lowpass', 1100, 1, 0.3); tone(d, T(), 'triangle', 220, 0.07, 0.12, { to: 140 }); };
+  N.chiseled_bookshelf_pickup = d => { noise(d, T(), 0.1, 'lowpass', 1400, 1, 0.28); tone(d, T(), 'triangle', 180, 0.07, 0.1, { to: 260 }); };
+  N.chiseled_bookshelf_insert_enchanted = d => { N.chiseled_bookshelf_insert(d); tone(d, T() + 0.02, 'sine', 1400, 0.3, 0.05, { to: 1900 }); };
+  N.chiseled_bookshelf_pickup_enchanted = d => { N.chiseled_bookshelf_pickup(d); tone(d, T() + 0.02, 'sine', 1900, 0.3, 0.05, { to: 1400 }); };
+  N.decorated_pot_insert = (d, o) => { const k = (o && o.pitch) || 1; tone(d, T(), 'sine', 420 * k, 0.18, 0.18, { to: 300 * k }); noise(d, T(), 0.08, 'bandpass', 1800 * k, 2, 0.12); };
+  N.decorated_pot_shatter = d => { noise(d, T(), 0.25, 'bandpass', 2400, 1.2, 0.45); for (let k = 0; k < 4; k++) tone(d, T() + k * 0.03, 'triangle', 900 + Math.random() * 900, 0.06, 0.08); };
+  // pointed dripstone: a falling stalactite cracking on landing, drips landing in water or lava
+  N.pointed_dripstone_land = d => { noise(d, T(), 0.25, 'bandpass', 1800, 1.2, 0.5, 0.005); tone(d, T(), 'triangle', 420, 0.12, 0.15, { to: 200 }); };
+  N.pointed_dripstone_drip_water = d => tone(d, T(), 'sine', 1400 + Math.random() * 500, 0.08, 0.12, { to: 700 });
+  N.pointed_dripstone_drip_lava = d => { tone(d, T(), 'sine', 500 + Math.random() * 200, 0.1, 0.12, { to: 260 }); noise(d, T(), 0.06, 'lowpass', 900, 1, 0.08); };
+  // advancement toasts: a soft rising chime, and the challenge fanfare
+  N.ui_toast_in = d => { tone(d, T(), 'sine', 880, 0.15, 0.08, { to: 1320 }); };
+  N.ui_toast_challenge_complete = d => { [523, 659, 784, 1047].forEach((f, i) => tone(d, T() + i * 0.12, 'triangle', f, 0.35, 0.16)); };
+  // brushing: a soft scratchy sweep (finer for sand, grainier for gravel), and a crumble when the item comes free
+  const sweep = (d, f, q, peak) => { noise(d, T(), 0.32, 'bandpass', f, q, peak, 0.06, (fl, t0) => { fl.frequency.setValueAtTime(f * 0.7, t0); fl.frequency.linearRampToValueAtTime(f * 1.3, t0 + 0.3); }); };
+  N.brush_generic = d => sweep(d, 3200, 1.2, 0.12);
+  N.brush = N.brush_generic;
+  N.brush_sand = d => sweep(d, 4200, 0.9, 0.16);
+  N.brush_gravel = d => { sweep(d, 2200, 1.4, 0.16); for (let k = 0; k < 3; k++) noise(d, T() + 0.05 + k * 0.08, 0.03, 'bandpass', 1500 + Math.random() * 800, 3, 0.1); };
+  N.brush_sand_completed = d => { noise(d, T(), 0.4, 'lowpass', 2600, 0.8, 0.35, 0.01); tone(d, T(), 'triangle', 300, 0.12, 0.08, { to: 180 }); };
+  N.brush_gravel_completed = d => { noise(d, T(), 0.4, 'lowpass', 1600, 0.8, 0.4, 0.01); for (let k = 0; k < 5; k++) noise(d, T() + k * 0.05, 0.04, 'bandpass', 900 + Math.random() * 900, 3, 0.15); };
+  N.decorated_pot_insert_fail = d => { tone(d, T(), 'sine', 260, 0.14, 0.14, { to: 220 }); noise(d, T(), 0.06, 'bandpass', 900, 2, 0.1); };
+  N.glow_ink_use = d => { tone(d, T(), 'sine', 1200, 0.2, 0.1, { to: 1800 }); noise(d, T(), 0.1, 'bandpass', 2500, 2, 0.12); };
+  N.ink_use = d => { noise(d, T(), 0.12, 'lowpass', 900, 1, 0.2); };
+  // fishing and leads
+  N.bobber_throw = d => { noise(d, T(), 0.2, 'bandpass', 1800, 2, 0.15, 0.01, (fl, t) => fl.frequency.exponentialRampToValueAtTime(600, t + 0.2)); };
+  N.bobber_splash = d => { noise(d, T(), 0.3, 'lowpass', 2000, 0.7, 0.4, 0.005, (fl, t) => fl.frequency.exponentialRampToValueAtTime(500, t + 0.3)); };
+  N.bobber_retrieve = d => { noise(d, T(), 0.12, 'bandpass', 1400, 2, 0.15); tone(d, T(), 'triangle', 500, 0.08, 0.06, { to: 900 }); };
+  N.leash_attach = d => { noise(d, T(), 0.1, 'bandpass', 600, 2, 0.25); };
+  N.leash_place = N.leash_attach; N.leash_untie = d => noise(d, T(), 0.08, 'bandpass', 800, 2, 0.2);
+  N.leash_break = d => { noise(d, T(), 0.06, 'highpass', 2500, 1, 0.3); tone(d, T(), 'sine', 300, 0.06, 0.15, { to: 120 }); };
+  N.loom_take = d => { noise(d, T(), 0.12, 'bandpass', 2400, 3, 0.2); };
+  N.cartography_take = d => { noise(d, T(), 0.15, 'bandpass', 3000, 2, 0.2); tone(d, T(), 'triangle', 700, 0.05, 0.05); };
   N.bucket_fill = d => { for (let i = 0; i < 3; i++) noise(d, T() + i * 0.05, 0.1, 'bandpass', 800 + i * 200, 2, 0.3); };
   N.bucket_empty = N.bucket_fill; N.bottle_fill = d => { tone(d, T(), 'sine', 400, 0.3, 0.15, { to: 900 }); noise(d, T(), 0.2, 'bandpass', 1500, 3, 0.15); }; N.bottle_empty = N.bottle_fill;
   N.bucket_fill_lava = d => noise(d, T(), 0.3, 'lowpass', 500, 1, 0.4); N.bucket_empty_lava = N.bucket_fill_lava;
@@ -141,6 +206,10 @@ const Sound = (() => {
   N.hoe_till = d => blockSoundTo(d, BID.dirt, 'place'); N.shovel_flatten = d => blockSoundTo(d, BID.grass_block, 'place'); N.axe_strip = d => blockSoundTo(d, BID.oak_log, 'place');
   N.bone_meal = d => { for (let i = 0; i < 3; i++) noise(d, T() + i * 0.04, 0.05, 'highpass', 3000, 1, 0.2); };
   N.craft = d => {};
+  // a wolf shaking itself dry: a fast rattle of fur and spray
+  N.wolf_shake = d => { for (let i = 0; i < 6; i++) noise(d, T() + i * 0.07, 0.06, 'bandpass', 1800 + i * 150, 1.5, 0.25); };
+  // a polar bear's warning: a deep rising growl
+  N.polar_bear_warning = d => { tone(d, T(), 'sawtooth', 70, 0.7, 0.35, { lp: 600, to: 110 }); noise(d, T(), 0.7, 'lowpass', 400, 1, 0.25); };
   N.shear = d => { noise(d, T(), 0.05, 'highpass', 4000, 2, 0.3); noise(d, T() + 0.07, 0.05, 'highpass', 4500, 2, 0.3); };
   N.saddle = N.equip; N.berry_pick = N.pop; N.pumpkin_carve = d => blockSoundTo(d, BID.pumpkin, 'hit');
   N.composter_fill = d => noise(d, T(), 0.1, 'lowpass', 900, 1, 0.3); N.composter_fill_success = d => { N.composter_fill(d); tone(d, T() + 0.05, 'sine', 700, 0.1, 0.1); }; N.composter_empty = N.composter_fill;
@@ -195,6 +264,16 @@ const Sound = (() => {
     generic: { say: null, hurt: d => noise(d, T(), 0.15, 'bandpass', 900, 1, 0.3), death: d => noise(d, T(), 0.3, 'bandpass', 700, 1, 0.3) },
   };
   MOB.mooshroom = MOB.cow; MOB.husk = MOB.zombie; MOB.drowned = { say: d => voice(d, rp(80, 100), 0.9, { lp: 400, bp: 250, q: 2, vib: [3, 12], v: 0.35 }), hurt: MOB.zombie.hurt, death: MOB.zombie.death }; MOB.zombie_villager = MOB.zombie;
+  // the wither: a hollow, ghostly moan; shots, the spawn blast and breaking out
+  MOB.wither = { say: d => { voice(d, rp(70, 90), 1.4, { type: 'sawtooth', lp: 500, bp: 220, q: 3, vib: [5, 10], attack: 0.2, v: 0.35 }); noise(d, T(), 1.2, 'bandpass', 600, 2, 0.1, 0.3); },
+    hurt: d => { voice(d, rp(110, 140), 0.4, { type: 'sawtooth', lp: 900, bp: 300, q: 2, v: 0.4 }); },
+    death: d => { voice(d, 90, 3, { type: 'sawtooth', lp: 600, bp: 200, q: 2, vib: [3, 14], attack: 0.1, v: 0.5 }); noise(d, T(), 3, 'lowpass', 400, 1, 0.3, 0.2); } };
+  N.wither_shoot = d => { noise(d, T(), 0.25, 'bandpass', 700, 1.5, 0.35, 0.01); tone(d, T(), 'sawtooth', 160, 0.2, 0.15, { to: 90, lp: 800 }); };
+  N.wither_spawn = d => { noise(d, T(), 2.5, 'lowpass', 300, 1, 0.6, 0.05); voice(d, 60, 2.5, { type: 'sawtooth', lp: 500, bp: 150, q: 2, vib: [2, 8], attack: 0.3, v: 0.5 }); };
+  N.wither_break_block = d => { noise(d, T(), 0.4, 'lowpass', 1500, 1, 0.6, 0.005); tone(d, T(), 'square', 90, 0.3, 0.2, { to: 50, lp: 500 }); };
+  MOB.warden = { say: d => { voice(d, rp(45, 60), 1.2, { type: 'sawtooth', lp: 300, bp: 120, q: 2, vib: [3, 6], attack: 0.15, v: 0.45 }); noise(d, T(), 1, 'lowpass', 200, 1, 0.12, 0.2); },
+    hurt: d => { voice(d, 90, 0.4, { lp: 500, bp: 200, q: 2, to: 50, v: 0.5 }); noise(d, T(), 0.3, 'lowpass', 400, 1, 0.3); },
+    death: d => { voice(d, 70, 2.2, { lp: 400, bp: 150, q: 2, to: 30, vib: [4, 10], v: 0.5 }); noise(d, T(), 2, 'lowpass', 300, 1, 0.25, 0.3); } };
   MOB.stray = MOB.skeleton; MOB.bogged = MOB.skeleton; MOB.wither_skeleton = MOB.skeleton; MOB.cave_spider = MOB.spider; MOB.magma_cube = MOB.slime; MOB.wandering_trader = MOB.villager; MOB.ocelot = MOB.cat;
   MOB.cod = MOB.fish; MOB.salmon = MOB.fish; MOB.tropical_fish = MOB.fish; MOB.pufferfish = MOB.fish; MOB.glow_squid = MOB.squid;
   N.magma_cube_squish = d => tone(d, T(), 'sine', 160, 0.12, 0.3, { to: 80 }); N.slime_squish = d => tone(d, T(), 'sine', 220, 0.12, 0.3, { to: 120 }); N.slime_jump = d => tone(d, T(), 'sine', 180, 0.1, 0.2, { to: 300 }); N.magma_cube_jump = N.slime_jump;
@@ -202,6 +281,11 @@ const Sound = (() => {
   function blockSoundTo(d, id, kind) { blockSound(id, undefined, undefined, undefined, kind); }
   // ---------------------------------------------------------------- the public API
   function play(name, e, o) {
+    // the sounds of things that sculk sensors and wardens can feel (game events)
+    if (EV[name] && typeof GameEvents !== 'undefined' && Game && Game.player) {
+      const ev = typeof EV[name] === 'function' ? EV[name](o || {}) : EV[name];
+      if (ev) { const [x, y, z] = at(e, o); if (x !== undefined) { const c = o && o.x !== undefined && Number.isInteger(o.x) ? 0.5 : 0; GameEvents.emit(ev, x + c, y + c, z + c, e && e.x !== undefined ? e : GameEvents.actor, o && o.block); } }
+    }
     if (!ready || !Game) return;
     o = o || {};
     let [x, y, z] = at(e, o);
@@ -216,7 +300,7 @@ const Sound = (() => {
       return;
     }
     const fn = N[name]; if (!fn) return;
-    const range = name === 'explode' || name === 'firework_blast' ? 64 : name === 'bell' ? 32 : name === 'goat_horn' ? 256 : name === 'thunder' ? 1e6 : 16;
+    const range = name === 'explode' || name === 'firework_blast' ? 64 : name === 'bell' ? 32 : name === 'goat_horn' || name === 'raid_horn' ? 256 : name === 'thunder' ? 1e6 : /^warden_(roar|sonic|emerge|dig|nearby|listening|heartbeat|tendril|attack)/.test(name) || name === 'sculk_shrieker_shriek' ? 48 : 16;
     const d = out(name === 'click' || name === 'ui' ? 'ui' : 'sfx', x, y, z, 1, range);
     fn(d, o);
     subtitle(name, x, y, z);
@@ -231,6 +315,83 @@ const Sound = (() => {
   }
   // subtitles (accessibility): a short list in the corner
   function subtitle(name, x, y, z) { if (!Settings.subtitles) return; const t = name.replace(/_/g, ' '); const now = performance.now(); const f = SUBS.find(s => s.t === t); if (f) { f.time = now; f.x = x; f.z = z; } else { SUBS.push({ t, time: now, x, z }); if (SUBS.length > 8) SUBS.shift(); } }
+  // raids
+  N.raid_horn = d => { tone(d, T(), 'sawtooth', 110, 3.2, 0.25, { lp: 600, attack: 0.4, vib: [4, 2] }); tone(d, T(), 'sawtooth', 165, 3.2, 0.12, { lp: 600, attack: 0.5 }); };
+  // bees
+  N.bee_loop = d => tone(d, T(), 'sawtooth', rp(190, 230), 0.8, 0.025, { lp: 900, vib: [28, 12], attack: 0.1 });
+  N.bee_loop_aggressive = d => tone(d, T(), 'sawtooth', rp(260, 310), 0.8, 0.04, { lp: 1400, vib: [34, 18], attack: 0.05 });
+  N.bee_sting = d => { noise(d, T(), 0.06, 'highpass', 4000, 1, 0.35); tone(d, T(), 'square', 900, 0.08, 0.06, { to: 500, lp: 3000 }); };
+  N.bee_pollinate = d => { tone(d, T(), 'sawtooth', 240, 0.5, 0.03, { lp: 1000, vib: [20, 25] }); for (let i = 0; i < 3; i++) tone(d, T() + 0.1 * i, 'sine', 1400 + i * 200, 0.08, 0.03); };
+  N.beehive_enter = d => { noise(d, T(), 0.15, 'lowpass', 1200, 1, 0.2); tone(d, T(), 'sawtooth', 220, 0.3, 0.03, { lp: 800, to: 150 }); };
+  N.beehive_exit = d => { noise(d, T(), 0.15, 'lowpass', 1200, 1, 0.2); tone(d, T(), 'sawtooth', 160, 0.3, 0.03, { lp: 800, to: 230 }); };
+  N.beehive_work = d => { for (let i = 0; i < 4; i++) noise(d, T() + i * 0.07, 0.04, 'bandpass', 1800, 4, 0.1); };
+  N.beehive_shear = d => { noise(d, T(), 0.2, 'bandpass', 2600, 2, 0.25); };
+  // trial spawners and vaults
+  N.trial_spawner_detect_player = d => { tone(d, T(), 'square', 330, 0.12, 0.08, { lp: 1500 }); tone(d, T() + 0.1, 'square', 495, 0.15, 0.08, { lp: 1500 }); };
+  N.trial_spawner_spawn_mob = d => { noise(d, T(), 0.3, 'bandpass', 1500, 1.5, 0.3, 0.01); tone(d, T(), 'sawtooth', 220, 0.2, 0.08, { to: 440, lp: 1800 }); };
+  N.trial_spawner_open_shutter = d => { for (let i = 0; i < 3; i++) noise(d, T() + i * 0.06, 0.05, 'bandpass', 2400, 4, 0.25); tone(d, T(), 'square', 260, 0.25, 0.06, { to: 390, lp: 1500 }); };
+  N.trial_spawner_close_shutter = d => { for (let i = 0; i < 3; i++) noise(d, T() + i * 0.06, 0.05, 'bandpass', 1800, 4, 0.25); tone(d, T(), 'square', 390, 0.25, 0.06, { to: 260, lp: 1500 }); };
+  N.trial_spawner_eject_item = d => { noise(d, T(), 0.12, 'bandpass', 2000, 2, 0.3); tone(d, T(), 'sine', 600, 0.15, 0.1, { to: 900 }); };
+  N.trial_spawner_ominous_activate = d => { tone(d, T(), 'sawtooth', 120, 1.2, 0.18, { to: 60, lp: 900, vib: [5, 10] }); tone(d, T(), 'sine', 900, 1, 0.06, { to: 1500 }); };
+  N.trial_spawner_spawn_item_begin = d => tone(d, T(), 'sine', 500, 0.6, 0.08, { to: 800, attack: 0.2 });
+  N.trial_spawner_spawn_item = d => { noise(d, T(), 0.15, 'bandpass', 1600, 2, 0.2); tone(d, T(), 'sine', 800, 0.2, 0.08, { to: 400 }); };
+  N.trial_spawner_ambient = d => { noise(d, T(), 0.4, 'bandpass', 900, 2, 0.06, 0.1); };
+  N.trial_spawner_ambient_ominous = d => { noise(d, T(), 0.5, 'bandpass', 1300, 2, 0.06, 0.1); tone(d, T(), 'sine', 220, 0.5, 0.03, { vib: [6, 8] }); };
+  N.vault_activate = d => { tone(d, T(), 'sine', 440, 0.3, 0.08, { to: 660 }); tone(d, T() + 0.1, 'sine', 880, 0.3, 0.05); };
+  N.vault_deactivate = d => { tone(d, T(), 'sine', 660, 0.3, 0.08, { to: 440 }); };
+  N.vault_insert_item = d => { noise(d, T(), 0.1, 'bandpass', 2600, 3, 0.25); tone(d, T(), 'square', 300, 0.1, 0.06, { lp: 1200 }); };
+  N.vault_insert_item_fail = d => tone(d, T(), 'square', 160, 0.15, 0.08, { lp: 900 });
+  N.vault_reject_rewarded_player = d => { tone(d, T(), 'square', 200, 0.12, 0.07, { lp: 900 }); tone(d, T() + 0.14, 'square', 150, 0.15, 0.07, { lp: 900 }); };
+  N.vault_open_shutter = d => { for (let i = 0; i < 4; i++) noise(d, T() + i * 0.05, 0.04, 'bandpass', 2400, 4, 0.25); };
+  N.vault_close_shutter = d => { for (let i = 0; i < 4; i++) noise(d, T() + i * 0.05, 0.04, 'bandpass', 1700, 4, 0.25); };
+  N.vault_eject_item = (d, o) => { const k = (o && o.pitch) || 1; noise(d, T(), 0.1, 'bandpass', 2000 * k, 2, 0.25); tone(d, T(), 'sine', 600 * k, 0.15, 0.1, { to: 900 * k }); };
+  N.ominous_bottle_dispose = d => { noise(d, T(), 0.3, 'highpass', 2500, 1, 0.25); tone(d, T(), 'sine', 300, 0.6, 0.08, { to: 150, vib: [8, 20] }); };
+  // the mace
+  N.mace_smash_air = d => { noise(d, T(), 0.3, 'lowpass', 1200, 1, 0.5, 0.005); tone(d, T(), 'sine', 140, 0.25, 0.4, { to: 60 }); };
+  N.mace_smash_ground = d => { tone(d, T(), 'sine', 90, 0.4, 0.7, { to: 35 }); noise(d, T(), 0.45, 'lowpass', 900, 1, 0.6, 0.003); };
+  N.mace_smash_ground_heavy = d => { tone(d, T(), 'sine', 70, 0.7, 0.9, { to: 25 }); noise(d, T(), 0.7, 'lowpass', 700, 1, 0.8, 0.003); for (let i = 0; i < 5; i++) noise(d, T() + 0.05 + i * 0.05, 0.08, 'bandpass', rp(800, 2000), 3, 0.25); };
+  // the deep dark
+  N.sculk_clicking = d => { for (let i = 0; i < 7; i++) noise(d, T() + i * 0.045 + Math.random() * 0.02, 0.02, 'bandpass', rp(1800, 3200), 6, 0.3); };
+  N.sculk_clicking_stop = d => { for (let i = 0; i < 3; i++) noise(d, T() + i * 0.07, 0.02, 'bandpass', rp(1500, 2500), 6, 0.2); };
+  N.sculk_shrieker_shriek = d => { tone(d, T(), 'sawtooth', 700, 2.2, 0.12, { to: 900, lp: 2500, vib: [6, 40], attack: 0.3 }); tone(d, T(), 'sine', 1400, 2, 0.06, { to: 1800, vib: [5, 60], attack: 0.4 }); noise(d, T(), 2.2, 'bandpass', 1200, 3, 0.08, 0.4); };
+  N.sculk_catalyst_bloom = (d, o) => { const k = (o && o.pitch) || 1; tone(d, T(), 'sine', 300 * k, 0.8, 0.12, { to: 600 * k, attack: 0.1 }); noise(d, T(), 0.6, 'lowpass', 800, 1, 0.12, 0.15); };
+  N.sculk_block_spread = d => { noise(d, T(), 0.18, 'lowpass', 600, 2, 0.25, 0.01); tone(d, T(), 'sine', 140, 0.12, 0.1, { to: 90 }); };
+  N.amethyst_block_resonate = (d, o) => { const k = (o && o.pitch) || 1; [1, 2.01, 3.03].forEach((h, i) => tone(d, T(), 'sine', 880 * k * h, 1.4 - i * 0.3, 0.08 / (i + 1), { attack: 0.01 })); };
+  N.warden_heartbeat = d => { tone(d, T(), 'sine', 55, 0.12, 0.5, { to: 40 }); tone(d, T() + 0.22, 'sine', 50, 0.14, 0.4, { to: 36 }); };
+  N.warden_tendril_clicks = d => { for (let i = 0; i < 9; i++) noise(d, T() + i * 0.035 + Math.random() * 0.01, 0.018, 'bandpass', rp(2500, 4000), 6, 0.3); };
+  N.warden_listening = d => { voice(d, 70, 0.9, { lp: 350, bp: 150, q: 2, vib: [2, 4], attack: 0.2, v: 0.35 }); N.warden_tendril_clicks(d); };
+  N.warden_listening_angry = d => { voice(d, 80, 1.1, { lp: 600, bp: 200, q: 2, vib: [5, 10], attack: 0.1, v: 0.5 }); N.warden_tendril_clicks(d); };
+  N.warden_agitated = d => voice(d, rp(60, 75), 1, { lp: 500, bp: 180, q: 2, vib: [4, 8], attack: 0.1, v: 0.45 });
+  N.warden_angry = d => { voice(d, rp(70, 90), 1.2, { lp: 800, bp: 250, q: 2, vib: [7, 14], attack: 0.05, v: 0.55 }); noise(d, T(), 0.8, 'lowpass', 500, 1, 0.2); };
+  N.warden_roar = d => { voice(d, 85, 3, { lp: 1200, bp: 300, q: 1.5, vib: [6, 20], attack: 0.3, to: 60, v: 0.7 }); noise(d, T(), 3, 'lowpass', 900, 1, 0.4, 0.4); };
+  N.warden_sonic_charge = d => { tone(d, T(), 'sawtooth', 80, 1.6, 0.25, { to: 600, lp: 1500, attack: 0.5 }); noise(d, T(), 1.6, 'bandpass', 600, 2, 0.15, 0.8, (fl, t) => fl.frequency.exponentialRampToValueAtTime(3000, t + 1.6)); };
+  N.warden_sonic_boom = d => { tone(d, T(), 'sine', 90, 1.2, 0.8, { to: 30 }); noise(d, T(), 0.9, 'lowpass', 1800, 0.7, 0.7, 0.005, (fl, t) => fl.frequency.exponentialRampToValueAtTime(200, t + 0.9)); tone(d, T(), 'sawtooth', 400, 0.5, 0.2, { to: 80, lp: 2000 }); };
+  N.warden_emerge = d => { noise(d, T(), 4, 'lowpass', 400, 1, 0.45, 0.5); voice(d, 55, 4, { lp: 300, bp: 100, q: 2, vib: [3, 8], attack: 1.5, v: 0.4 }); };
+  N.warden_dig = d => { noise(d, T(), 3, 'lowpass', 500, 1, 0.45, 0.3); voice(d, 60, 2, { lp: 300, bp: 120, q: 2, to: 35, v: 0.35 }); };
+  N.warden_sniff = d => { for (let i = 0; i < 4; i++) noise(d, T() + i * 0.32, 0.22, 'bandpass', 1400, 1.5, 0.25, 0.08); };
+  N.warden_attack_impact = d => { tone(d, T(), 'sine', 70, 0.3, 0.8, { to: 35 }); noise(d, T(), 0.25, 'lowpass', 900, 1, 0.6); };
+  N.warden_step = d => tone(d, T(), 'sine', 60, 0.2, 0.4, { to: 35 });
+  N.warden_nearby_close = d => voice(d, 50, 2.5, { lp: 250, bp: 100, q: 2, vib: [2, 5], attack: 0.8, v: 0.25 });
+  N.warden_nearby_closer = d => voice(d, 55, 2.5, { lp: 350, bp: 120, q: 2, vib: [3, 7], attack: 0.6, v: 0.35 });
+  N.warden_nearby_closest = d => { voice(d, 60, 2.5, { lp: 500, bp: 150, q: 2, vib: [4, 9], attack: 0.4, v: 0.45 }); noise(d, T(), 2, 'lowpass', 300, 1, 0.2, 0.5); };
+  // which sounds are game events (the game raises the event where these happen)
+  const EV = {
+    door_open: 'block_open', iron_door_open: 'block_open', trapdoor_open: 'block_open', iron_trapdoor_open: 'block_open', gate_open: 'block_open',
+    door_close: 'block_close', iron_door_close: 'block_close', trapdoor_close: 'block_close', iron_trapdoor_close: 'block_close', gate_close: 'block_close',
+    chest_open: 'container_open', barrel_open: 'container_open', chest_close: 'container_close', barrel_close: 'container_close',
+    click: o => o.on === true ? 'block_activate' : o.on === false ? 'block_deactivate' : null, button: 'block_activate', click_off: 'block_deactivate',
+    piston_extend: 'block_activate', piston_contract: 'block_deactivate', tripwire_click_on: 'block_activate', tripwire_click_off: 'block_deactivate', tripwire_attach: 'block_attach', tripwire_detach: 'block_detach',
+    eat: 'eat', drink: 'drink', witch_drink: 'drink', bucket_fill: 'fluid_pickup', bucket_fill_lava: 'fluid_pickup', bottle_fill: 'fluid_pickup', bucket_empty: 'fluid_place', bucket_empty_lava: 'fluid_place', bottle_empty: 'fluid_place',
+    splash: 'splash', bobber_splash: 'splash', hoe_till: 'block_change', shovel_flatten: 'block_change', axe_strip: 'block_change', bone_meal: 'block_change', berry_pick: 'block_change',
+    shear: 'shear', pumpkin_carve: 'shear', composter_fill: 'block_change', composter_fill_success: 'block_change', composter_empty: 'block_change',
+    explode: 'explode', firework_blast: 'explode', tnt_primed: 'prime_fuse', creeper_primed: 'prime_fuse', flint: 'block_place', teleport: 'teleport', enderman_teleport: 'teleport',
+    goat_horn: 'instrument_play', bell: 'block_change', equip: 'equip', saddle: 'equip', eye_place: 'block_change', anchor_charge: 'block_change', extinguish: 'block_change',
+    painting_place: 'entity_place', item_frame_place: 'entity_place', armor_stand_place: 'entity_place', leash_place: 'entity_place', chicken_egg: 'entity_place',
+    item_frame_add: 'block_change', item_frame_rotate: 'block_change', item_frame_remove: 'block_change', book_put: 'block_change', chiseled_bookshelf_insert: 'block_change', chiseled_bookshelf_pickup: 'block_change',
+    chiseled_bookshelf_insert_enchanted: 'block_change', chiseled_bookshelf_pickup_enchanted: 'block_change', decorated_pot_insert: 'block_change', dye_use: 'block_change', glow_ink_use: 'block_change', ink_use: 'block_change', honeycomb_wax: 'block_change',
+    bow_shoot: 'projectile_shoot', crossbow_shoot: 'projectile_shoot', skeleton_shoot: 'projectile_shoot', snow_golem_shoot: 'projectile_shoot', throw: 'projectile_shoot', ender_pearl_throw: 'projectile_shoot', witch_throw: 'projectile_shoot',
+    wind_charge_throw: 'projectile_shoot', trident_throw: 'projectile_shoot', bobber_throw: 'projectile_shoot', firework_launch: 'projectile_shoot', arrow_hit: 'projectile_land', trident_hit: 'projectile_land',
+  };
   // ---------------------------------------------------------------- music: generative piano, every 10 to 20 minutes
   let musicMode = null, nextMusic = 0, musicPlaying = false;
   const SCALES = [[0, 2, 4, 7, 9], [0, 3, 5, 7, 10], [0, 2, 4, 5, 7, 9, 11], [0, 2, 3, 5, 7, 8, 10]];
@@ -289,7 +450,7 @@ const Sound = (() => {
     const now = performance.now();
     if (musicMode && !musicPlaying && now > nextMusic) { playPiece(); nextMusic = now + (musicMode === 'menu' ? rp(20, 60) : rp(600, 1200)) * 1000; }
     // mob calls now and then (the game's ambient sound timer: 1 in 1000 chance each tick after the interval)
-    for (const e of Entities.list) if (e.living && !e.dead && e.age % 80 === 0 && Math.random() < 0.15 && e.dist2(p.x, p.y, p.z) < 256) { const v = MOB[e.type]; if (v && v.say) play(e.type + '_ambient', e); }
+    for (const e of Entities.list) if (e.living && !e.dead && e.age % 80 === 0 && Math.random() < 0.15 && e.dist2(p.x, p.y, p.z) < 256) { const v = MOB[e.type]; if (v && v.say) play(e.type + '_ambient', e); if (e.onAmbient) e.onAmbient(); }
     // rain on the surface
     const raining = Weather.rain > 0.2 && World.dim === 'overworld';
     if (raining && !rainNode) { const g = ac.createGain(); g.gain.value = 0; const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true; const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1200; s.connect(f); f.connect(g); g.connect(cats.ambient); s.start(); rainNode = { g, s }; }
@@ -304,6 +465,8 @@ const Sound = (() => {
   function thunder(x, y, z, near) { if (!ready) return; const d = out('ambient', x, y, z, near ? 1 : 0.6, 1e6); const t0 = T() + (near ? 0 : 0.6); noise(d, t0, 3.5, 'lowpass', near ? 900 : 300, 0.7, near ? 1.2 : 0.8, 0.02, (fl, t) => fl.frequency.exponentialRampToValueAtTime(70, t + 3)); tone(d, t0, 'sine', 45, 3, 0.6, { to: 25 }); }
   return {
     play, step, ui: () => play('ui'), volumes, music, playDisc, stopDisc, note, tick, thunder, subtitles: SUBS,
+    // for other modules adding their own sounds: N[name] = d => ..., MOB[type] = { say, hurt, death }
+    N, MOB, synth: { tone, noise, T, rp, voice },
     blockBreak: (id, x, y, z) => blockSound(id, x + 0.5, y + 0.5, z + 0.5, 'break'),
     blockHit: (id, x, y, z) => blockSound(id, x + 0.5, y + 0.5, z + 0.5, 'hit'),
     blockPlace: (id, x, y, z) => blockSound(id, x + 0.5, y + 0.5, z + 0.5, 'place'),

@@ -108,7 +108,9 @@ const EntityModels = (() => {
   };
   A.humanoid = (m, s) => {
     look(m, s);
-    const L = m.parts, ls = s.ls * 0.6662, la = s.la;
+    // gliding fast, the limbs barely move
+    let gk = 1; if (s.gliding && s.e) { gk = ((s.e.vx || 0) ** 2 + (s.e.vy || 0) ** 2 + (s.e.vz || 0) ** 2) / 0.2; gk = gk * gk * gk; if (gk < 1) gk = 1; }
+    const L = m.parts, ls = s.ls * 0.6662, la = s.la / gk;
     if (L.hat) { L.hat.ry = 0; L.hat.rx = 0; }
     L.right_arm.rx = Math.cos(ls + PI) * 2 * la * 0.5; L.left_arm.rx = Math.cos(ls) * 2 * la * 0.5;
     L.right_arm.rz = 0; L.left_arm.rz = 0;
@@ -130,9 +132,23 @@ const EntityModels = (() => {
     // arms bob gently
     L.right_arm.rz += Math.cos(s.t * 0.09) * 0.05 + 0.05; L.left_arm.rz -= Math.cos(s.t * 0.09) * 0.05 + 0.05;
     L.right_arm.rx += Math.sin(s.t * 0.067) * 0.05; L.left_arm.rx -= Math.sin(s.t * 0.067) * 0.05;
+    // gliding: head forward; swimming and crawling: the game's breaststroke
+    if (s.gliding) L.head.rx = -PI / 4;
+    else if (s.swim > 0) {
+      const w = s.swim, lerpA = (a, b) => a + (b - a) * w;
+      L.head.rx = lerpA(L.head.rx, s.swimVisual ? -PI / 4 : s.pitch);
+      const n = ((s.ls % 26) + 26) % 26, q = f => -65 * f + f * f;
+      let x, y = PI, zl, zr;
+      if (n < 14) { x = 0; zl = PI + 1.8707964 * q(n) / q(14); zr = PI - 1.8707964 * q(n) / q(14); }
+      else if (n < 22) { const o = (n - 14) / 8; x = PI / 2 * o; zl = 5.012389 - 1.8707964 * o; zr = 1.2707963 + 1.8707964 * o; }
+      else { const o = (n - 22) / 4; x = PI / 2 - PI / 2 * o; zl = PI; zr = PI; }
+      L.left_arm.rx = lerpA(L.left_arm.rx, x); L.right_arm.rx = lerpA(L.right_arm.rx, x); L.left_arm.ry = lerpA(L.left_arm.ry, y); L.right_arm.ry = lerpA(L.right_arm.ry, y); L.left_arm.rz = lerpA(L.left_arm.rz, zl); L.right_arm.rz = lerpA(L.right_arm.rz, zr);
+      L.left_leg.rx = lerpA(L.left_leg.rx, 0.3 * Math.cos(s.ls * 0.33333334 + PI)); L.right_leg.rx = lerpA(L.right_leg.rx, 0.3 * Math.cos(s.ls * 0.33333334));
+    }
     if (s.bow) { L.right_arm.ry = -0.1 + L.head.ry; L.left_arm.ry = 0.1 + L.head.ry + 0.4; L.right_arm.rx = -PI / 2 + L.head.rx; L.left_arm.rx = -PI / 2 + L.head.rx; }
     if (s.crossbowCharge) { L.right_arm.ry = -0.8; L.right_arm.rx = -0.97079635; L.left_arm.rx = -0.97079635; L.left_arm.ry = 0.4; }
     if (s.spyglass || s.eating) { const arm = L.right_arm; arm.rx = -PI / 2 * 0.9 + L.head.rx * 0.5; arm.ry = -0.3; }
+    if (s.brushing) { L.right_arm.rx = L.right_arm.rx * 0.5 - PI / 5; L.right_arm.ry = 0; }
     if (s.blocking) { L.left_arm.rx = L.left_arm.rx * 0.5 - 0.9424779; L.left_arm.ry = PI / 6; }
   };
   // zombies hold their arms out, higher when they are after someone
@@ -176,6 +192,15 @@ const EntityModels = (() => {
     if (s.creepy) { L.head.y -= 5; L.hat.y = 5; } else L.hat.y = 0;
   };
   A.villager = (m, s) => { look(m, s); const L = m.parts, ls = s.ls * 0.6662, la = s.la; L.right_leg.rx = Math.cos(ls) * 1.4 * la * 0.5; L.left_leg.rx = Math.cos(ls + PI) * 1.4 * la * 0.5; if (s.unhappy) { L.head.rz = 0.3 * Math.sin(0.45 * s.t); L.head.rx = 0.4; } };
+  // the witch's nose twitches; it tips up out of the way while she drinks
+  A.witch = (m, s) => {
+    A.villager(m, s);
+    const n = m.parts.nose, t = Math.floor(s.t), f = 0.01 * ((s.e ? s.e.id : 0) % 10);
+    n.x = 0; n.y = -2; n.z = 0; n.rx = Math.sin(t * f) * 4.5 * PI / 180; n.ry = 0; n.rz = Math.cos(t * f) * 2.5 * PI / 180;
+    if (s.holding) { n.y = 1; n.z = -1.5; n.rx = -0.9; }
+  };
+  // the snow golem's top half turns a little with its head, taking the arms along
+  A.snow_golem = (m, s) => { look(m, s); m.parts.upper_body.ry = s.headYaw * 0.25; };
   A.golem = (m, s) => {
     look(m, s);
     const L = m.parts, ls = s.ls, la = s.la, tri = (x, k) => (Math.abs(((x % k) + k) % k - k * 0.5) - k * 0.25) / (k * 0.25);
@@ -190,6 +215,11 @@ const EntityModels = (() => {
     const L = m.parts; L.tail.rx = s.tail !== undefined ? s.tail : PI / 5; L.tail.ry = Math.cos(s.ls * 0.6662) * 1.4 * s.la * (s.angry ? 0 : 1);
     if (s.sitting) { L.upper_body.rx = PI * 2 / 5; L.upper_body.y = 16; L.body.rx = PI / 4; L.body.y = 18; L.body.z = 0; L.tail.y = 21; L.tail.z = 6; L.right_hind_leg.rx = PI * 1.5; L.right_hind_leg.y = 22.7; L.right_hind_leg.z = 2; L.left_hind_leg.rx = PI * 1.5; L.left_hind_leg.y = 22.7; L.left_hind_leg.z = 2; L.right_front_leg.rx = 5.811947; L.right_front_leg.x = -2.49; L.right_front_leg.y = 17; L.right_front_leg.z = -4; L.left_front_leg.rx = 5.811947; L.left_front_leg.x = 0.51; L.left_front_leg.y = 17; L.left_front_leg.z = -4; }
     L.head.rz = s.headTilt || 0;
+    // shaking off water: a roll that runs from the head back to the tail
+    if (s.shake !== undefined) {
+      const roll = o => { const f = Math.max(0, Math.min(1, (s.shake + o) / 1.8)); return Math.sin(f * PI) * Math.sin(f * PI * 11) * 0.15 * PI; };
+      L.head.rz += roll(0); L.upper_body.rz = roll(-0.08); L.body.rz = roll(-0.16); L.tail.rz = roll(-0.2);
+    }
   };
   A.cat = (m, s) => {
     look(m, s);
@@ -485,8 +515,28 @@ const EntityModels = (() => {
   def('ocelot', 64, 32, catParts(), { anim: 'cat', skin: SK.ocelot, babyHead: 2 });
   def('villager', 64, 64, villagerParts({ rim: false }), { anim: 'villager', skin: SK.villager, scale: 0.9375, babyHead: 3 });
   def('wandering_trader', 64, 64, villagerParts({ rim: false }), { anim: 'villager', skin: SK.wandering_trader, scale: 0.9375 });
+  // professions: the robe, its trim and the hat each one wears over the villager
+  const hatTop = (col, rows, band) => S2 => { const H = S2.faces(32, 0, 8, 10, 8); S2.fill(H.top[0], H.top[1], 8, 8, col, 0.08); for (const f of ['front', 'back', 'left', 'right']) { S2.fill(H[f][0], H[f][1], f === 'left' || f === 'right' ? 8 : 8, rows, col, 0.08); if (band) S2.fill(H[f][0], H[f][1] + rows - 1, 8, 1, band, 0.05); } };
+  const rimHat = col => S2 => { S2.fill(30, 47, 16, 16, col, 0.1); for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const d = Math.hypot(x - 7.5, y - 7.5); if (d > 8) S2.px(30 + x, 47 + y, 0, 0); } };
+  const PROF = {
+    farmer: [0x8a6a3a, 0x5a3e26, { hat: S2 => { hatTop(0xd8c070, 2)(S2); rimHat(0xd8c070)(S2); } }, true],
+    fisherman: [0x5a6e4a, 0x3a4a2a, { hat: S2 => { hatTop(0xc8b070, 3)(S2); rimHat(0xb8a060)(S2); } }, true],
+    shepherd: [0x9a7a5a, 0xe8e0d0, { hat: hatTop(0xe8e0d0, 3, 0x7a5a3a) }],
+    fletcher: [0x8a7a5a, 0x5a8a3a, { hat: hatTop(0x6a4a2a, 2, 0xd84a3a) }],
+    librarian: [0xe8e4d8, 0x8a2a2a, { hat: hatTop(0xa02020, 4, 0x3a1a1a) }],
+    cartographer: [0x8a6a3a, 0xd8b44a, { hat: hatTop(0x5a4a3a, 2), eye: 0xd8b44a }],
+    cleric: [0x6a2a8a, 0xd8b44a, { hat: hatTop(0x6a2a8a, 3) }],
+    armorer: [0x3a3a3a, 0x8a8a8a, { hat: hatTop(0x2a2a2a, 5, 0x6a6a6a) }],
+    weaponsmith: [0x3a2a2a, 0x1a1a1a, { hat: hatTop(0x1a1a1a, 2) }],
+    toolsmith: [0x4a4a4a, 0x2a2a2a, { hat: hatTop(0x2a2a2a, 2) }],
+    butcher: [0xe8e8e0, 0xc03030, { hat: hatTop(0xc03030, 2) }],
+    leatherworker: [0x8a4a2a, 0x5a2a1a, { hat: hatTop(0x6a3a1a, 2) }],
+    mason: [0x3a3a3a, 0xd8d8d8, { hat: hatTop(0x2a2a2a, 2) }],
+    nitwit: [0x3a7a3a, 0x2a5a2a, {}],
+  };
+  for (const k in PROF) { const [robe, trim, o, rim] = PROF[k]; def('villager_' + k, 64, 64, villagerParts({ rim: !!rim }), { anim: 'villager', skin: s => robeSkin(s, robe, trim, o), scale: 0.9375, babyHead: 3 }); }
   def('witch', 64, 128, villagerParts({ rim: false }).map(p => { if (p.n === 'head') p.c.push(P('witch_hat', [-5, -10.03125, -5], 0, [[0, 64, 0, 0, 0, 10, 2, 10]], [P('hat2', [1.75, -4, 2], [-0.05235988, 0, 0.02617994], [[0, 76, 0, 0, 0, 7, 4, 7]], [P('hat3', [1.75, -4, 2], [-0.10471976, 0, 0.05235988], [[0, 87, 0, 0, 0, 4, 4, 4]], [P('hat4', [1.75, -2, 2], [-0.20943952, 0, 0.10471976], [[0, 95, 0, 0, 0, 1, 2, 1, 0.25]])])])])); return p; }),
-    { anim: 'villager', skin: s => { SK.witch(s); s.box(0, 64, 10, 2, 10, 0x2a2a3a, 0.08); s.box(0, 76, 7, 4, 7, 0x2a2a3a, 0.08); s.box(0, 87, 4, 4, 4, 0x2a2a3a, 0.08); s.box(0, 95, 1, 2, 1, 0x2a2a3a, 0.08); const H2 = s.faces(0, 76, 7, 4, 7); s.fill(H2.front[0], H2.front[1] + 3, 7, 1, 0x4a8a2a, 0); }, scale: 0.9375 });
+    { anim: 'witch', skin: s => { SK.witch(s); s.box(0, 64, 10, 2, 10, 0x2a2a3a, 0.08); s.box(0, 76, 7, 4, 7, 0x2a2a3a, 0.08); s.box(0, 87, 4, 4, 4, 0x2a2a3a, 0.08); s.box(0, 95, 1, 2, 1, 0x2a2a3a, 0.08); const H2 = s.faces(0, 76, 7, 4, 7); s.fill(H2.front[0], H2.front[1] + 3, 7, 1, 0x4a8a2a, 0); }, scale: 0.9375 });
   def('iron_golem', 128, 128, [
     P('head', [0, -7, -2], 0, [[0, 0, -4, -12, -5.5, 8, 10, 8], [24, 0, -1, -5, -7.5, 2, 4, 2]]),
     P('body', [0, -7, 0], 0, [[0, 40, -9, -2, -6, 18, 12, 11], [0, 70, -4.5, 10, -3, 9, 5, 6, 0.5]]),
@@ -495,9 +545,10 @@ const EntityModels = (() => {
   ], { anim: 'golem', skin: SK.iron_golem });
   def('snow_golem', 64, 64, [
     P('head', [0, 4, 0], 0, [[0, 0, -4, -8, -4, 8, 8, 8, -0.5]]),
-    P('upper_body', [0, 13, 0], 0, [[0, 16, -5, -10, -5, 10, 10, 10, -0.5]]), P('lower_body', [0, 24, 0], 0, [[0, 36, -6, -12, -6, 12, 12, 12, -0.5]]),
-    P('right_arm', [-5, 6, 1], [0, 0, 1], [[32, 0, -1, 0, -1, 12, 2, 2, -0.5]]), P('left_arm', [5, 6, -1], [0, PI, -1], [[32, 0, -1, 0, -1, 12, 2, 2, -0.5]]),
-  ], { anim: null, skin: s => { SK.snow_golem(s); s.box(32, 0, 12, 2, 2, 0x6a4a2a, 0.06); } });
+    P('upper_body', [0, 13, 0], 0, [[0, 16, -5, -10, -5, 10, 10, 10, -0.5]], [
+      P('right_arm', [-5, -7, 1], [0, 0, 1], [[32, 0, -1, 0, -1, 12, 2, 2, -0.5]]), P('left_arm', [5, -7, -1], [0, PI, -1], [[32, 0, -1, 0, -1, 12, 2, 2, -0.5]])]),
+    P('lower_body', [0, 24, 0], 0, [[0, 36, -6, -12, -6, 12, 12, 12, -0.5]]),
+  ], { anim: 'snow_golem', skin: s => { SK.snow_golem(s); s.box(32, 0, 12, 2, 2, 0x6a4a2a, 0.06); } });
   def('slime', 64, 32, [
     P('cube', [0, 0, 0], 0, [[0, 16, -3, 17, -3, 6, 6, 6]]),
     P('right_eye', [0, 0, 0], 0, [[32, 0, -3.25, 18, -3.5, 2, 2, 2]]), P('left_eye', [0, 0, 0], 0, [[32, 4, 1.25, 18, -3.5, 2, 2, 2]]), P('mouth', [0, 0, 0], 0, [[32, 8, 0, 21, -3.5, 1, 1, 1]]),

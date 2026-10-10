@@ -18,11 +18,17 @@ class Projectile extends Entity {
     for (const e of Entities.list.concat(Game.player ? [Game.player] : [])) {
       if (e === this || e.removed || e.dead || !e.hurt || e === this.owner && this.life < 5 || e.isPlayer && e.spectator || e instanceof Projectile || e.type === 'item' || e.type === 'xp_orb') continue;
       if (this.pierced && this.pierced.has(e)) continue;
+      if (e === this.lastDeflectedBy) continue;
       const hw = e.w / 2 + 0.3;
       const r = Phys.rayBox(this.x, this.y, this.z, this.vx / len, this.vy / len, this.vz / len, e.x - hw, e.y - 0.3, e.z - hw, e.x + hw, e.y + e.h + 0.3, e.z + hw);
       if (r && r.t < et) { et = r.t; ent = e; }
     }
-    if (ent) { this.x += this.vx * (et / len); this.y += this.vy * (et / len); this.z += this.vz * (et / len); if (this.onEntity(ent) !== false) return; }
+    if (ent) {
+      this.x += this.vx * (et / len); this.y += this.vy * (et / len); this.z += this.vz * (et / len);
+      // the game's ProjectileDeflection.REVERSE (breezes): turned back at half speed, its owner unchanged
+      if (ent.deflects && ent.deflects(this)) { this.vx *= -0.5; this.vy *= -0.5; this.vz *= -0.5; this.lastDeflectedBy = ent; if (ent.onDeflect) ent.onDeflect(this); return; }
+      if (this.onEntity(ent) !== false) return;
+    }
     else if (hit) { this.x = this.x + this.vx * (hit.t / len) - this.vx / len * 0.05; this.y = this.y + this.vy * (hit.t / len) - this.vy / len * 0.05; this.z = this.z + this.vz * (hit.t / len) - this.vz / len * 0.05; this.onBlock(hit); if (this.removed || this.inGround) return; }
     else { this.x = nx; this.y = ny; this.z = nz; }
     // the projectile points the way it flies
@@ -50,7 +56,7 @@ class Arrow extends Projectile {
     if (this.pierce > 0) { this.pierced = this.pierced || new Set(); if (this.pierced.size >= this.pierce + 1) { this.removed = true; return; } this.pierced.add(e); }
     if (e.type === 'enderman') { e.teleportRandom && e.teleportRandom(); return false; }
     const fire = this.fireTicks > 0 && e.type !== 'enderman';
-    const ok = e.hurt(this.owner && this.owner.isPlayer ? d : (e.isPlayer ? d : d), 'arrow', this.owner || this);
+    const ok = Advancements.withDamage({ direct: this }, () => e.hurt(this.owner && this.owner.isPlayer ? d : (e.isPlayer ? d : d), 'arrow', this.owner || this));
     if (ok) {
       if (fire) e.fireTicks = Math.max(e.fireTicks || 0, 100);
       if (this.knock > 0 && e.knockback) { const h = Math.hypot(this.vx, this.vz) || 1; e.knockback(0, 0, 0); e.vx += this.vx / h * this.knock * 0.6; e.vy += 0.1; e.vz += this.vz / h * this.knock * 0.6; }
@@ -73,6 +79,9 @@ class Arrow extends Projectile {
     Sound.play('arrow_hit', this);
     if (hit.id === BID.target) Redstone.target && Redstone.target(hit, this);
     if (this.fireTicks > 0 && hit.id === BID.tnt) Explosions.primeTnt(hit.x, hit.y, hit.z, this.owner);
+    // projectiles break decorated pots and chorus flowers
+    if (hit.id === BID.decorated_pot) Pots.hitByProjectile(hit.x, hit.y, hit.z);
+    else if (hit.id === BID.chorus_flower) { Drops.dropBlock(hit.id, hit.state, null, hit.x, hit.y, hit.z); Particles.blockBreak(hit.x, hit.y, hit.z, hit.id, hit.state); Blocks.remove(hit.x, hit.y, hit.z, null, true); }
   }
   groundTick() {
     if (this.shake > 0) this.shake--;
@@ -96,7 +105,7 @@ class ThrownItem extends Projectile {
   onEntity(e) {
     if (this.kind === 'snowball') { e.hurt(e.type === 'blaze' ? 3 : 0, 'projectile', this.owner || this); if (e.knockback) e.knockback(0.4, -this.vx, -this.vz); }
     else if (this.kind === 'egg') { e.hurt(0, 'projectile', this.owner || this); if (e.knockback) e.knockback(0.4, -this.vx, -this.vz); }
-    else if (this.kind === 'wind_charge') { e.hurt(1, 'projectile', this.owner || this); }
+    else if (this.kind === 'wind_charge') { Advancements.withDamage({ direct: this }, () => e.hurt(1, 'projectile', this.owner || this)); }
     this.impact();
   }
   onBlock(hit) { if (this.kind === 'wind_charge' && Redstone.windCharge) Redstone.windCharge(hit); this.impact(hit); }
@@ -134,7 +143,9 @@ class ThrownItem extends Projectile {
       Sound.play('splash_potion', this);
       Drops.spawnXp(x, y, z, 3 + rnd(5) + rnd(5));
     } else if (k === 'wind_charge') {
-      Explosions.wind && Explosions.wind(x, y, z, this.owner);
+      // a breeze's charge bursts wider (radius 3) with plain knockback; a thrown one is radius 1.2, knockback 1.22
+      if (this.data.breeze) Explosions.wind && Explosions.wind(x, y, z, this.owner, 3, 1);
+      else Explosions.wind && Explosions.wind(x, y, z, this.owner);
     }
   }
 }
@@ -143,9 +154,9 @@ class Trident extends Arrow {
   onEntity(e) {
     if (this.dealt) return false;
     let d = 8; const imp = enchLevel(this.stackItem, 'impaling'); if (imp && (e.inWater || Weather.rainingAt(e.x, e.y, e.z) || ['squid', 'glow_squid', 'cod', 'salmon', 'tropical_fish', 'pufferfish', 'dolphin', 'guardian', 'elder_guardian', 'turtle', 'axolotl'].includes(e.type))) d += 2.5 * imp;
-    if (e.hurt(d, 'trident', this.owner || this)) Sound.play('trident_hit', this);
+    if (Advancements.withDamage({ direct: this }, () => e.hurt(d, 'trident', this.owner || this))) Sound.play('trident_hit', this);
     this.dealt = true; this.vx *= -0.01; this.vy *= -0.1; this.vz *= -0.01;
-    if (enchLevel(this.stackItem, 'channeling') && Weather.thundering && Weather.thundering() && World.skyLight(Math.floor(e.x), Math.floor(e.y) + 1, Math.floor(e.z)) >= 15) Weather.lightning(e.x, e.y, e.z);
+    if (enchLevel(this.stackItem, 'channeling') && Weather.thundering && Weather.thundering() && World.skyLight(Math.floor(e.x), Math.floor(e.y) + 1, Math.floor(e.z)) >= 15) { Weather.lightning(e.x, e.y, e.z); if (this.owner && this.owner.isPlayer) Advancements.fire('channeled_lightning', { victims: [e] }); }
     if (this.loyalty) this.returning = true;
   }
   tick() {
@@ -267,8 +278,9 @@ const Projectiles = (() => {
       const a = arrowFrom(p, Object.assign({}, ammo, { free: ang !== 0 || ammo.free })); a.pierce = enchLevel(s, 'piercing'); a.dmg = 2;
       const yaw = p.yaw + ang * Math.PI / 180, cp = Math.cos(p.pitch);
       shoot(a, -Math.sin(yaw) * cp, -Math.sin(p.pitch), -Math.cos(yaw) * cp, 3.15, 1);
-      a.crit = true; Entities.add(a);
+      a.crit = true; a.fromCrossbow = true; Entities.add(a);
     }
+    if (p.isPlayer) Advancements.fire('shot_crossbow', { item: s });
     p.inv.damageHeld(multi ? 3 : 1, p);
     Sound.play('crossbow_shoot', p);
   }
@@ -329,8 +341,10 @@ const Explosions = (() => {
           if (by < MINY || by > MAXY) break;
           const id = World.getBlock(bx, by, bz);
           const fl = BLOCKS[id].fluid ? 100 : 0;
-          if (id !== 0) h -= ((BLOCKS[id].fluid ? fl : resist(id)) + 0.3) * 0.3;
-          if (h > 0 && id !== 0 && !BLOCKS[id].fluid && resist(id) < 3600000) set.set(bx + ',' + by + ',' + bz, [bx, by, bz, id]);
+          // some explosions (a blue wither skull's) treat blocks as weaker than they are
+          const rc = id && source && source.resistCap ? source.resistCap(id) : null, rs = rc !== null && rc !== undefined ? Math.min(rc, resist(id)) : resist(id);
+          if (id !== 0) h -= ((BLOCKS[id].fluid ? fl : rs) + 0.3) * 0.3;
+          if (h > 0 && id !== 0 && !BLOCKS[id].fluid && resist(id) < 3600000 && !(source && source.resistCap && Withers.isImmune(id) && source.dangerous)) set.set(bx + ',' + by + ',' + bz, [bx, by, bz, id]);
           px += dx * 0.3; py += dy * 0.3; pz += dz * 0.3; h -= 0.22500001;
         }
       }
@@ -343,7 +357,7 @@ const Explosions = (() => {
       let dx = e.x - x, dy = (e.living || e.isPlayer ? e.eyeY : e.y) - y, dz = e.z - z; const l = Math.hypot(dx, dy, dz); if (l === 0) continue; dx /= l; dy /= l; dz /= l;
       const ex = exposure(x, y, z, e), imp = (1 - d) * ex;
       const dmg = Math.floor((imp * imp + imp) / 2 * 7 * r2 + 1);
-      if (e.hurt && !(e.type === 'item' && false)) e.hurt(e.isPlayer ? Game.scaleDamage(dmg) : dmg, 'explosion', source);
+      if (e.hurt) e.hurt(dmg, 'explosion', source);
       let kb = imp;
       if (e.isPlayer) { const bp = e.armorEnch ? e.armorEnch('blast_protection') : 0; if (bp) kb *= 1 - 0.15 * bp; if (e.creative && e.flying) kb = 0; }
       if (e.living || e.isPlayer || e.type === 'item' || e.type === 'tnt' || e instanceof Projectile || e.blockId !== undefined) { e.vx += dx * kb; e.vy += dy * kb; e.vz += dz * kb; }
@@ -389,15 +403,22 @@ const Explosions = (() => {
   }
   function spawnTnt(x, y, z, fuse) { return Entities.add(new PrimedTnt(x, y, z, fuse || 80)); }
   // wind charges: a burst that pushes entities and toggles doors, no block damage
-  function wind(x, y, z, owner) {
+  // a wind charge's burst (radius 1.2, knockback 1.22) and the mace's wind burst: the game's explosion
+  // knockback without the damage, toward each entity's eyes, scaled by how close and how exposed it is
+  function wind(x, y, z, owner, r, mult) {
+    r = r || 1.2; mult = mult || 1.22;
     Particles.gust && Particles.gust(x, y, z);
     Sound.play('wind_burst', null, { x, y, z });
+    const q = r * 2;
     for (const e of Entities.list.concat([Game.player])) {
-      if (!e || e.removed) continue;
-      const d2 = e.dist2(x, y, z); if (d2 > 1.2 * 1.2 * 4) continue;
-      const dx = e.x - x, dy = e.y + e.h / 2 - y, dz = e.z - z, l = Math.hypot(dx, dy, dz) || 1, k = 1.1 * (1 - Math.sqrt(d2) / 2.4);
-      e.vx += dx / l * k; e.vy += Math.max(0.3, dy / l * k); e.vz += dz / l * k;
-      if (e.isPlayer) e.fallDistance = 0;
+      if (!e || e.removed || e.spectator || (e.isPlayer && e.creative && e.flying)) continue;
+      const w = Math.sqrt(e.dist2(x, y, z)) / q; if (w > 1) continue;
+      let dx = e.x - x, dy = (e.eyeY !== undefined && (e.living || e.isPlayer) ? e.eyeY : e.y) - y, dz = e.z - z; const l = Math.hypot(dx, dy, dz); if (l === 0) continue;
+      const k = (1 - w) * exposure(x, y, z, e) * mult;
+      e.vx += dx / l * k; e.vy += dy / l * k; e.vz += dz / l * k;
+      // launched by wind: falling only counts from here
+      if (e.isPlayer || e.living) e.fallDistance = 0;
+      if (e.isPlayer) e.launchedBy = { x: e.x, y: e.y, z: e.z, cause: owner && owner.kind === 'wind_charge' ? owner : { type: 'wind_charge' }, t: Game.gameTime };
     }
   }
   return { explode, primeTnt, spawnTnt, wind, PrimedTnt, exposure };

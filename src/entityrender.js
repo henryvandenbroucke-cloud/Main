@@ -44,8 +44,8 @@ const ItemMesh = (() => {
   let atlasTex = null;
   function atlas() { if (!atlasTex) { atlasTex = new THREE.CanvasTexture(Icons.canvas); atlasTex.magFilter = atlasTex.minFilter = THREE.NearestFilter; atlasTex.generateMipmaps = false; atlasTex.flipY = false; } return atlasTex; }
   // a block from the block mesher (0..1 cube)
-  function blockGeo(id, st) {
-    const bufs = Mesher.meshSingle(id, st);
+  function blockGeo(id, st, conn) {
+    const bufs = Mesher.meshSingle(id, st, conn);
     const geos = [];
     for (let L = 0; L < 3; L++) {
       const b = bufs[L]; if (!b.n) continue;
@@ -71,7 +71,10 @@ const ItemMesh = (() => {
     const it = ITEMS[itemId], px = Icons.spriteFor(it);
     const i = Icons.index[itemId], C = Icons.CELL, COLS = 42, SIZE = C * COLS;
     const cu = (i % COLS) * C, cv = Math.floor(i / COLS) * C;
-    const U0 = cu / SIZE, V0 = cv / SIZE, D = C / SIZE;
+    return spriteGeoPx(px, cu / SIZE, cv / SIZE, C / SIZE);
+  }
+  // the game's extruded item model: a front and back, plus an edge around every opaque pixel
+  function spriteGeoPx(px, U0, V0, D) {
     const pos = [], uv = [], nor = [], idx = [];
     const z0 = 7.5 / 16, z1 = 8.5 / 16;
     const quad = (p, u, n) => { const s = pos.length / 3; for (let k = 0; k < 4; k++) { pos.push(...p[k]); uv.push(...u[k]); nor.push(...n); } idx.push(s, s + 1, s + 2, s, s + 2, s + 3); };
@@ -103,14 +106,41 @@ const ItemMesh = (() => {
     cache.set(itemId, r);
     return r;
   }
+  // a held stack's own look: a shield carrying a banner gets a sprite of its own
+  const custom = new Map();
+  const key = s => !s ? -1 : (s.tag && s.tag.banner && ITEMS[s.id].name === 'shield' ? s.id + '|' + JSON.stringify(s.tag.banner) : ITEMS[s.id].name.endsWith('_banner') ? s.id + '|' + JSON.stringify((s.tag && s.tag.patterns) || []) : s.id);
+  function meshFor(s) {
+    if (s && s.tag && s.tag.banner && ITEMS[s.id].name === 'shield' && typeof Banners !== 'undefined') {
+      const k = key(s); let c = custom.get(k);
+      if (!c) {
+        const px = Banners.shieldPixels(s), cv = document.createElement('canvas'); cv.width = cv.height = 16;
+        cv.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(px), 16, 16), 0, 0);
+        const tex = new THREE.CanvasTexture(cv); tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.flipY = false; tex.generateMipmaps = false;
+        c = { geo: spriteGeoPx(px, 0, 0, 1), tex }; custom.set(k, c);
+      }
+      const m = new THREE.Mesh(c.geo, entityMat(c.tex, { side: THREE.DoubleSide })); m.frustumCulled = false; m.userData.block = false; m.userData.handheld = false;
+      return m;
+    }
+    // a banner in the hand is the whole banner: the pole and crossbar of its block, and its flag
+    if (s && ITEMS[s.id].name.endsWith('_banner') && typeof Banners !== 'undefined') {
+      const m = mesh(s.id);
+      const tex = new THREE.CanvasTexture(Banners.flagCanvas(ITEMS[s.id].name.replace('_banner', ''), (s.tag && s.tag.patterns) || [])); tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
+      const W = 20 / 24, H = 40 / 24, D = 1 / 24, mat = entityMat(tex, {});
+      const flag = new THREE.Mesh(new THREE.BoxGeometry(W, H, D), mat); flag.frustumCulled = false;
+      flag.position.set(0.5 - 1 / 16 - D / 2, 1.8333 - H / 2, 0.5); flag.rotation.y = Math.PI / 2;
+      m.add(flag);
+      return m;
+    }
+    return mesh(s.id);
+  }
   function mesh(itemId, glint) {
     const r = get(itemId);
     const mat = r.block ? voxEntMat() : entityMat(atlas(), { side: THREE.DoubleSide });
     const m = new THREE.Mesh(r.geo, mat); m.frustumCulled = false; m.userData.block = r.block; m.userData.handheld = r.handheld;
     return m;
   }
-  function blockMesh(id, st) { const key = 'b' + id + ':' + st; let g = cache.get(key); if (!g) { g = blockGeo(id, st); cache.set(key, g); } if (!g) return null; const m = new THREE.Mesh(g, voxEntMat()); m.frustumCulled = false; return m; }
-  return { get, mesh, blockMesh, atlas };
+  function blockMesh(id, st, conn) { const key = 'b' + id + ':' + st + (conn ? ':' + conn : ''); let g = cache.get(key); if (!g) { g = blockGeo(id, st, conn); cache.set(key, g); } if (!g) return null; const m = new THREE.Mesh(g, voxEntMat()); m.frustumCulled = false; return m; }
+  return { get, mesh, meshFor, key, blockMesh, atlas };
 })();
 
 // the game's display transforms for item models: [rotation degrees], [translation sixteenths], scale
@@ -157,7 +187,7 @@ EntityRender = (() => {
       this.obj = new THREE.Group(); this.obj.add(this.inst.root);
       this.layers = [];
       if (e.layers) for (const L of e.layers()) this.addLayer(L);
-      this.held = null; this.heldId = -1;
+      this.held = null; this.heldKey = -1; this.heldOff = null; this.offKey = -1;
       scene.add(this.obj);
     }
     // a second model drawn over the first (sheep wool, saddles, armour...)
@@ -171,48 +201,105 @@ EntityRender = (() => {
       const x = lerp(e.px, e.x, a), y = lerp(e.py, e.y, a), z = lerp(e.pz, e.z, a);
       this.obj.position.set(x, y + (e.renderYOffset || 0), z);
       const by = lerpAng(e.pbodyYaw !== undefined ? e.pbodyYaw : e.pyaw, e.bodyYaw !== undefined ? e.bodyYaw : e.yaw, a);
-      this.obj.rotation.set(0, by, 0);
+      // converting (or frozen solid): the game's shiver of the body
+      const shake = e.isShaking && e.isShaking() ? Math.cos(Math.floor(e.age || 0) * 3.25) * Math.PI * 0.4 * Math.PI / 180 : 0;
+      this.obj.rotation.set(0, by + shake, 0);
       let k = (d.scale || 1) * (e.scale || 1) * (e.baby ? 0.5 : 1);
       this.inst.root.scale.setScalar(k);
       // dying: tip over onto the side over a second
       if (e.dead && e.deathTime > 0) { let f = Math.sqrt(Math.max(0, (e.deathTime + a - 1) / 20 * 1.6)); if (f > 1) f = 1; this.inst.root.rotation.z = f * Math.PI / 2; } else this.inst.root.rotation.z = 0;
+      // gliding, swimming and crawling lay the body down
+      const tl = e.tilt ? e.tilt(a) : null;
+      this.inst.root.rotation.x = tl ? tl[0] : 0; this.inst.root.rotation.y = tl ? tl[1] : 0; this.inst.root.position.set(0, tl ? tl[2] : 0, tl ? tl[3] : 0);
+      // named Dinnerbone or Grumm: upside down
+      if (e.customName === 'Dinnerbone' || e.customName === 'Grumm') { this.inst.root.rotation.z += Math.PI; this.inst.root.position.y += (e.h || 1) + 0.1; }
       const [sl, bl] = lightAt(x, y + e.h * 0.85, z);
       const flash = (e.hurtTime > 0 || (e.dead && e.deathTime > 0)) ? 1 : 0;
-      for (const m of [this.mat, this.matT].concat(this.layers.map(l => l.mat))) if (m) { m.uniforms.uEnv.value.set(e.glow ? 1 : sl, e.glow ? 1 : bl); m.uniforms.uFlash.value = flash; if (e.tint && m === this.mat) m.uniforms.uTint.value.setRGB(e.tint[0], e.tint[1], e.tint[2]); }
+      // a tint (a creeper's flashing, a wet wolf) goes back to white when it ends
+      const tn = e.tint;
+      for (const m of [this.mat, this.matT].concat(this.layers.map(l => l.mat))) if (m) { m.uniforms.uEnv.value.set(e.glow ? 1 : sl, e.glow ? 1 : bl); m.uniforms.uFlash.value = flash; if (m === this.mat && (tn || this.tinted)) m.uniforms.uTint.value.setRGB(tn ? tn[0] : 1, tn ? tn[1] : 1, tn ? tn[2] : 1); }
+      this.tinted = !!tn;
+      // glowing layers (the warden's spots and heart) ignore the light
+      for (const l of this.layers) if (l.L.glow) l.mat.uniforms.uEnv.value.set(1, 1);
       this.anim(this.inst, s);
       if (e.baby && d.babyHead) { const h = this.inst.parts.head; if (h) { h.sx = h.sy = h.sz = 1.5; h.y -= d.babyHead / 1.5 * 0; } }
       if (e.posePart) e.posePart(this.inst, s, a);
       this.inst.apply();
       for (const l of this.layers) {
-        l.inst.root.scale.setScalar(k * (l.L.scale || 1)); l.inst.root.rotation.z = this.inst.root.rotation.z;
+        l.inst.root.scale.setScalar(k * (l.L.scale || 1)); l.inst.root.rotation.copy(this.inst.root.rotation); l.inst.root.position.copy(this.inst.root.position);
         const show = !l.L.when || l.L.when(e); l.inst.root.visible = show;
         if (show) { if (l.L.color) { const c = l.L.color(e); l.mat.uniforms.uTint.value.setRGB(c[0], c[1], c[2]); } this.anim(l.inst, s); if (e.posePart) e.posePart(l.inst, s, a); if (e.baby && d.babyHead && l.inst.parts.head) { const h = l.inst.parts.head; h.sx = h.sy = h.sz = 1.5; } l.inst.apply(); }
       }
       this.updateHeld(a, s, sl, bl);
+      this.updateArmor(a, s, k, sl, bl);
+    }
+    // worn armour: the game's armour layers (helmet, chestplate and boots on one model blown up by 1, leggings
+    // on one blown up by 0.5), following the wearer's limbs
+    updateArmor(a, s, k, sl, bl) {
+      const e = this.e, P = this.inst.parts;
+      if (!P.head || !P.body || !P.right_leg || !P.right_arm) return;
+      const items = e.isPlayer ? [0, 1, 2, 3].map(i => e.inv.armor(i)) : e.equip ? [e.equip.head, e.equip.chest, e.equip.legs, e.equip.feet] : null;
+      if (!items) return;
+      const key = items.map(x => x ? x.id + ':' + ((x.tag && x.tag.color) || '') : '').join('|');
+      if (key !== this.armorKey) {
+        for (const l of this.armor || []) { this.obj.remove(l.inst.root); l.mat.dispose(); }
+        this.armor = []; this.armorKey = key;
+        const SHOW = [['head', 'hat'], ['body', 'right_arm', 'left_arm'], ['body', 'right_leg', 'left_leg'], ['right_leg', 'left_leg']];
+        items.forEach((x, i) => {
+          // an elytra on the back: two wings
+          if (x && ITEMS[x.id].name === 'elytra') { const mat = entityMat(EntityModels.texture('elytra'), { side: THREE.DoubleSide, transparent: true }); const inst = EntityModels.create('elytra', mat, mat); this.obj.add(inst.root); this.armor.push({ inst, mat, elytra: true }); return; }
+          const ar = x && ITEMS[x.id].armor; if (!ar) return;
+          const name = (i === 2 ? 'armor2_' : 'armor1_') + ar.mat; if (!EntityModels.DEFS[name]) return;
+          const mat = entityMat(EntityModels.texture(name), { side: THREE.DoubleSide, transparent: true });
+          const inst = EntityModels.create(name, mat, mat);
+          this.obj.add(inst.root);
+          const col = ar.mat === 'leather' ? ((x.tag && x.tag.color) || 0xa06540) : null;
+          this.armor.push({ inst, mat, show: new Set(SHOW[i]), col });
+        });
+      }
+      for (const l of this.armor) {
+        if (l.elytra) { l.inst.root.scale.setScalar(k); l.inst.root.rotation.copy(this.inst.root.rotation); l.inst.root.position.copy(this.inst.root.position); l.inst.reset(); EntityModels.A.elytra(l.inst, s); l.inst.apply(); l.mat.uniforms.uEnv.value.set(sl, bl); l.mat.uniforms.uFlash.value = this.mat.uniforms.uFlash.value; continue; }
+        l.inst.root.scale.setScalar(k); l.inst.root.rotation.copy(this.inst.root.rotation); l.inst.root.position.copy(this.inst.root.position);
+        this.anim(l.inst, s); if (e.posePart) e.posePart(l.inst, s, a);
+        for (const p of l.inst.list) p.show = l.show.has(p.name);
+        if (e.type === 'armor_stand' && l.inst.parts.head) l.inst.parts.head.y += 1;
+        l.inst.apply();
+        l.mat.uniforms.uEnv.value.set(sl, bl); l.mat.uniforms.uFlash.value = this.mat.uniforms.uFlash.value;
+        if (l.col !== null) l.mat.uniforms.uTint.value.setRGB(((l.col >> 16) & 255) / 255, ((l.col >> 8) & 255) / 255, (l.col & 255) / 255);
+      }
     }
     anim(inst, s) { inst.reset(); const fn = EntityModels.A[this.e.anim || inst.def.anim]; if (fn) fn(inst, s); }
     // a tool, weapon or block in the mob's right hand
     updateHeld(a, s, sl, bl) {
-      const e = this.e, h = e.heldItem ? e.heldItem() : null, id = h ? h.id : -1;
-      if (id !== this.heldId) {
-        if (this.held) { this.held.parent && this.held.parent.remove(this.held); this.held = null; }
-        this.heldId = id;
-        const arm = this.inst.parts.right_arm;
-        if (h && arm) { this.held = ItemMesh.mesh(id); this.held.matrixAutoUpdate = false; arm.g.add(this.held); }
+      const e = this.e, h = e.heldItem ? e.heldItem() : null;
+      // the off hand: a player's slot 40, a mob's off-hand equipment
+      const o = e.isPlayer || (e.inv && e.inv.offhand !== undefined) ? (e.inv ? e.inv.offhand : null) : e.equip ? e.equip.off : null;
+      this.heldKey = this.hand('held', 'heldKey', 'right_arm', h, false, sl, bl);
+      this.offKey = this.hand('heldOff', 'offKey', 'left_arm', o, true, sl, bl);
+    }
+    // one hand's item, held the game's third person way (ItemInHandLayer): in the arm's frame (the model space
+    // is flipped in x and y) rotate down, then out to the hand at the end of the arm; the left hand mirrors it
+    hand(slot, keySlot, armName, st, left, sl, bl) {
+      const k = ItemMesh.key(st);
+      if (k !== this[keySlot]) {
+        if (this[slot]) { this[slot].parent && this[slot].parent.remove(this[slot]); this[slot].material.dispose(); this[slot] = null; }
+        const arm = this.inst.parts[armName];
+        if (st && arm) { this[slot] = ItemMesh.meshFor(st); this[slot].matrixAutoUpdate = false; arm.g.add(this[slot]); }
       }
-      if (this.held) {
-        const r = ItemMesh.get(this.heldId), kind = r.block ? 'block' : r.handheld ? 'handheld' : 'generated';
-        // the hand is at the end of the arm (10 sixteenths down), held the game's third person way
-        // in the arm's frame (the model space is flipped in x and y): rotate down, then out to the hand
+      const it = this[slot];
+      if (it) {
+        const r = ItemMesh.get(st.id), kind = r.block ? 'block' : r.handheld ? 'handheld' : 'generated';
         const m = new THREE.Matrix4().makeScale(-1, -1, 1);
         MStack.rx(m, -90); MStack.ry(m, 180);
-        MStack.t(m, 1 / 16, 0.125, -0.625);
-        applyItemTransform(m, kind, 'tp', false);
-        this.held.matrix.copy(m);
-        this.held.material.uniforms.uEnv.value.set(sl, bl);
+        MStack.t(m, (left ? -1 : 1) / 16, 0.125, -0.625);
+        applyItemTransform(m, kind, 'tp', left);
+        it.matrix.copy(m);
+        it.material.uniforms.uEnv.value.set(sl, bl);
+        for (const ch of it.children) if (ch.material && ch.material.uniforms && ch.material.uniforms.uEnv) ch.material.uniforms.uEnv.value.set(sl, bl);
       }
+      return k;
     }
-    dispose() { scene.remove(this.obj); this.mat.dispose(); if (this.matT) this.matT.dispose(); for (const l of this.layers) l.mat.dispose(); if (this.held) this.held.material.dispose(); }
+    dispose() { scene.remove(this.obj); this.mat.dispose(); if (this.matT) this.matT.dispose(); for (const l of this.layers) l.mat.dispose(); for (const l of this.armor || []) l.mat.dispose(); if (this.held) this.held.material.dispose(); }
   }
   class ItemVisual {
     constructor(e) {
@@ -305,6 +392,38 @@ EntityRender = (() => {
     update(a) { const e = this.e; this.obj.position.set(lerp(e.px, e.x, a), lerp(e.py, e.y, a), lerp(e.pz, e.z, a)); this.obj.rotation.set(-lerp(e.ppitch, e.pitch, a), lerpAng(e.pyaw, e.yaw, a), 0, 'YXZ'); const [sl, bl] = lightAt(e.x, e.y, e.z); this.m.material.uniforms.uEnv.value.set(sl, bl); }
     dispose() { scene.remove(this.obj); this.m.material.dispose(); }
   }
+  // end crystals: a pink core inside two turning glass frames, over a bedrock base (EndCrystalRenderer)
+  const crystalTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 16; const g = c.getContext('2d'); return { glass: (() => { g.clearRect(0, 0, 16, 16); g.strokeStyle = 'rgba(220,200,255,0.9)'; g.lineWidth = 2; g.strokeRect(1, 1, 14, 14); g.fillStyle = 'rgba(200,170,255,0.18)'; g.fillRect(2, 2, 12, 12); const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; return t; })() }; })();
+  class CrystalVisual {
+    constructor(e) {
+      this.e = e; this.obj = new THREE.Group(); scene.add(this.obj);
+      this.glassMat = new THREE.MeshBasicMaterial({ map: crystalTex.glass, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+      this.coreMat = new THREE.MeshBasicMaterial({ color: 0xe07cff });
+      this.outer = new THREE.Mesh(new THREE.BoxGeometry(0.875, 0.875, 0.875), this.glassMat);
+      this.inner = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.76, 0.76), this.glassMat);
+      this.core = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), this.coreMat);
+      this.outer.add(this.inner); this.inner.add(this.core); this.obj.add(this.outer);
+      if (e.showBottom) { this.baseMat = new THREE.MeshBasicMaterial({ color: 0x3a3a3a }); this.base = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.25, 0.75), this.baseMat); this.base.position.y = 0.125; this.obj.add(this.base); }
+    }
+    update(a) {
+      const e = this.e, t = e.time + a;
+      this.obj.position.set(lerp(e.px, e.x, a), lerp(e.py, e.y, a), lerp(e.pz, e.z, a));
+      const bob = Math.sin(t * 0.2) / 2 + 0.5, y = (bob * bob + bob) * 0.4 - 1.4 + 2.2;
+      this.outer.position.y = y * 0.5 + 0.2; this.outer.rotation.set(0.6, t * 3 * Math.PI / 180 * 3, 0.6);
+      this.inner.rotation.set(0.6 * Math.sin(t * 0.05), t * 0.06, 0.6); this.core.rotation.set(t * 0.04, t * 0.07, 0);
+    }
+    dispose() { scene.remove(this.obj); this.glassMat.dispose(); this.coreMat.dispose(); if (this.baseMat) this.baseMat.dispose(); for (const m of [this.outer, this.inner, this.core, this.base]) if (m) m.geometry.dispose(); }
+  }
+  // dragon fireballs: a purple glowing ball
+  class GlowVisual {
+    constructor(e, color, size) { this.e = e; this.mat = new THREE.SpriteMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending }); this.obj = new THREE.Sprite(this.mat); this.obj.scale.setScalar(size); scene.add(this.obj); }
+    update(a) { const e = this.e; this.obj.position.set(lerp(e.px, e.x, a), lerp(e.py, e.y, a), lerp(e.pz, e.z, a)); }
+    dispose() { scene.remove(this.obj); this.mat.dispose(); }
+  }
+  const NONE = { update() {}, dispose() {} };
+  factories.end_crystal = e => new CrystalVisual(e);
+  factories.dragon_fireball = e => new GlowVisual(e, 0xb040ff, 1.2);
+  factories.area_effect_cloud = () => NONE;
   factories.arrow = e => new ArrowVisual(e);
   factories.lightning_bolt = () => ({ update() {}, dispose() {} });
   factories.trident = e => new TridentVisual(e);
@@ -324,22 +443,36 @@ EntityRender = (() => {
     const s = {
       ls: (e.limbSwing || 0) - (e.limbAmount || 0) * (1 - a), la: Math.min(1, lerp(e.plimbAmount || 0, e.limbAmount || 0, a)),
       t: (e.age || 0) + a, headYaw: -angleDiff(lerpAng(e.pheadYaw !== undefined ? e.pheadYaw : e.pyaw, e.headYaw !== undefined ? e.headYaw : e.yaw, a), lerpAng(e.pbodyYaw !== undefined ? e.pbodyYaw : e.pyaw, e.bodyYaw !== undefined ? e.bodyYaw : e.yaw, a)),
-      pitch: lerp(e.ppitch || 0, e.pitch || 0, a), swing: e.swinging ? Math.max(0, (e.swingTime + a) / 6) : 0, crouch: !!e.sneaking && !e.flying, riding: !!e.vehicle,
+      pitch: lerp(e.ppitch || 0, e.pitch || 0, a), swing: e.swinging ? Math.max(0, (e.swingTime + a) / 6) : 0, crouch: e.pose ? e.pose === 'crouch' : !!e.sneaking && !e.flying, gliding: !!e.gliding && (e.glideTicks || 0) > 4, swim: e.swimAmount ? lerp(e.pswimAmount || 0, e.swimAmount, a) : 0, swimVisual: e.pose === 'swim', riding: !!e.vehicle,
       aggressive: !!e.aggressive, e,
     };
     if (e.dead) s.la = 0;
     if (e.animState) e.animState(s, a);
     return s;
   }
+  // what the camera can see this frame
+  const frustum = new THREE.Frustum(), projView = new THREE.Matrix4(), sphere = new THREE.Sphere();
   function update(a) {
     const p = Game.player, R = (Settings.renderDist * 16) ** 2;
     const seen = new Set();
+    camera.updateMatrixWorld(); projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); frustum.setFromProjectionMatrix(projView);
+    const cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
     for (const e of Entities.list) {
       if (e.removed || e.invisible) continue;
-      if (p && e.dist2(p.x, p.y, p.z) > R) continue;
+      const d2 = (e.x - cx) ** 2 + (e.y - cy) ** 2 + (e.z - cz) ** 2;
+      if (d2 > R) continue;
       let v = vis.get(e);
+      // a villager that takes a profession changes its clothes (a different model texture)
+      if (v && e.model && v.name && v.name !== e.model) { v.dispose(); v = null; }
       if (!v) { v = make(e); vis.set(e, v); }
       seen.add(e);
+      // the game's render distance for entities: 64 blocks times the size of the box (at least 24), and only
+      // what is in view is posed and drawn
+      const w = e.w || 0.5, h = e.h || 0.5, far = Math.max(24, (w + h + w) / 3 * 64);
+      sphere.center.set(e.x, e.y + h / 2, e.z); sphere.radius = Math.max(w, h) + 1.5;
+      const show = d2 <= far * far && frustum.intersectsSphere(sphere);
+      if (v.obj) v.obj.visible = show;
+      if (!show) continue;
       v.update(a, animState(e, a));
     }
     // the player, when the camera is behind or in front
@@ -373,9 +506,13 @@ EntityRender = (() => {
     if (pr.domElement.parentNode !== el) { el.innerHTML = ''; el.appendChild(pr.domElement); }
     const w = el.clientWidth || 98, h = el.clientHeight || 140;
     pr.setSize(w, h, false);
-    // the player looks toward the mouse, like the game
-    const r = el.getBoundingClientRect(), mx = (window._mouseX || 0) - (r.left + r.width / 2), my = (window._mouseY || 0) - (r.top + r.height * 0.3);
-    const fake = pVis.e; fake.headYaw = fake.pheadYaw = -Math.atan(mx / 40) * 0.7; fake.bodyYaw = fake.pbodyYaw = -Math.atan(mx / 40) * 0.35; fake.pitch = fake.ppitch = Math.atan(my / 40) * 0.6;
+    // the player looks toward the mouse, like the game's renderEntityInInventoryFollowsMouse: from the middle of
+    // the box, atan(distance / 40 GUI pixels) turns the body 20 degrees, the head 40 and tilts it 20
+    previewEl = el;
+    const S = (typeof GUI !== 'undefined' && GUI.S) || 2;
+    const r = el.getBoundingClientRect(), mx = ((window._mouseX || 0) - (r.left + r.width / 2)) / S, my = ((window._mouseY || 0) - (r.top + r.height / 2)) / S;
+    const ha = Math.atan(mx / 40), va = Math.atan(-my / 40), D = Math.PI / 180;
+    const fake = pVis.e; fake.bodyYaw = fake.pbodyYaw = ha * 20 * D; fake.headYaw = fake.pheadYaw = ha * 40 * D; fake.pitch = fake.ppitch = -va * 20 * D;
     fake.age = p.age; fake.sneaking = p.sneaking; fake.inv = p.inv; fake.heldItem = () => p.inv.held;
     pVis.obj.rotation.y = 0;
     pVis.update(1, Object.assign(animState(fake, 1), { la: 0 }));
@@ -386,14 +523,19 @@ EntityRender = (() => {
     pr.render(pScene, pCam);
     U.uSkyLight.value = sky; U.uFogStart.value = fs; U.uFogEnd.value = fe;
   }
-  addEventListener('mousemove', e => { window._mouseX = e.clientX; window._mouseY = e.clientY; });
+  // the preview follows the mouse while the inventory is open (redrawn at most once a frame)
+  let previewEl = null, previewQueued = false;
+  addEventListener('mousemove', e => {
+    window._mouseX = e.clientX; window._mouseY = e.clientY;
+    if (previewEl && previewEl.isConnected && !previewQueued) { previewQueued = true; requestAnimationFrame(() => { previewQueued = false; if (previewEl && previewEl.isConnected) drawPlayerPreview(previewEl); }); }
+  });
   return { update, register(type, f) { factories[type] = f; }, pickup, clear, drawPlayerPreview, MobVisual, ItemVisual, BlockVisual, lightAt, vis };
 })();
 
 // ---------------------------------------------------------------- the first-person hand
 Hand = (() => {
   const hScene = new THREE.Scene(), hCam = new THREE.PerspectiveCamera(70, 1, 0.05, 10);
-  let item = null, itemId = -1, arm = null, armMat = null, equip = 0, pequip = 0, shown = null, ry = 0, rx = 0;
+  let item = null, itemId = -1, itemKey = -1, arm = null, armMat = null, equip = 0, pequip = 0, shown = null, ry = 0, rx = 0;
   function armMesh() {
     if (arm) return arm;
     armMat = entityMat(EntityModels.texture('player'), { side: THREE.DoubleSide });
@@ -410,12 +552,65 @@ Hand = (() => {
     const reequip = (shown ? shown.id : -1) !== (main ? main.id : -1);
     const f = Math.min(1, (p.attackCooldown + 0.5) / (20 / (main ? ITEMS[main.id].aspd : 4)));
     equip += Math.max(-0.4, Math.min(0.4, (reequip ? 0 : f * f * f) - equip));
-    if (equip < 0.1) { shown = main; if ((shown ? shown.id : -1) !== itemId) setItem(shown); }
+    if (equip < 0.1) { shown = main; if (ItemMesh.key(shown) !== itemKey) setItem(shown); }
   }
   function setItem(st) {
     if (item) { hScene.remove(item); item.material.dispose(); item = null; }
-    itemId = st ? st.id : -1;
-    if (st) { item = ItemMesh.mesh(st.id); item.matrixAutoUpdate = false; hScene.add(item); }
+    itemId = st ? st.id : -1; itemKey = ItemMesh.key(st);
+    if (st) { item = ItemMesh.meshFor(st); item.matrixAutoUpdate = false; hScene.add(item); }
+  }
+  // a filled map held up (the game's renderTwoHandedMap / renderOneHandedMap): the paper and its map on a plane
+  let mapTex = null, mapSeen = -1;
+  const mapMeshes = [null, null];
+  function mapMesh(k) {
+    if (!mapTex) { mapTex = new THREE.CanvasTexture(Maps.handCanvas); mapTex.magFilter = mapTex.minFilter = THREE.NearestFilter; mapTex.generateMipmaps = false; }
+    if (!mapMeshes[k]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), entityMat(mapTex, { side: THREE.DoubleSide })); m.matrixAutoUpdate = false; m.frustumCulled = false; hScene.add(m); mapMeshes[k] = m; }
+    return mapMeshes[k];
+  }
+  const mapTilt = pitchDeg => { const f = Math.max(0, Math.min(1, 1 - pitchDeg / 45 + 0.1)); return -Math.cos(f * Math.PI) * 0.5 + 0.5; };
+  // the game's renderMap: turned to face you, 0.38 across per hand-scale unit, the paper 142 map pixels square
+  function renderMap(m) { MStack.ry(m, 180); MStack.rz(m, 180); m.multiply(new THREE.Matrix4().makeScale(0.38, 0.38, 0.38)); MStack.t(m, -0.5, -0.5, 0); m.multiply(new THREE.Matrix4().makeScale(1 / 128, 1 / 128, 1 / 128)); MStack.t(m, 64, 64, 0); m.multiply(new THREE.Matrix4().makeScale(142, -142, 1)); return m; }
+  function heldMaps(p, bob, sway, swing, eq, sl, bl) {
+    const isMap = s => s && ITEMS[s.id].name === 'filled_map';
+    const main = isMap(p.inv.held), off = isMap(p.inv.offhand);
+    if (main || off) { if (Maps.handDrawn !== mapSeen) { mapSeen = Maps.handDrawn; if (mapTex) mapTex.needsUpdate = true; } }
+    for (let k = 0; k < 2; k++) if (mapMeshes[k]) mapMeshes[k].visible = false;
+    if (main && !p.inv.offhand) {
+      // both hands: the map rises and tilts toward you as you look down
+      const m = new THREE.Matrix4().copy(bob).multiply(sway), f = Math.sqrt(swing), g = -0.2 * Math.sin(swing * Math.PI), h = -0.4 * Math.sin(f * Math.PI);
+      MStack.t(m, 0, -g / 2, h);
+      const i = mapTilt(p.pitch * 180 / Math.PI);
+      MStack.t(m, 0, 0.04 - eq * 1.2 - i * 0.5, -0.72); MStack.rx(m, i * -85);
+      MStack.rx(m, Math.sin(f * Math.PI) * 20); m.multiply(new THREE.Matrix4().makeScale(2, 2, 2));
+      const mm = mapMesh(0); mm.visible = true; mm.matrix.copy(renderMap(m)); mm.material.uniforms.uEnv.value.set(sl, bl);
+      return 'both';
+    }
+    const one = (side, k, sw, e) => {
+      const m = new THREE.Matrix4().copy(bob).multiply(sway), f = side;
+      MStack.t(m, f * 0.125, -0.125, 0);
+      MStack.t(m, f * 0.51, -0.08 - e * 1.2, -0.75);
+      const g = Math.sqrt(sw), hh = Math.sin(g * Math.PI), i = -0.5 * hh, j = 0.4 * Math.sin(g * Math.PI * 2), kk = -0.3 * Math.sin(sw * Math.PI);
+      MStack.t(m, f * i, j - 0.3 * hh, kk); MStack.rx(m, hh * -45); MStack.ry(m, f * hh * -30);
+      const mm = mapMesh(k); mm.visible = true; mm.matrix.copy(renderMap(m)); mm.material.uniforms.uEnv.value.set(sl, bl);
+    };
+    if (main) one(1, 0, swing, eq);
+    if (off) one(-1, 1, 0, 0);
+    return main ? 'main' : off ? 'off' : null;
+  }
+  // the off-hand item, on the left (the game's renderArmWithItem for the left arm, mirrored)
+  let oItem = null, oKey = -1;
+  function offHand(p, bob, sway, sl, bl) {
+    const st = p.inv.offhand, k = ItemMesh.key(st);
+    if (k !== oKey) { if (oItem) { hScene.remove(oItem); oItem.material.dispose(); oItem = null; } oKey = k; if (st) { oItem = ItemMesh.meshFor(st); oItem.matrixAutoUpdate = false; hScene.add(oItem); } }
+    if (!oItem) return;
+    oItem.visible = !p.spectator;
+    const r = ItemMesh.get(st.id), kind = r.block ? 'block' : r.handheld ? 'handheld' : 'generated';
+    const m = new THREE.Matrix4().copy(bob).multiply(sway);
+    MStack.t(m, -0.56, -0.52, -0.72);
+    applyItemTransform(m, kind, 'fp', true);
+    oItem.matrix.copy(m);
+    oItem.material.uniforms.uEnv.value.set(sl, bl);
+    for (const ch of oItem.children) if (ch.material && ch.material.uniforms && ch.material.uniforms.uEnv) ch.material.uniforms.uEnv.value.set(sl, bl);
   }
   function update(a, p) {
     if (!p) return;
@@ -431,6 +626,11 @@ Hand = (() => {
     // view bobbing moves the hand too
     const bob = new THREE.Matrix4();
     if (Settings.bobbing && !p.flying) { const wd = p.pwalkDist + (p.walkDist - p.pwalkDist) * a, b = p.pbob + (p.bob - p.pbob) * a, g = wd * Math.PI; MStack.t(bob, Math.sin(g) * b * 0.5, -Math.abs(Math.cos(g) * b), 0); MStack.rz(bob, Math.sin(g) * b * 3); MStack.rx(bob, Math.abs(Math.cos(g - 0.2) * b) * 5); }
+    offHand(p, bob, sway, sl, bl);
+    const swingNow = p.swinging ? Math.max(0, (p.swingTime + a) / 6) : 0, eqNow = 1 - (pequip + (equip - pequip) * a);
+    const maps = heldMaps(p, bob, sway, swingNow, eqNow, sl, bl);
+    if (maps === 'off' || maps === 'main' && oItem && p.inv.offhand && ITEMS[p.inv.offhand.id].name === 'filled_map') { if (oItem) oItem.visible = false; }
+    if (maps === 'both' || maps === 'main') { if (item) item.visible = false; if (arm) arm.visible = false; return; }
     if (item) {
       if (arm) arm.visible = false;
       item.visible = true;
@@ -450,6 +650,11 @@ Hand = (() => {
         const f = Math.min(1, (ut / 20) * (ut / 20 + 2) / 3);
         if (f > 0.1) { const g = Math.sin((ut - 0.1) * 1.3) * (f - 0.1); MStack.t(m, 0, g * 0.004, 0); }
         MStack.t(m, 0, 0, f * 0.04); m.multiply(new THREE.Matrix4().makeScale(1, 1, 1 + f * 0.2)); MStack.ry(m, -45);
+      } else if (using && ITEMS[itemId].name === 'brush') {
+        // the game's brush sweep: a full back-and-forth every 10 ticks
+        MStack.t(m, 0.56, -0.52, -0.72);
+        const f1 = ((p.useMax - p.useTicks) % 10 + 10) % 10 - a + 1, f7 = -15 + 75 * Math.cos((1 - f1 / 10) * 2 * Math.PI);
+        MStack.t(m, -0.25, 0.22, 0.35); MStack.rx(m, -80); MStack.ry(m, 90); MStack.rx(m, f7);
       } else if (using && (ITEMS[itemId].name === 'shield')) {
         MStack.t(m, 0.56, -0.52, -0.72);
       } else {
@@ -462,6 +667,7 @@ Hand = (() => {
       applyItemTransform(m, kind, 'fp', false);
       item.matrix.copy(m);
       item.material.uniforms.uEnv.value.set(sl, bl);
+      for (const ch of item.children) if (ch.material && ch.material.uniforms && ch.material.uniforms.uEnv) ch.material.uniforms.uEnv.value.set(sl, bl);
     } else {
       const am = armMesh(); am.visible = true;
       const m = new THREE.Matrix4().copy(bob).multiply(sway);

@@ -8,7 +8,8 @@ const ItemUse = (() => {
   const swapHeld = (p, s, offhand) => { if (offhand) p.inv.set(40, s); else p.inv.held = s; };
   // replace one of the held stack with another item (filling buckets and bottles)
   function exchange(p, offhand, newStack) {
-    if (p.creative) { if (!p.inv.find(s => sameItem(s, newStack))) p.inv.addItem(newStack); return; }
+    if (newStack && ITEMS[newStack.id].name.endsWith('_bucket') && p.isPlayer) Advancements.fire('filled_bucket', { item: newStack });
+    if (p.creative) { if (p.inv.find(s => sameItem(s, newStack)) < 0) p.inv.addItem(newStack); return; }
     const s = offhand ? p.inv.offhand : p.inv.held;
     if (s.count === 1) { swapHeld(p, newStack, offhand); return; }
     s.count--; p.inv.changed();
@@ -26,7 +27,10 @@ const ItemUse = (() => {
   function onBlock(p, s, hit, offhand) {
     const it = ITEMS[s.id], n = it.name, { x, y, z } = hit, id = World.getBlock(x, y, z), st = World.getState(x, y, z), d = BLOCKS[id];
     const up = World.getBlock(x, y + 1, z);
+    if (p.isPlayer) Advancements.fire('item_used_on_block', { pos: [x, y, z], item: s });
     if (p.gamemode === 'adventure' && it.block >= 0) return false;
+    // a brush sweeps whatever block it is used on (see Archaeology)
+    if (n === 'brush') { startUse(p, s, offhand, 200); return true; }
     // hoe: till dirt into farmland
     if (it.tool && it.tool.kind === 'hoe' && hit.face !== 0 && (up === 0 || BLOCKS[up].replaceable && !BLOCKS[up].fluid)) {
       const to = { grass_block: B.farmland, dirt: B.farmland, dirt_path: B.farmland, coarse_dirt: B.dirt, rooted_dirt: B.dirt }[d.name];
@@ -64,21 +68,25 @@ const ItemUse = (() => {
       }
       case 'water_bucket': case 'lava_bucket': case 'powder_snow_bucket': case 'cod_bucket': case 'salmon_bucket': case 'tropical_fish_bucket': case 'pufferfish_bucket': case 'axolotl_bucket': case 'tadpole_bucket': {
         const fluid = n === 'lava_bucket' ? B.lava : n === 'powder_snow_bucket' ? B.powder_snow : B.water;
+        // a bucket of fish, an axolotl or a tadpole lets its mob out, as it was when scooped up (the game's MobBucketItem)
+        const mob = ['water_bucket', 'lava_bucket', 'powder_snow_bucket'].includes(n) ? null : n.replace('_bucket', '');
+        const out = (bx, by, bz) => {
+          if (mob) { Mobs.spawn(mob, bx + 0.5, by, bz + 0.5, { force: true, fromBucket: (s.tag && s.tag.mob) || {} }); Sound.play(mob === 'axolotl' ? 'bucket_empty_axolotl' : mob === 'tadpole' ? 'bucket_empty_tadpole' : 'bucket_empty_fish', null, { x: bx, y: by, z: bz }); }
+          else if (fluid !== B.powder_snow) Sound.play(fluid === B.lava ? 'bucket_empty_lava' : 'bucket_empty', null, { x: bx, y: by, z: bz });
+          emptied(p, offhand, n); return true;
+        };
         // waterlog a block that takes water
-        if (fluid === B.water && d.waterlog && !(st & 128)) { World.setBlock(x, y, z, id, st | 128); Ticks.schedule(x, y, z, 5); emptied(p, offhand, n); return true; }
+        if (fluid === B.water && d.waterlog && !(st & 128)) { World.setBlock(x, y, z, id, st | 128); Ticks.schedule(x, y, z, 5); return out(x, y, z); }
         let tx = x, ty = y, tz = z;
         if (!d.replaceable) { tx += DX[hit.face]; ty += DY[hit.face]; tz += DZ[hit.face]; }
         const t = World.getBlock(tx, ty, tz), td = BLOCKS[t];
-        if (fluid === B.water && td.waterlog && !(World.getState(tx, ty, tz) & 128)) { World.setBlock(tx, ty, tz, t, World.getState(tx, ty, tz) | 128); emptied(p, offhand, n); return true; }
+        if (fluid === B.water && td.waterlog && !(World.getState(tx, ty, tz) & 128)) { World.setBlock(tx, ty, tz, t, World.getState(tx, ty, tz) | 128); return out(tx, ty, tz); }
         if (!(t === 0 || td.replaceable || td.fluid)) return false;
-        if (fluid === B.water && World.dim === 'nether') { Sound.play('fizz', null, { x: tx, y: ty, z: tz }); Particles.smoke(tx + 0.5, ty + 0.5, tz + 0.5, 8); emptied(p, offhand, n); return true; }
+        if (fluid === B.water && World.dim === 'nether') { Sound.play('fizz', null, { x: tx, y: ty, z: tz }); Particles.smoke(tx + 0.5, ty + 0.5, tz + 0.5, 8); if (mob) Mobs.spawn(mob, tx + 0.5, ty, tz + 0.5, { force: true, fromBucket: (s.tag && s.tag.mob) || {} }); emptied(p, offhand, n); return true; }
         if (t && !td.fluid && Game.rules.doTileDrops) Drops.dropBlock(t, World.getState(tx, ty, tz), null, tx, ty, tz);
         World.setBlock(tx, ty, tz, fluid, 0);
         if (fluid !== B.powder_snow) Ticks.schedule(tx, ty, tz, 1);
-        Sound.play(fluid === B.lava ? 'bucket_empty_lava' : 'bucket_empty', null, { x: tx, y: ty, z: tz });
-        if (n.endsWith('_bucket') && !['water_bucket', 'lava_bucket', 'powder_snow_bucket'].includes(n)) Mobs.spawn(n.replace('_bucket', ''), tx + 0.5, ty, tz + 0.5);
-        emptied(p, offhand, n);
-        return true;
+        return out(tx, ty, tz);
       }
       case 'bucket': return false; // handled in the air (it needs to see fluids)
       case 'glass_bottle': return false;
@@ -87,20 +95,21 @@ const ItemUse = (() => {
         return false;
       case 'armor_stand': { const fx = x + DX[hit.face], fy = y + DY[hit.face], fz = z + DZ[hit.face]; if (hit.face === 1 && World.getBlock(fx, fy, fz) === 0 && World.getBlock(fx, fy + 1, fz) === 0) { Decor.armorStand(fx + 0.5, fy, fz + 0.5, p.yaw + Math.PI); consumeFrom(p, offhand); return true; } return false; }
       case 'painting': case 'item_frame': case 'glow_item_frame': if (hit.face >= 0) { if (Decor.hang(n, x, y, z, hit.face, p)) { consumeFrom(p, offhand); return true; } } return false;
-      case 'end_crystal': if ((d.name === 'obsidian' || d.name === 'bedrock') && World.getBlock(x, y + 1, z) === 0 && World.getBlock(x, y + 2, z) === 0) { Mobs.spawnEntity && Mobs.spawnEntity('end_crystal', x + 0.5, y + 1, z + 0.5); consumeFrom(p, offhand); return true; } return false;
+      case 'end_crystal': if ((d.name === 'obsidian' || d.name === 'bedrock') && World.getBlock(x, y + 1, z) === 0 && World.getBlock(x, y + 2, z) === 0) { Entities.add(new EndCrystal(x + 0.5, y + 1, z + 0.5, false)); consumeFrom(p, offhand); if (typeof EndFight !== 'undefined') EndFight.tryRespawn(); return true; } return false;
       case 'firework_rocket': { Projectiles.firework(x + 0.5 + DX[hit.face] * 0.5, y + 0.5 + DY[hit.face] * 0.5, z + 0.5 + DZ[hit.face] * 0.5, s.tag, null); consumeFrom(p, offhand); return true; }
       case 'ender_eye': return false;
       case 'lead': if (d.model === 'fence') return Leads.tieToFence(p, x, y, z); return false;
     }
     if (n.endsWith('_spawn_egg')) {
       if (d.name === 'spawner') { const be = World.getBE(x, y, z) || Blocks.newBE('spawner'); be.mob = it.mob; World.setBE(x, y, z, be); consumeFrom(p, offhand); return true; }
+      if (d.name === 'trial_spawner') { const be = World.getBE(x, y, z) || Blocks.newBE('trial_spawner'); be.customMob = it.mob; World.setBE(x, y, z, be); consumeFrom(p, offhand); return true; }
       let fx = x + DX[hit.face], fy = y + DY[hit.face], fz = z + DZ[hit.face];
       if (d.replaceable) { fx = x; fy = y; fz = z; }
       const m = Mobs.spawn(it.mob, fx + 0.5, fy, fz + 0.5, { fromEgg: true, name: s.tag && s.tag.name });
       if (m) { consumeFrom(p, offhand); return true; }
       return false;
     }
-    if (n.endsWith('_boat') || n.endsWith('_raft')) { Vehicles.spawnBoat(n, hit.px, hit.py + (hit.face === 1 ? 0 : 0), hit.pz, p.yaw); consumeFrom(p, offhand); return true; }
+    if (n.endsWith('_boat') || n.endsWith('_raft')) { if (Vehicles.spawnBoat(n, hit.px, hit.py, hit.pz, p.yaw)) { consumeFrom(p, offhand); return true; } return false; }
     if (it.block >= 0) return Place.tryPlace(p, s, hit, offhand);
     return false;
   }
@@ -145,13 +154,19 @@ const ItemUse = (() => {
   // ---------------------------------------------------------------- in the air
   function inAir(p, s, offhand) {
     const it = ITEMS[s.id], n = it.name;
+    // a boat used while looking at water goes on the water's surface
+    if (n.endsWith('_boat') || n.endsWith('_raft')) {
+      const lv = p.lookVec(), h = Phys.raycast(p.x, p.eyeY, p.z, lv[0], lv[1], lv[2], 5, id => BLOCKS[id].fluid === 'water' || SOLID[id]);
+      if (h && BLOCKS[h.id].fluid === 'water' && Vehicles.spawnBoat(n, h.px, h.y + 0.5, h.pz, p.yaw)) { consumeFrom(p, offhand); return true; }
+      return false;
+    }
     if (p.useCooldown && p.useCooldown[n] > Game.gameTime) return false;
     if (it.food) {
       if (p.food >= 20 && !it.alwaysEat && !p.creative) return false;
       startUse(p, s, offhand, n === 'dried_kelp' ? 16 : 32); return true;
     }
     switch (n) {
-      case 'potion': case 'milk_bucket': case 'honey_bottle': startUse(p, s, offhand, n === 'honey_bottle' ? 40 : 32); return true;
+      case 'potion': case 'milk_bucket': case 'honey_bottle': case 'ominous_bottle': startUse(p, s, offhand, n === 'honey_bottle' ? 40 : 32); return true;
       case 'bow': if (p.creative || p.inv.find(x => ['arrow', 'spectral_arrow', 'tipped_arrow'].includes(ITEMS[x.id].name)) >= 0 || enchLevel(s, 'infinity')) { startUse(p, s, offhand, 72000); return true; } return false;
       case 'crossbow': if (s.tag && s.tag.charged) { Projectiles.crossbow(p, s); s.tag.charged = null; p.inv.changed(); return true; } if (p.creative || p.inv.find(x => ['arrow', 'spectral_arrow', 'tipped_arrow', 'firework_rocket'].includes(ITEMS[x.id].name)) >= 0) { startUse(p, s, offhand, 72000); return true; } return false;
       case 'trident': if (s.dmg >= it.dur - 1) return false; startUse(p, s, offhand, 72000); return true;
@@ -189,7 +204,7 @@ const ItemUse = (() => {
       case 'firework_rocket': if (p.gliding) { Projectiles.firework(p.x, p.y, p.z, s.tag, p); consumeFrom(p, offhand); return true; } return false;
       case 'map': { const m = stack('filled_map', 1, { tag: { map: Maps.create(p) } }); exchange(p, offhand, m); return true; }
       case 'writable_book': case 'written_book': if (typeof Books !== 'undefined') { Books.open(p, s); return true; } return false;
-      case 'carrot_on_a_stick': case 'warped_fungus_on_a_stick': if (p.vehicle && p.vehicle.boost) { p.vehicle.boost(); damageItem(s, 7, p, () => swapHeld(p, stack('fishing_rod'), offhand)); p.inv.changed(); return true; } return false;
+      case 'carrot_on_a_stick': case 'warped_fungus_on_a_stick': if (Vehicles.useStick(p, s)) { p.inv.changed(); return true; } return false;
     }
     // right click with armour puts it on
     if (it.armor) {
@@ -212,20 +227,23 @@ const ItemUse = (() => {
     if (cur !== s) { p.using = null; return; }
     p.useTicks++;
     const it = ITEMS[s.id], n = it.name;
-    if ((it.food || n === 'potion' || n === 'milk_bucket' || n === 'honey_bottle') && p.useTicks % 4 === 0 && p.useTicks > 7) { Sound.play(it.food ? 'eat' : 'drink', p); if (it.food) Particles.eat && Particles.eat(p, s); }
+    if ((it.food || n === 'potion' || n === 'milk_bucket' || n === 'honey_bottle' || n === 'ominous_bottle') && p.useTicks % 4 === 0 && p.useTicks > 7) { Sound.play(it.food ? 'eat' : 'drink', p); if (it.food) Particles.eat && Particles.eat(p, s); }
     if (n === 'crossbow' && p.useTicks === Math.max(5, 25 - 5 * enchLevel(s, 'quick_charge'))) { Sound.play('crossbow_loaded', p); }
+    if (n === 'spyglass' && p.useTicks % 5 === 0) Advancements.fire('using_item', { item: s });
+    if (n === 'brush') { Archaeology.brushTick(p, s); if (!p.using) return; }
     if (p.useTicks >= p.useMax) finishUse(p);
   }
   function finishUse(p) {
     const s = p.using, it = ITEMS[s.id], n = it.name;
     p.using = null;
+    if (it.food || ['potion', 'milk_bucket', 'honey_bottle', 'ominous_bottle'].includes(n)) Advancements.fire('consume_item', { item: Object.assign({}, s) });
     if (it.food) {
       p.eat(it.food[0], it.food[1] / Math.max(1, it.food[0]) / 2);
       for (const f of it.foodFx || []) { if (f[0] === 'clear') { p.removeEffect(f[1]); continue; } if (Math.random() < (f[3] === undefined ? 1 : f[3])) p.addEffect(f[0], f[1], f[2]); }
       if (n === 'suspicious_stew' && s.tag && s.tag.effect) p.addEffect(s.tag.effect, s.tag.dur || 160, 0);
       if (n === 'chorus_fruit') chorusTeleport(p);
       Sound.play('burp', p);
-      Stats.add('used', n); Advancements.onEat && Advancements.onEat(n);
+      Stats.add('used', n);
       if (!p.creative) { s.count--; if (s.count <= 0) swapHeld(p, it.leftover ? stack(it.leftover) : null, p.useOff); else if (it.leftover) { const l = p.inv.addItem(stack(it.leftover)); if (l) drop(p, l); } p.inv.changed(); }
       if (n === 'chorus_fruit') cooldown(p, n, 20);
       return;
@@ -233,6 +251,8 @@ const ItemUse = (() => {
     if (n === 'milk_bucket') { p.effects.clear(); p.maxHealth = 20; p.absorption = 0; if (!p.creative) swapHeld(p, stack('bucket'), p.useOff); return; }
     if (n === 'honey_bottle') { p.eat(6, 0.1); p.removeEffect('poison'); if (!p.creative) swapHeld(p, s.count > 1 ? Object.assign(s, { count: s.count - 1 }) : stack('glass_bottle'), p.useOff); return; }
     if (n === 'potion') { Potions.apply(p, s.tag && s.tag.potion, 1); if (!p.creative) swapHeld(p, stack('glass_bottle'), p.useOff); return; }
+    // an ominous bottle: Bad Omen for 100 minutes, its level from the bottle; the bottle is used up
+    if (n === 'ominous_bottle') { p.addEffect('bad_omen', 120000, (s.tag && s.tag.amp) || 0); Sound.play('ominous_bottle_dispose', p); if (!p.creative) { s.count--; if (s.count <= 0) swapHeld(p, null, p.useOff); p.inv.changed(); } return; }
   }
   // releasing right click: bows shoot, crossbows finish charging, tridents are thrown
   function release(p) {
@@ -258,7 +278,8 @@ const ItemUse = (() => {
       if (Phys.boxFree(x - 0.3, y, z - 0.3, x + 0.3, y + 1.8, z + 0.3) && SOLID[World.getBlock(Math.floor(x), y - 1, Math.floor(z))]) { p.x = x; p.y = y; p.z = z; p.vx = p.vy = p.vz = 0; p.fallDistance = 0; Sound.play('teleport', p); return; }
     }
   }
-  return { onBlock, inAir, tickUse, release, drop, boneMeal, consumeFrom, exchange };
+  function onBlockAfter(p, s, hit, offhand) { const was = s ? Object.assign({}, s) : null, r = onBlock(p, s, hit, offhand); if (r && p.isPlayer) Advancements.fire('item_used_on_block', { pos: [hit.x, hit.y, hit.z], item: was }); return r; }
+  return { onBlock: onBlockAfter, inAir, tickUse, release, drop, boneMeal, consumeFrom, exchange };
 })();
 
 /* Cauldrons hold water (3 levels), lava or powder snow; buckets and bottles fill and empty them, they wash
@@ -277,7 +298,16 @@ const Cauldron = (() => {
     }
     if (n === 'glass_bottle' && kind === 0 && lvl > 0) { set(lvl - 1, 0); ItemUse.exchange(p, false, stack('potion', 1, { tag: { potion: 'water' } })); Sound.play('bottle_fill', p); return true; }
     if (n === 'potion' && s.tag && s.tag.potion === 'water' && kind === 0 && lvl < 3) { set(lvl + 1, 0); ItemUse.exchange(p, false, stack('glass_bottle')); Sound.play('bottle_empty', p); return true; }
-    if (kind === 0 && lvl > 0 && s && s.tag && s.tag.color && ITEMS[s.id].armor && ITEMS[s.id].armor.mat === 'leather') { delete s.tag.color; set(lvl - 1, 0); p.inv.changed(); return true; }
+    if (kind === 0 && lvl > 0 && s && s.tag && s.tag.color && ((ITEMS[s.id].armor && ITEMS[s.id].armor.mat === 'leather') || n === 'leather_horse_armor' || n === 'wolf_armor')) { delete s.tag.color; set(lvl - 1, 0); p.inv.changed(); Stats.add('custom', 'clean_armor'); return true; }
+    // a banner loses its top pattern (one at a time, like the game's BANNER cauldron interaction)
+    if (kind === 0 && lvl > 0 && n.endsWith('_banner') && s.tag && s.tag.patterns && s.tag.patterns.length) {
+      const washed = Object.assign({}, s, { count: 1, tag: Object.assign({}, s.tag, { patterns: s.tag.patterns.slice(0, -1) }) });
+      if (!washed.tag.patterns.length) delete washed.tag.patterns;
+      if (p.creative) { const left = p.inv.addItem(washed); if (left) ItemUse.drop(p, left); }
+      else if (s.count === 1) p.inv.held = washed;
+      else { s.count--; const left = p.inv.addItem(washed); if (left) ItemUse.drop(p, left); }
+      set(lvl - 1, 0); p.inv.changed(); Stats.add('custom', 'clean_banner'); return true;
+    }
     if (kind === 0 && lvl > 0 && n.endsWith('_shulker_box') && n !== 'shulker_box') { const ns = Object.assign({}, s, { id: IID.shulker_box }); p.inv.held = ns; set(lvl - 1, 0); return true; }
     return false;
   }

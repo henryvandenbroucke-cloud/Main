@@ -4,7 +4,7 @@ const Settings = (() => {
   const DEF = {
     renderDist: 8, fov: 70, smooth: true, clouds: 'fancy', particles: 'all', maxFps: 0, gamma: 0.5, bobbing: true, sensitivity: 0.5, invertY: false,
     vMaster: 1, vMusic: 0.5, vSfx: 1, vAmbient: 1, guiScale: 0, showFps: false, autoJump: false, fastLeaves: false, hud: true, subtitles: false,
-    toggleSprint: false, toggleCrouch: false, fullscreen: false, entityShadows: true, biomeBlend: 2, mipmaps: true,
+    toggleSprint: false, toggleCrouch: false, fullscreen: false, shaders: false, entityShadows: true, biomeBlend: 2, mipmaps: true,
   };
   let s = {};
   try { s = JSON.parse(localStorage.getItem('mc_settings') || '{}'); } catch (e) { s = {}; }

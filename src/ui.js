@@ -31,9 +31,10 @@ const UI = (() => {
         ${btn('Game Mode: ' + modeName(d.mode || 'survival'), 'cmode')}<div class="mhint" id="cModeHint">${modeHint(d.mode || 'survival')}</div>
         ${btn('Difficulty: ' + cap(d.difficulty || 'normal'), 'cdiff', { off: d.mode === 'hardcore' })}${btn('Allow Cheats: ' + (d.cheats ? 'ON' : 'OFF'), 'ccheats', { off: d.mode === 'hardcore' })}
         <div class="mhint">Commands like /gamemode, /experience</div>`;
-      if (tab === 'world') h += `${btn('World Type: ' + (d.type === 'flat' ? 'Superflat' : d.type === 'large' ? 'Large Biomes' : 'Default'), 'ctype')}
+      if (tab === 'world') h += `${btn('World Type: ' + (d.type === 'flat' ? 'Superflat' : d.type === 'large' ? 'Large Biomes' : d.type === 'amplified' ? 'Amplified' : 'Default'), 'ctype')}
         <div class="mlabel">Seed for the World Generator</div><input class="minput" id="cSeed" value="${escapeHTML(d.seed || '')}" placeholder="Leave blank for a random seed">
         ${btn('Generate Structures: ' + (d.structures === false ? 'OFF' : 'ON'), 'cstruct')}<div class="mhint">Villages, dungeons etc.</div>
+        ${btn('Structures: ' + (d.density === 'normal' ? 'Normal' : 'More Common'), 'cdensity')}<div class="mhint">${d.density === 'normal' ? 'The same spacing as the game' : 'About four times as many as the game'}</div>
         ${btn('Bonus Chest: ' + (d.bonus ? 'ON' : 'OFF'), 'cbonus')}`;
       if (tab === 'more') h += `${btn('Game Rules', 'none', { off: true })}${btn('Data Packs', 'none', { off: true })}${btn('Experiments', 'none', { off: true })}`;
       return h + `</div><div class="mbottom"><div class="mrow">${btn('Create New World', 'docreate', { w: 150 })}${btn('Cancel', 'single', { w: 150 })}</div></div>`;
@@ -50,7 +51,8 @@ const UI = (() => {
       ${btn('View Bobbing: ' + (Settings.bobbing ? 'ON' : 'OFF'), 'tbob', { w: 150 })}${btn('GUI Scale: ' + (Settings.guiScale || 'Auto'), 'tgui', { w: 150 })}
       ${slider('gamma', 'Brightness', 0, 1, 0.01, v => v === 0 ? 'Moody' : v === 1 ? 'Bright' : Math.round(v * 100) + '%')}${btn('Clouds: ' + cap(Settings.clouds), 'tclouds', { w: 150 })}
       ${btn('Particles: ' + cap(Settings.particles), 'tpart', { w: 150 })}${btn('Fullscreen: ' + (document.fullscreenElement ? 'ON' : 'OFF'), 'tfull', { w: 150 })}
-      ${btn('Show FPS: ' + (Settings.showFps ? 'ON' : 'OFF'), 'tfps', { w: 150 })}${btn('Biome Blend: 5x5', 'none', { w: 150, off: true })}</div>
+      ${btn('Show FPS: ' + (Settings.showFps ? 'ON' : 'OFF'), 'tfps', { w: 150 })}${btn('Biome Blend: 5x5', 'none', { w: 150, off: true })}
+      ${btn('Shaders: ' + (Settings.shaders ? 'ON' : 'OFF'), 'tshaders', { w: 150 })}<div class="mhint" style="align-self:center">Waving water with reflections. Slower on weak computers.</div></div>
       <div class="mbottom">${btn('Done', 'options')}</div>`,
     sounds: () => `<div class="mtitle">Music & Sound Options</div><div class="mcol wide grid2">
       ${slider('vMaster', 'Master Volume', 0, 1, 0.01, pct)}${slider('vMusic', 'Music', 0, 1, 0.01, pct)}${slider('vSfx', 'Blocks, Mobs & Players', 0, 1, 0.01, pct)}${slider('vAmbient', 'Ambient/Environment', 0, 1, 0.01, pct)}
@@ -79,7 +81,7 @@ const UI = (() => {
     confirm: d => `<div class="mtitle">${d.title}</div><div class="mhint big">${d.text}</div><div class="mbottom"><div class="mrow">${btn(d.yes || 'Yes', 'cyes', { w: 150 })}${btn(d.no || 'Cancel', 'cno', { w: 150 })}</div></div>`,
     stats: () => { let h = '<div class="mtitle">Statistics</div><div class="statlist">'; const st = Stats.all(); for (const [k, v] of Object.entries(st.general || {})) h += `<div class="statrow"><span>${k}</span><span>${v}</span></div>`; h += '</div><div class="mbottom">' + btn('Done', 'pause') + '</div>'; return h; },
     advancements: () => Advancements.page(),
-    sign: d => `<div class="mtitle">Edit Sign Message</div><div class="signedit">${[0, 1, 2, 3].map(i => `<input class="signline" maxlength="15" data-i="${i}" value="${escapeHTML((World.getBE(d.x, d.y, d.z) || { lines: [] }).lines[i] || '')}">`).join('')}</div><div class="mbottom">${btn('Done', 'signdone')}</div>`,
+    sign: d => { const be = World.getBE(d.x, d.y, d.z) || { lines: [] }, t = d.side === 'back' ? (be.back || { lines: [] }) : be; return `<div class="mtitle">Edit Sign Message</div><div class="signedit">${[0, 1, 2, 3].map(i => `<input class="signline" maxlength="15" data-i="${i}" value="${escapeHTML((t.lines || [])[i] || '')}">`).join('')}</div><div class="mbottom">${btn('Done', 'signdone')}</div>`; },
   };
   PAGES.title.after = () => drawLogo();
   PAGES.single.after = () => listWorlds();
@@ -113,18 +115,19 @@ const UI = (() => {
       case 'quit': show('confirm', { title: 'Quit Game?', text: 'You can close this browser tab to quit.', yes: 'OK', no: 'Back' }); confirmFn = () => show('title'); break;
       case 'back': show('title'); break;
       case 'video': case 'controls': case 'sounds': case 'access': show(a); break;
-      case 'create': createData = { name: 'New World', mode: 'survival', difficulty: 'normal', cheats: false, seed: '', structures: true, type: 'default' }; show('create', createData); break;
+      case 'create': createData = { name: 'New World', mode: 'survival', difficulty: 'normal', cheats: false, seed: '', structures: true, density: 'more', type: 'default' }; show('create', createData); break;
       case 'cmode': readCreate(); createData.mode = { survival: 'hardcore', hardcore: 'creative', creative: 'survival' }[createData.mode]; if (createData.mode === 'creative') createData.cheats = true; if (createData.mode === 'hardcore') createData.cheats = false; show('create', createData); break;
       case 'cdiff': readCreate(); if (createData.mode === 'hardcore') break; createData.difficulty = { peaceful: 'easy', easy: 'normal', normal: 'hard', hard: 'peaceful' }[createData.difficulty]; show('create', createData); break;
       case 'ccheats': readCreate(); if (createData.mode === 'hardcore') break; createData.cheats = !createData.cheats; show('create', createData); break;
       case 'cstruct': readCreate(); createData.structures = !createData.structures; show('create', createData); break;
+      case 'cdensity': readCreate(); createData.density = createData.density === 'normal' ? 'more' : 'normal'; show('create', createData); break;
       case 'cbonus': readCreate(); createData.bonus = !createData.bonus; show('create', createData); break;
-      case 'ctype': readCreate(); createData.type = { default: 'flat', flat: 'large', large: 'default' }[createData.type]; show('create', createData); break;
+      case 'ctype': readCreate(); createData.type = { default: 'flat', flat: 'large', large: 'amplified', amplified: 'default' }[createData.type] || 'default'; show('create', createData); break;
       case 'docreate': readCreate(); await createWorld(createData); break;
       case 'play': if (selected) await playWorld(selected); break;
       case 'delete': if (selected) { const s = selected; show('confirm', { title: 'Are you sure you want to delete this world?', text: `'${escapeHTML(s.name)}' will be lost forever! (A long time!)`, yes: 'Delete' }); confirmFn = async () => { await Save.deleteWorld(s.id); selected = null; show('single'); }; } break;
       case 'rename': if (selected) { const n = prompt('World name', selected.name); if (n) { selected.name = n; await Save.putMeta(selected); show('single'); } } break;
-      case 'recreate': if (selected) { createData = { name: selected.name + ' (copy)', mode: selected.hardcore ? 'hardcore' : selected.gamemode, difficulty: selected.difficulty, cheats: selected.cheats, seed: String(selected.seed), structures: selected.structures !== false, type: selected.type || 'default' }; show('create', createData); } break;
+      case 'recreate': if (selected) { createData = { name: selected.name + ' (copy)', mode: selected.hardcore ? 'hardcore' : selected.gamemode, difficulty: selected.difficulty, cheats: selected.cheats, seed: String(selected.seed), structures: selected.structures !== false, density: selected.density === 0.5 ? 'more' : 'normal', type: selected.type || 'default' }; show('create', createData); } break;
       case 'cyes': if (confirmFn) { const f = confirmFn; confirmFn = null; await f(); } break;
       case 'cno': show(page === 'confirm' && optionsFrom === 'pause' && game ? 'pause' : 'single'); break;
       case 'resume': resume(); break;
@@ -136,7 +139,7 @@ const UI = (() => {
       case 'advancements': show('advancements'); break;
       case 'stats': show('stats'); break;
       case 'pause': show('pause'); break;
-      case 'signdone': { if (signTarget) { const be = World.getBE(signTarget.x, signTarget.y, signTarget.z) || { type: 'sign' }; be.lines = [...root.querySelectorAll('.signline')].map(i => i.value); be.type = 'sign'; World.setBE(signTarget.x, signTarget.y, signTarget.z, be); World.markDirty(signTarget.x, signTarget.y, signTarget.z); Signs && Signs.refresh && Signs.refresh(signTarget.x, signTarget.y, signTarget.z); } signTarget = null; hide(); screen = null; Input.requestLock(); break; }
+      case 'signdone': { if (signTarget) { const be = World.getBE(signTarget.x, signTarget.y, signTarget.z) || { type: 'sign' }; const lines = [...root.querySelectorAll('.signline')].map(i => i.value); if (signTarget.side === 'back') be.back = Object.assign(be.back || {}, { lines }); else be.lines = lines; be.type = 'sign'; World.setBE(signTarget.x, signTarget.y, signTarget.z, be); World.markDirty(signTarget.x, signTarget.y, signTarget.z); Signs && Signs.refresh && Signs.refresh(signTarget.x, signTarget.y, signTarget.z); } signTarget = null; hide(); screen = null; Input.requestLock(); break; }
       default:
         if (a.startsWith('ctab:')) { readCreate(); createData.tab = a.slice(5); show('create', createData); break; }
         if (a.startsWith('bind:')) { binding = a.slice(5); el.textContent = '> ' + keyName(Input.BIND[binding]) + ' <'; break; }
@@ -144,7 +147,7 @@ const UI = (() => {
     }
   }
   function toggle(a) {
-    const T = { tleaves: () => { Settings.fastLeaves = !Settings.fastLeaves; }, tsmooth: () => { Settings.smooth = !Settings.smooth; }, tbob: () => { Settings.bobbing = !Settings.bobbing; },
+    const T = { tshaders: () => { Settings.shaders = !Settings.shaders; if (typeof applyShaders === 'function') applyShaders(); }, tleaves: () => { Settings.fastLeaves = !Settings.fastLeaves; }, tsmooth: () => { Settings.smooth = !Settings.smooth; }, tbob: () => { Settings.bobbing = !Settings.bobbing; },
       tgui: () => { Settings.guiScale = (Settings.guiScale + 1) % 5; }, tclouds: () => { Settings.clouds = { fancy: 'fast', fast: 'off', off: 'fancy' }[Settings.clouds]; }, tpart: () => { Settings.particles = { all: 'decreased', decreased: 'minimal', minimal: 'all' }[Settings.particles]; },
       tfull: () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {}); }, tfps: () => { Settings.showFps = !Settings.showFps; }, tsubs: () => { Settings.subtitles = !Settings.subtitles; },
       tajump: () => { Settings.autoJump = !Settings.autoJump; }, tsprint: () => { Settings.toggleSprint = !Settings.toggleSprint; }, tsneak: () => { Settings.toggleCrouch = !Settings.toggleCrouch; }, tinvert: () => { Settings.invertY = !Settings.invertY; } };
@@ -165,7 +168,7 @@ const UI = (() => {
   }
   async function createWorld(d) {
     const seed = d.seed.trim() ? seedFromText(d.seed) : (Math.random() * 4294967296 | 0) - 2147483648;
-    const meta = { id: 'w' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36), name: d.name || 'New World', seed, gamemode: d.mode === 'hardcore' ? 'survival' : d.mode, hardcore: d.mode === 'hardcore', difficulty: d.mode === 'hardcore' ? 'hard' : d.difficulty, cheats: d.cheats, structures: d.structures !== false, bonus: !!d.bonus, type: d.type || 'default', created: Date.now(), lastPlayed: Date.now() };
+    const meta = { id: 'w' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36), name: d.name || 'New World', seed, gamemode: d.mode === 'hardcore' ? 'survival' : d.mode, hardcore: d.mode === 'hardcore', difficulty: d.mode === 'hardcore' ? 'hard' : d.difficulty, cheats: d.cheats, structures: d.structures !== false, density: d.density === 'normal' ? 1 : 0.5, bonus: !!d.bonus, type: d.type || 'default', created: Date.now(), lastPlayed: Date.now() };
     await Save.putMeta(meta);
     startWorld(meta, null);
   }
@@ -175,7 +178,7 @@ const UI = (() => {
     meta.lastPlayed = Date.now(); Save.putMeta(meta);
     Save.begin(meta, state);
     Game.start({ id: meta.id, name: meta.name, seed: meta.seed, gamemode: state ? state.player.gamemode : meta.gamemode, hardcore: meta.hardcore, difficulty: state ? state.difficulty : meta.difficulty, cheats: meta.cheats,
-      dayTime: state ? state.dayTime : 0, gameTime: state ? state.gameTime : 0, rules: state ? state.rules : null, spawn: state ? state.spawn : null, player: state ? state.player : null, dim: state ? state.player.dim : 'overworld', worldType: meta.type, structures: meta.structures, bonus: meta.bonus && !state });
+      dayTime: state ? state.dayTime : 0, gameTime: state ? state.gameTime : 0, rules: state ? state.rules : null, spawn: state ? state.spawn : null, player: state ? state.player : null, dim: state ? state.player.dim : 'overworld', worldType: meta.type, structures: meta.structures, density: meta.density || 1, bonus: meta.bonus && !state });
     Sound.music && Sound.music('game');
   }
   // the loading screen stays until the chunks around the player are drawn
@@ -185,7 +188,7 @@ const UI = (() => {
       let have = 0, total = 0;
       for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) { total++; const c = World.getChunk(pcx + dx, pcz + dz); if (c && c.lit && !c.dirty.some(x => x)) have++; }
       const bar = document.getElementById('loadBar'); if (bar) bar.style.width = (100 * have / total) + '%';
-      if (have >= total && Game.spawnReady) { hide(); Input.requestLock(); Advancements.welcome && Advancements.welcome(); }
+      if (have >= total && Game.spawnReady && !Portals.arriving) { hide(); Input.requestLock(); Advancements.welcome && Advancements.welcome(); }
     }
     if (page === 'title') { const sp = root.querySelector('.splash'); if (sp) sp.style.transform = `rotate(-20deg) scale(${1.8 - Math.abs(Math.sin(performance.now() / 1000 * Math.PI * 2 / 1.5)) * 0.1})`; }
     const p = Game.player;
