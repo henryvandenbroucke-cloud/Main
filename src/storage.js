@@ -243,7 +243,9 @@ const Pots = (() => {
     if (ITEMS[s.id].name !== 'decorated_pot' || !s.tag || !s.tag.sherds) return '';
     return s.tag.sherds.map(n => `<div style="color:#aaa">${escapeHTML(ITEMS[IID[n || 'brick']].display)}</div>`).join('');
   }
-  return { DESIGNS, design, sideTex, wobble, frame, clear, recipe, placed, shatters, drops, hitByProjectile, tooltip, unpack };
+  // a pot item's icon shows its sherds
+  function iconURL(s) { if (!s.tag || !s.tag.sherds) return null; const d = designOf(s.tag.sherds); return d ? Icons.blockIconURL(BID.decorated_pot, 0, d) : null; }
+  return { DESIGNS, design, sideTex, wobble, frame, clear, recipe, placed, shatters, drops, hitByProjectile, tooltip, unpack, iconURL };
 })();
 
 /* ---------------------------------------------------------------- chiseled bookshelves */

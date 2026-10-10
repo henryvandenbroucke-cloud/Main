@@ -1535,6 +1535,8 @@ SHARED.push(function worldgenModule(G) {
       this.seed = seed;
       // world types: default, superflat (bedrock, two dirt, grass) and large biomes (climate noise four times wider)
       this.flat = !!(opts && opts.type === 'flat'); this.bs = opts && opts.type === 'large' ? 4 : 1;
+      // amplified: the land above the sea stretched to the sky (squeezed under this world's ceiling)
+      this.amp = !!(opts && opts.type === 'amplified');
       this.structures = !(opts && opts.structures === false);
       const h = k => hashInt(seed, k, 31, 17);
       this.nC = new Octaves(h(1), 6, 0.5); this.nE = new Octaves(h(2), 5, 0.5); this.nW = new Octaves(h(3), 5, 0.5);
@@ -1578,7 +1580,8 @@ SHARED.push(function worldgenModule(G) {
       // mushroom islands rise from the deepest oceans
       const mush = C < -0.95 ? smooth(0.42, 0.55, this.nM.n2(x / 180, z / 180)) : 0;
       if (mush > 0) h = h + (SEA + 3 + this.nD.n2(x / 30, z / 30) * 4 - h) * mush;
-      if (h > 150) h = 150 + (h - 150) * 0.55;
+      if (this.amp && h > SEA) { h = SEA + (h - SEA) * 2.2 + Math.max(0, this.nR.n2(x / 90, z / 90)) * 20 * inland; if (h > 140) h = 140 + (h - 140) * 0.45; }
+      else if (h > 150) h = 150 + (h - 150) * 0.55;
       h = Math.round(clamp(h, -40, 186));
       o.h = h; o.C = C; o.E = E; o.PV = PV; o.Wn = Wn; o.T = T; o.Hm = Hm; o.m = m; o.river = river;
       o.biome = this.pickBiome(o, mush > 0.5);
@@ -6599,18 +6602,20 @@ const Mesher = (() => {
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) near[(dx + 1) + (dz + 1) * 3] = World.getChunk(c.cx + dx, c.cz + dz);
     const y0 = sy * 16 - 64;
     let empty = true;
+    // one run of cells along x from chunk n (whole rows are copied at once)
+    const run = (n, p, i, len, out, top) => {
+      if (!n || out) { for (let k = 0; k < len; k++) { PB[p + k] = n ? 0 : 1; PS[p + k] = 0; PL[p + k] = top ? 0xf0 : 0; } return; }
+      if (len === 1) { PB[p] = n.blocks[i]; PS[p] = n.states[i]; PL[p] = n.light[i]; return; }
+      PB.set(n.blocks.subarray(i, i + len), p); PS.set(n.states.subarray(i, i + len), p); PL.set(n.light.subarray(i, i + len), p);
+    };
     for (let y = -1; y <= 16; y++) {
-      const wy = y0 + y;
+      const wy = y0 + y, out = wy < MINY || wy > MAXY, top = wy > MAXY;
       for (let z = -1; z <= 16; z++) {
-        const cz = z < 0 ? 0 : z > 15 ? 2 : 1, lz = (z + 16) & 15;
-        for (let x = -1; x <= 16; x++) {
-          const cx = x < 0 ? 0 : x > 15 ? 2 : 1, lx = (x + 16) & 15;
-          const n = near[cx + cz * 3], p = P(x, y, z);
-          if (!n || wy < MINY || wy > MAXY) { PB[p] = 0; PS[p] = 0; PL[p] = wy > MAXY ? 0xf0 : 0; if (!n) PB[p] = 1; continue; }
-          const i = ((wy + 64) << 8) | (lz << 4) | lx;
-          PB[p] = n.blocks[i]; PS[p] = n.states[i]; PL[p] = n.light[i];
-          if (empty && x >= 0 && x < 16 && z >= 0 && z < 16 && y >= 0 && y < 16 && n.blocks[i]) empty = false;
-        }
+        const cz = z < 0 ? 0 : z > 15 ? 2 : 1, lz = (z + 16) & 15, p = P(-1, y, z), base = ((wy + 64) << 8) | (lz << 4);
+        run(near[cz * 3], p, base + 15, 1, out, top);
+        run(near[1 + cz * 3], p + 1, base, 16, out, top);
+        run(near[2 + cz * 3], p + 17, base, 1, out, top);
+        if (empty && cz === 1 && y >= 0 && y < 16 && !out) { const bl = near[4].blocks; for (let k = base; k < base + 16; k++) if (bl[k]) { empty = false; break; } }
       }
     }
     return empty;
@@ -6698,8 +6703,11 @@ const Mesher = (() => {
     }
     return BUFS;
   }
+  // full cubes (deepslate, logs, ores...) buried on all six sides show nothing: skip them before any model work
+  const FULL = new Uint8Array(BLOCKS.length); for (const d of BLOCKS) if (d.model === 'cube' && !d.fluidLog && !d.waterlog) FULL[d.id] = 1;
   function block(x, y, z, id, tintArr, ctx, bx, by, bz) {
     const p = P(x, y, z);
+    if (FULL[id] && OPAQUE[PB[p - 1]] && OPAQUE[PB[p + 1]] && OPAQUE[PB[p - S]] && OPAQUE[PB[p + S]] && OPAQUE[PB[p - S2]] && OPAQUE[PB[p + S2]]) return;
     const d = BLOCKS[id], st = PS[p];
     tintY = by + y;
     const model = d.model;
@@ -7431,6 +7439,27 @@ const Icons = (() => {
     g.putImageData(img, 0, 0);
     rt.dispose(); mats.forEach(m => m.dispose());
   }
+  // one block icon drawn on its own (a decorated pot showing its sherds): the same camera and lighting as the
+  // atlas, read back into a 32x32 picture
+  const blockIcons = new Map();
+  function blockIconURL(blockId, st, conn) {
+    const k = blockId + ':' + st + ':' + conn; if (blockIcons.has(k)) return blockIcons.get(k);
+    const N = 32, rt = new THREE.WebGLRenderTarget(N, N), sc = new THREE.Scene(), s = 0.86;
+    const cam = new THREE.OrthographicCamera(-s, s, s, -s, 0.1, 10); cam.position.set(2, 2 * 0.8165, 2); cam.lookAt(0, 0, 0);
+    const m = ItemMesh.blockMesh(blockId, st, conn); if (!m) return null;
+    const mats = [];
+    m.traverse(o => { if (o.isMesh && o.material && o.material.uniforms && o.material.uniforms.uEnv) { o.material.uniforms.uEnv.value.set(1, 1); mats.push(o.material); } });
+    m.position.set(-0.5, -0.5, -0.5); sc.add(m);
+    const old = renderer.getRenderTarget(), oc = renderer.getClearColor(new THREE.Color()), oa = renderer.getClearAlpha();
+    renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(sc, cam);
+    const px = new Uint8Array(N * N * 4); renderer.readRenderTargetPixels(rt, 0, 0, N, N, px);
+    renderer.setRenderTarget(old); renderer.setClearColor(oc, oa); rt.dispose();
+    m.traverse(o => { if (o.isMesh) o.geometry && o.geometry.dispose && 0; });
+    const c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'), img = g.createImageData(N, N);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const a = ((N - 1 - y) * N + x) * 4, b = (y * N + x) * 4; for (let q = 0; q < 4; q++) img.data[b + q] = px[a + q]; }
+    g.putImageData(img, 0, 0);
+    const url = c.toDataURL(); blockIcons.set(k, url); return url;
+  }
   // CSS for an icon of item id at a given size in pixels
   function style(id, size) {
     const i = index[id]; if (i < 0) return '';
@@ -7440,7 +7469,20 @@ const Icons = (() => {
   }
   // draw an item icon on a 2D canvas
   function draw(g, id, x, y, size) { const i = index[id]; if (i < 0 || !canvas) return; g.drawImage(canvas, (i % COLS) * CELL, Math.floor(i / COLS) * CELL, CELL, CELL, x, y, size, size); }
-  return { build, style, draw, get canvas() { return canvas; }, CELL, spriteFor, index };
+  // stacks with a look of their own (banners with patterns, shields carrying a banner, pots with sherds)
+  function customURL(s) {
+    const n = ITEMS[s.id].name;
+    if (typeof Banners !== 'undefined') { if (n.endsWith('_banner') && s.tag && s.tag.patterns && s.tag.patterns.length) return Banners.iconURL(s); if (n === 'shield' && s.tag && s.tag.banner) return Banners.shieldIconURL(s); }
+    if (n === 'decorated_pot' && typeof Pots !== 'undefined' && Pots.iconURL) return Pots.iconURL(s);
+    return null;
+  }
+  const imgs = new Map();
+  function drawStack(g, s, x, y, size) {
+    const url = customURL(s);
+    if (url) { let im = imgs.get(url); if (!im) { im = new Image(); im.src = url; imgs.set(url, im); if (imgs.size > 200) imgs.delete(imgs.keys().next().value); } if (im.complete && im.naturalWidth) { g.imageSmoothingEnabled = false; g.drawImage(im, x, y, size, size); return; } }
+    draw(g, s.id, x, y, size);
+  }
+  return { build, style, draw, drawStack, customURL, blockIconURL, get canvas() { return canvas; }, CELL, spriteFor, index };
 })();
 
 </script>
@@ -15044,7 +15086,7 @@ const RARITY = ['#ffffff', '#ffff55', '#55ffff', '#ff55ff'];
 function iconHTML(s, opts) {
   if (!s) return '';
   const it = ITEMS[s.id], S = GUI.S, size = 16 * S;
-  const custom = s.tag && s.tag.patterns && typeof Banners !== 'undefined' && it.name.endsWith('_banner') ? `background-image:url(${Banners.iconURL(s)});background-size:100% 100%;background-position:0 0;-webkit-mask:none;mask:none;` : '';
+  const cu = Icons.customURL(s), custom = cu ? `background-image:url(${cu});background-size:100% 100%;background-position:0 0;-webkit-mask:none;mask:none;` : '';
   let h = `<div class="icon${enchOf(s) || it.name === 'enchanted_golden_apple' || it.name === 'enchanted_book' || it.name === 'nether_star' || it.name === 'experience_bottle' || it.name === 'end_crystal' ? ' glint' : ''}" style="${custom || Icons.style(s.id, size)}width:${size}px;height:${size}px"></div>`;
   if (it.dur && s.dmg > 0) { const f = 1 - s.dmg / it.dur, w = Math.round(13 * f); const col = `hsl(${Math.round(f * 120)},100%,50%)`; h += `<div class="dura"><i style="width:${w * S}px;background:${col}"></i></div>`; }
   if (s.count > 1 || (s.count !== 1 && s.count !== undefined)) h += `<div class="count${s.count <= 0 ? ' red' : ''}">${s.count}</div>`;
@@ -15063,6 +15105,7 @@ function tooltipHTML(s) {
   if (s.tag && s.tag.potion && typeof Potions !== 'undefined') h += Potions.tooltip(s);
   if (s.tag && s.tag.trim && typeof SmithingScreen !== 'undefined') h += SmithingScreen.trimTooltip(s);
   if (s.tag && s.tag.patterns && typeof Banners !== 'undefined') h += Banners.tooltip(s);
+  if (s.tag && s.tag.banner && it.name === 'shield' && typeof Banners !== 'undefined') h += `<div style="color:#aaaaaa">${escapeHTML(itemName(stack(s.tag.banner.base + '_banner')).replace(' Banner', ''))}</div>` + Banners.tooltip({ tag: { patterns: s.tag.banner.patterns || [] } });
   if (it.name === 'filled_map' && typeof Maps !== 'undefined') h += Maps.tooltip(s);
   if (it.name === 'written_book') h += Books.tooltip(s);
   if (it.name === 'decorated_pot') h += Pots.tooltip(s);
@@ -18444,7 +18487,16 @@ const Cauldron = (() => {
     }
     if (n === 'glass_bottle' && kind === 0 && lvl > 0) { set(lvl - 1, 0); ItemUse.exchange(p, false, stack('potion', 1, { tag: { potion: 'water' } })); Sound.play('bottle_fill', p); return true; }
     if (n === 'potion' && s.tag && s.tag.potion === 'water' && kind === 0 && lvl < 3) { set(lvl + 1, 0); ItemUse.exchange(p, false, stack('glass_bottle')); Sound.play('bottle_empty', p); return true; }
-    if (kind === 0 && lvl > 0 && s && s.tag && s.tag.color && ITEMS[s.id].armor && ITEMS[s.id].armor.mat === 'leather') { delete s.tag.color; set(lvl - 1, 0); p.inv.changed(); return true; }
+    if (kind === 0 && lvl > 0 && s && s.tag && s.tag.color && ((ITEMS[s.id].armor && ITEMS[s.id].armor.mat === 'leather') || n === 'leather_horse_armor' || n === 'wolf_armor')) { delete s.tag.color; set(lvl - 1, 0); p.inv.changed(); Stats.add('custom', 'clean_armor'); return true; }
+    // a banner loses its top pattern (one at a time, like the game's BANNER cauldron interaction)
+    if (kind === 0 && lvl > 0 && n.endsWith('_banner') && s.tag && s.tag.patterns && s.tag.patterns.length) {
+      const washed = Object.assign({}, s, { count: 1, tag: Object.assign({}, s.tag, { patterns: s.tag.patterns.slice(0, -1) }) });
+      if (!washed.tag.patterns.length) delete washed.tag.patterns;
+      if (p.creative) { const left = p.inv.addItem(washed); if (left) ItemUse.drop(p, left); }
+      else if (s.count === 1) p.inv.held = washed;
+      else { s.count--; const left = p.inv.addItem(washed); if (left) ItemUse.drop(p, left); }
+      set(lvl - 1, 0); p.inv.changed(); Stats.add('custom', 'clean_banner'); return true;
+    }
     if (kind === 0 && lvl > 0 && n.endsWith('_shulker_box') && n !== 'shulker_box') { const ns = Object.assign({}, s, { id: IID.shulker_box }); p.inv.held = ns; set(lvl - 1, 0); return true; }
     return false;
   }
@@ -18480,9 +18532,21 @@ const HUD = (() => {
   }
   function shadowOf(c) { if (c[0] !== '#' || c.length < 7) return '#3f3f3f'; const v = parseInt(c.slice(1), 16); const r = (v >> 16 & 255) >> 2, gg = (v >> 8 & 255) >> 2, b = (v & 255) >> 2; return `rgb(${r},${gg},${b})`; }
   function sprite(name, x, y) { GUI.draw(g, name, x, y, S); }
+  // the player list (Tab): the game's PlayerTabOverlay, a dark box at the top with each player's face, name and
+  // connection bars (a world played alone has just the one player)
+  function playerList(p) {
+    const name = 'Player', nw = Math.ceil(g.measureText(name).width / S) || 36, w = 9 + nw + 2 + 13, x = Math.floor((W - (w + 2) * S) / 2), y = 10 * S;
+    g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(x - S, y - S, (w + 2) * S, 11 * S);
+    g.fillStyle = 'rgba(255,255,255,0.125)'; g.fillRect(x, y, w * S, 8 * S + S);
+    const skin = EntityModels.texture('player').canvas;
+    if (skin) { g.imageSmoothingEnabled = false; g.drawImage(skin, 8, 8, 8, 8, x, y, 8 * S, 8 * S); g.drawImage(skin, 40, 8, 8, 8, x, y, 8 * S, 8 * S); }
+    text(name, x + 9 * S, y, p.spectator ? '#aaaaaa' : '#ffffff');
+    // five green bars: no lag in a world played alone
+    for (let i = 0; i < 5; i++) { const bh = (i + 1) * 1.5; g.fillStyle = '#000'; g.fillRect(x + (w - 11 + i * 2) * S, y + (8 - bh) * S, 2 * S, bh * S); g.fillStyle = '#55ff55'; g.fillRect(x + (w - 11 + i * 2) * S, y + (8 - bh) * S, S, (bh - 0.5) * S); }
+  }
   function item(s, x, y) {
     if (!s) return;
-    Icons.draw(g, s.id, x, y, 16 * S);
+    Icons.drawStack(g, s, x, y, 16 * S);
     const it = ITEMS[s.id];
     if (enchOf(s) || it.name === 'enchanted_golden_apple') { g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.18 + 0.12 * Math.sin(performance.now() / 300); g.fillStyle = '#8040ff'; g.fillRect(x, y, 16 * S, 16 * S); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
     if (it.dur && s.dmg > 0) { const f = 1 - s.dmg / it.dur; g.fillStyle = '#000'; g.fillRect(x + 2 * S, y + 13 * S, 13 * S, 2 * S); g.fillStyle = `hsl(${Math.round(f * 120)},100%,50%)`; g.fillRect(x + 2 * S, y + 13 * S, Math.round(13 * f) * S, S); }
@@ -18523,6 +18587,7 @@ const HUD = (() => {
     if (titleTime > 0 && title) { g.globalAlpha = Math.min(1, titleTime / 10); text(title, cx, H / 2 - 30 * S, titleColor, { center: true, scale: 4 }); if (sub) text(sub, cx, H / 2 + 8 * S, '#ffffff', { center: true, scale: 2 }); g.globalAlpha = 1; }
     bossBars(cx);
     effects(p);
+    if (Input.isDown('playerList') && !UI.screenOpen()) playerList(p);
     Chat.draw(g, S, H, text);
     Advancements.drawToasts(g, S, W, text);
     if (debug) debugScreen(p);
@@ -19146,7 +19211,7 @@ const UI = (() => {
         ${btn('Game Mode: ' + modeName(d.mode || 'survival'), 'cmode')}<div class="mhint" id="cModeHint">${modeHint(d.mode || 'survival')}</div>
         ${btn('Difficulty: ' + cap(d.difficulty || 'normal'), 'cdiff', { off: d.mode === 'hardcore' })}${btn('Allow Cheats: ' + (d.cheats ? 'ON' : 'OFF'), 'ccheats', { off: d.mode === 'hardcore' })}
         <div class="mhint">Commands like /gamemode, /experience</div>`;
-      if (tab === 'world') h += `${btn('World Type: ' + (d.type === 'flat' ? 'Superflat' : d.type === 'large' ? 'Large Biomes' : 'Default'), 'ctype')}
+      if (tab === 'world') h += `${btn('World Type: ' + (d.type === 'flat' ? 'Superflat' : d.type === 'large' ? 'Large Biomes' : d.type === 'amplified' ? 'Amplified' : 'Default'), 'ctype')}
         <div class="mlabel">Seed for the World Generator</div><input class="minput" id="cSeed" value="${escapeHTML(d.seed || '')}" placeholder="Leave blank for a random seed">
         ${btn('Generate Structures: ' + (d.structures === false ? 'OFF' : 'ON'), 'cstruct')}<div class="mhint">Villages, dungeons etc.</div>
         ${btn('Structures: ' + (d.density === 'normal' ? 'Normal' : 'More Common'), 'cdensity')}<div class="mhint">${d.density === 'normal' ? 'The same spacing as the game' : 'About four times as many as the game'}</div>
@@ -19236,7 +19301,7 @@ const UI = (() => {
       case 'cstruct': readCreate(); createData.structures = !createData.structures; show('create', createData); break;
       case 'cdensity': readCreate(); createData.density = createData.density === 'normal' ? 'more' : 'normal'; show('create', createData); break;
       case 'cbonus': readCreate(); createData.bonus = !createData.bonus; show('create', createData); break;
-      case 'ctype': readCreate(); createData.type = { default: 'flat', flat: 'large', large: 'default' }[createData.type]; show('create', createData); break;
+      case 'ctype': readCreate(); createData.type = { default: 'flat', flat: 'large', large: 'amplified', amplified: 'default' }[createData.type] || 'default'; show('create', createData); break;
       case 'docreate': readCreate(); await createWorld(createData); break;
       case 'play': if (selected) await playWorld(selected); break;
       case 'delete': if (selected) { const s = selected; show('confirm', { title: 'Are you sure you want to delete this world?', text: `'${escapeHTML(s.name)}' will be lost forever! (A long time!)`, yes: 'Delete' }); confirmFn = async () => { await Save.deleteWorld(s.id); selected = null; show('single'); }; } break;
@@ -21340,7 +21405,10 @@ const ItemMesh = (() => {
     const it = ITEMS[itemId], px = Icons.spriteFor(it);
     const i = Icons.index[itemId], C = Icons.CELL, COLS = 42, SIZE = C * COLS;
     const cu = (i % COLS) * C, cv = Math.floor(i / COLS) * C;
-    const U0 = cu / SIZE, V0 = cv / SIZE, D = C / SIZE;
+    return spriteGeoPx(px, cu / SIZE, cv / SIZE, C / SIZE);
+  }
+  // the game's extruded item model: a front and back, plus an edge around every opaque pixel
+  function spriteGeoPx(px, U0, V0, D) {
     const pos = [], uv = [], nor = [], idx = [];
     const z0 = 7.5 / 16, z1 = 8.5 / 16;
     const quad = (p, u, n) => { const s = pos.length / 3; for (let k = 0; k < 4; k++) { pos.push(...p[k]); uv.push(...u[k]); nor.push(...n); } idx.push(s, s + 1, s + 2, s, s + 2, s + 3); };
@@ -21372,6 +21440,23 @@ const ItemMesh = (() => {
     cache.set(itemId, r);
     return r;
   }
+  // a held stack's own look: a shield carrying a banner gets a sprite of its own
+  const custom = new Map();
+  const key = s => !s ? -1 : (s.tag && s.tag.banner && ITEMS[s.id].name === 'shield' ? s.id + '|' + JSON.stringify(s.tag.banner) : s.id);
+  function meshFor(s) {
+    if (s && s.tag && s.tag.banner && ITEMS[s.id].name === 'shield' && typeof Banners !== 'undefined') {
+      const k = key(s); let c = custom.get(k);
+      if (!c) {
+        const px = Banners.shieldPixels(s), cv = document.createElement('canvas'); cv.width = cv.height = 16;
+        cv.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(px), 16, 16), 0, 0);
+        const tex = new THREE.CanvasTexture(cv); tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.flipY = false; tex.generateMipmaps = false;
+        c = { geo: spriteGeoPx(px, 0, 0, 1), tex }; custom.set(k, c);
+      }
+      const m = new THREE.Mesh(c.geo, entityMat(c.tex, { side: THREE.DoubleSide })); m.frustumCulled = false; m.userData.block = false; m.userData.handheld = false;
+      return m;
+    }
+    return mesh(s.id);
+  }
   function mesh(itemId, glint) {
     const r = get(itemId);
     const mat = r.block ? voxEntMat() : entityMat(atlas(), { side: THREE.DoubleSide });
@@ -21379,7 +21464,7 @@ const ItemMesh = (() => {
     return m;
   }
   function blockMesh(id, st, conn) { const key = 'b' + id + ':' + st + (conn ? ':' + conn : ''); let g = cache.get(key); if (!g) { g = blockGeo(id, st, conn); cache.set(key, g); } if (!g) return null; const m = new THREE.Mesh(g, voxEntMat()); m.frustumCulled = false; return m; }
-  return { get, mesh, blockMesh, atlas };
+  return { get, mesh, meshFor, key, blockMesh, atlas };
 })();
 
 // the game's display transforms for item models: [rotation degrees], [translation sixteenths], scale
@@ -21426,7 +21511,7 @@ EntityRender = (() => {
       this.obj = new THREE.Group(); this.obj.add(this.inst.root);
       this.layers = [];
       if (e.layers) for (const L of e.layers()) this.addLayer(L);
-      this.held = null; this.heldId = -1;
+      this.held = null; this.heldKey = -1; this.heldOff = null; this.offKey = -1;
       scene.add(this.obj);
     }
     // a second model drawn over the first (sheep wool, saddles, armour...)
@@ -21503,24 +21588,32 @@ EntityRender = (() => {
     anim(inst, s) { inst.reset(); const fn = EntityModels.A[this.e.anim || inst.def.anim]; if (fn) fn(inst, s); }
     // a tool, weapon or block in the mob's right hand
     updateHeld(a, s, sl, bl) {
-      const e = this.e, h = e.heldItem ? e.heldItem() : null, id = h ? h.id : -1;
-      if (id !== this.heldId) {
-        if (this.held) { this.held.parent && this.held.parent.remove(this.held); this.held = null; }
-        this.heldId = id;
-        const arm = this.inst.parts.right_arm;
-        if (h && arm) { this.held = ItemMesh.mesh(id); this.held.matrixAutoUpdate = false; arm.g.add(this.held); }
+      const e = this.e, h = e.heldItem ? e.heldItem() : null;
+      // the off hand: a player's slot 40, a mob's off-hand equipment
+      const o = e.isPlayer || (e.inv && e.inv.offhand !== undefined) ? (e.inv ? e.inv.offhand : null) : e.equip ? e.equip.off : null;
+      this.heldKey = this.hand('held', 'heldKey', 'right_arm', h, false, sl, bl);
+      this.offKey = this.hand('heldOff', 'offKey', 'left_arm', o, true, sl, bl);
+    }
+    // one hand's item, held the game's third person way (ItemInHandLayer): in the arm's frame (the model space
+    // is flipped in x and y) rotate down, then out to the hand at the end of the arm; the left hand mirrors it
+    hand(slot, keySlot, armName, st, left, sl, bl) {
+      const k = ItemMesh.key(st);
+      if (k !== this[keySlot]) {
+        if (this[slot]) { this[slot].parent && this[slot].parent.remove(this[slot]); this[slot].material.dispose(); this[slot] = null; }
+        const arm = this.inst.parts[armName];
+        if (st && arm) { this[slot] = ItemMesh.meshFor(st); this[slot].matrixAutoUpdate = false; arm.g.add(this[slot]); }
       }
-      if (this.held) {
-        const r = ItemMesh.get(this.heldId), kind = r.block ? 'block' : r.handheld ? 'handheld' : 'generated';
-        // the hand is at the end of the arm (10 sixteenths down), held the game's third person way
-        // in the arm's frame (the model space is flipped in x and y): rotate down, then out to the hand
+      const it = this[slot];
+      if (it) {
+        const r = ItemMesh.get(st.id), kind = r.block ? 'block' : r.handheld ? 'handheld' : 'generated';
         const m = new THREE.Matrix4().makeScale(-1, -1, 1);
         MStack.rx(m, -90); MStack.ry(m, 180);
-        MStack.t(m, 1 / 16, 0.125, -0.625);
-        applyItemTransform(m, kind, 'tp', false);
-        this.held.matrix.copy(m);
-        this.held.material.uniforms.uEnv.value.set(sl, bl);
+        MStack.t(m, (left ? -1 : 1) / 16, 0.125, -0.625);
+        applyItemTransform(m, kind, 'tp', left);
+        it.matrix.copy(m);
+        it.material.uniforms.uEnv.value.set(sl, bl);
       }
+      return k;
     }
     dispose() { scene.remove(this.obj); this.mat.dispose(); if (this.matT) this.matT.dispose(); for (const l of this.layers) l.mat.dispose(); for (const l of this.armor || []) l.mat.dispose(); if (this.held) this.held.material.dispose(); }
   }
@@ -21758,7 +21851,7 @@ EntityRender = (() => {
 // ---------------------------------------------------------------- the first-person hand
 Hand = (() => {
   const hScene = new THREE.Scene(), hCam = new THREE.PerspectiveCamera(70, 1, 0.05, 10);
-  let item = null, itemId = -1, arm = null, armMat = null, equip = 0, pequip = 0, shown = null, ry = 0, rx = 0;
+  let item = null, itemId = -1, itemKey = -1, arm = null, armMat = null, equip = 0, pequip = 0, shown = null, ry = 0, rx = 0;
   function armMesh() {
     if (arm) return arm;
     armMat = entityMat(EntityModels.texture('player'), { side: THREE.DoubleSide });
@@ -21775,12 +21868,26 @@ Hand = (() => {
     const reequip = (shown ? shown.id : -1) !== (main ? main.id : -1);
     const f = Math.min(1, (p.attackCooldown + 0.5) / (20 / (main ? ITEMS[main.id].aspd : 4)));
     equip += Math.max(-0.4, Math.min(0.4, (reequip ? 0 : f * f * f) - equip));
-    if (equip < 0.1) { shown = main; if ((shown ? shown.id : -1) !== itemId) setItem(shown); }
+    if (equip < 0.1) { shown = main; if (ItemMesh.key(shown) !== itemKey) setItem(shown); }
   }
   function setItem(st) {
     if (item) { hScene.remove(item); item.material.dispose(); item = null; }
-    itemId = st ? st.id : -1;
-    if (st) { item = ItemMesh.mesh(st.id); item.matrixAutoUpdate = false; hScene.add(item); }
+    itemId = st ? st.id : -1; itemKey = ItemMesh.key(st);
+    if (st) { item = ItemMesh.meshFor(st); item.matrixAutoUpdate = false; hScene.add(item); }
+  }
+  // the off-hand item, on the left (the game's renderArmWithItem for the left arm, mirrored)
+  let oItem = null, oKey = -1;
+  function offHand(p, bob, sway, sl, bl) {
+    const st = p.inv.offhand, k = ItemMesh.key(st);
+    if (k !== oKey) { if (oItem) { hScene.remove(oItem); oItem.material.dispose(); oItem = null; } oKey = k; if (st) { oItem = ItemMesh.meshFor(st); oItem.matrixAutoUpdate = false; hScene.add(oItem); } }
+    if (!oItem) return;
+    oItem.visible = !p.spectator;
+    const r = ItemMesh.get(st.id), kind = r.block ? 'block' : r.handheld ? 'handheld' : 'generated';
+    const m = new THREE.Matrix4().copy(bob).multiply(sway);
+    MStack.t(m, -0.56, -0.52, -0.72);
+    applyItemTransform(m, kind, 'fp', true);
+    oItem.matrix.copy(m);
+    oItem.material.uniforms.uEnv.value.set(sl, bl);
   }
   function update(a, p) {
     if (!p) return;
@@ -21796,6 +21903,7 @@ Hand = (() => {
     // view bobbing moves the hand too
     const bob = new THREE.Matrix4();
     if (Settings.bobbing && !p.flying) { const wd = p.pwalkDist + (p.walkDist - p.pwalkDist) * a, b = p.pbob + (p.bob - p.pbob) * a, g = wd * Math.PI; MStack.t(bob, Math.sin(g) * b * 0.5, -Math.abs(Math.cos(g) * b), 0); MStack.rz(bob, Math.sin(g) * b * 3); MStack.rx(bob, Math.abs(Math.cos(g - 0.2) * b) * 5); }
+    offHand(p, bob, sway, sl, bl);
     if (item) {
       if (arm) arm.visible = false;
       item.visible = true;
@@ -22411,6 +22519,30 @@ const Banners = (() => {
     const url = c.toDataURL(); iconCache.set(k, url);
     return url;
   }
+  // a shield carrying a banner: the shield's sprite with its wooden face painted with the top of the flag
+  const SHIELD_FACE = ['................', '................', '................', '.....#######....', '.....#######....', '.....#######....', '.....#######....', '.....#######....', '.....#######....', '.....#######....', '......#####.....', '.......###......', '................', '................', '................', '................'];
+  const shieldCache = new Map();
+  function shieldPixels(s) {
+    const b = s.tag.banner, k = b.base + JSON.stringify(b.patterns || []);
+    if (shieldCache.has(k)) return shieldCache.get(k);
+    const src = Icons.spriteFor(ITEMS[IID.shield]), px = new Uint8ClampedArray(1024);
+    if (src) px.set(src.subarray ? src.subarray(0, 1024) : src.slice(0, 1024));
+    const flag = flagCanvas(b.base, b.patterns || []).getContext('2d').getImageData(0, 0, 20, 40).data;
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+      if (SHIELD_FACE[y][x] !== '#') continue;
+      const fx = Math.min(19, Math.floor((x - 5 + 0.5) / 7 * 20)), fy = Math.min(39, Math.floor((y - 3 + 0.5) / 9 * 30)), j = (fy * 20 + fx) * 4, o = (y * 16 + x) * 4;
+      px[o] = flag[j]; px[o + 1] = flag[j + 1]; px[o + 2] = flag[j + 2]; px[o + 3] = 255;
+    }
+    shieldCache.set(k, px);
+    return px;
+  }
+  const shieldIcons = new Map();
+  function shieldIconURL(s) {
+    const k = JSON.stringify(s.tag.banner); if (shieldIcons.has(k)) return shieldIcons.get(k);
+    const c = document.createElement('canvas'); c.width = c.height = 16; c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(shieldPixels(s)), 16, 16), 0, 0);
+    const big = document.createElement('canvas'); big.width = big.height = 32; const g = big.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(c, 0, 0, 32, 32);
+    const url = big.toDataURL(); shieldIcons.set(k, url); return url;
+  }
   function tooltip(s) { return layersOf(s).map(([p, col]) => `<div style="color:#aaaaaa">${col.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ')} ${NAMES[p] || p}</div>`).join(''); }
   // ---------------------------------------------------------------- banners in the world
   const visuals = new Map();
@@ -22455,7 +22587,7 @@ const Banners = (() => {
   function placed(x, y, z, s) { const be = { type: 'banner', patterns: layersOf(s).slice() }; if (s && s.tag && s.tag.name) be.name = s.tag.name; World.setBE(x, y, z, be); refresh(x, y, z); }
   function dropTag(x, y, z) { const be = World.getBE(x, y, z); if (!be || be.type !== 'banner') return null; const t = {}; if (be.patterns && be.patterns.length) t.patterns = be.patterns.slice(); if (be.name) t.name = be.name; return Object.keys(t).length ? t : null; }
   function ominous() { return stack('white_banner', 1, { tag: { patterns: OMINOUS.map(l => l.slice()), name: 'Ominous Banner', ominous: true } }); }
-  return { COLOR, NAMES, NO_ITEM, ITEM_PATTERN, SHAPE, flagCanvas, iconURL, tooltip, layersOf, baseOf, refresh, frame, clear, placed, dropTag, ominous, isBanner };
+  return { COLOR, NAMES, NO_ITEM, ITEM_PATTERN, SHAPE, flagCanvas, iconURL, shieldPixels, shieldIconURL, tooltip, layersOf, baseOf, refresh, frame, clear, placed, dropTag, ominous, isBanner };
 })();
 
 /* The loom: banner, dye and an optional pattern item; pick a pattern, take the result. */
@@ -23301,7 +23433,9 @@ const Pots = (() => {
     if (ITEMS[s.id].name !== 'decorated_pot' || !s.tag || !s.tag.sherds) return '';
     return s.tag.sherds.map(n => `<div style="color:#aaa">${escapeHTML(ITEMS[IID[n || 'brick']].display)}</div>`).join('');
   }
-  return { DESIGNS, design, sideTex, wobble, frame, clear, recipe, placed, shatters, drops, hitByProjectile, tooltip, unpack };
+  // a pot item's icon shows its sherds
+  function iconURL(s) { if (!s.tag || !s.tag.sherds) return null; const d = designOf(s.tag.sherds); return d ? Icons.blockIconURL(BID.decorated_pot, 0, d) : null; }
+  return { DESIGNS, design, sideTex, wobble, frame, clear, recipe, placed, shatters, drops, hitByProjectile, tooltip, unpack, iconURL };
 })();
 
 /* ---------------------------------------------------------------- chiseled bookshelves */

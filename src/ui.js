@@ -31,7 +31,7 @@ const UI = (() => {
         ${btn('Game Mode: ' + modeName(d.mode || 'survival'), 'cmode')}<div class="mhint" id="cModeHint">${modeHint(d.mode || 'survival')}</div>
         ${btn('Difficulty: ' + cap(d.difficulty || 'normal'), 'cdiff', { off: d.mode === 'hardcore' })}${btn('Allow Cheats: ' + (d.cheats ? 'ON' : 'OFF'), 'ccheats', { off: d.mode === 'hardcore' })}
         <div class="mhint">Commands like /gamemode, /experience</div>`;
-      if (tab === 'world') h += `${btn('World Type: ' + (d.type === 'flat' ? 'Superflat' : d.type === 'large' ? 'Large Biomes' : 'Default'), 'ctype')}
+      if (tab === 'world') h += `${btn('World Type: ' + (d.type === 'flat' ? 'Superflat' : d.type === 'large' ? 'Large Biomes' : d.type === 'amplified' ? 'Amplified' : 'Default'), 'ctype')}
         <div class="mlabel">Seed for the World Generator</div><input class="minput" id="cSeed" value="${escapeHTML(d.seed || '')}" placeholder="Leave blank for a random seed">
         ${btn('Generate Structures: ' + (d.structures === false ? 'OFF' : 'ON'), 'cstruct')}<div class="mhint">Villages, dungeons etc.</div>
         ${btn('Structures: ' + (d.density === 'normal' ? 'Normal' : 'More Common'), 'cdensity')}<div class="mhint">${d.density === 'normal' ? 'The same spacing as the game' : 'About four times as many as the game'}</div>
@@ -121,7 +121,7 @@ const UI = (() => {
       case 'cstruct': readCreate(); createData.structures = !createData.structures; show('create', createData); break;
       case 'cdensity': readCreate(); createData.density = createData.density === 'normal' ? 'more' : 'normal'; show('create', createData); break;
       case 'cbonus': readCreate(); createData.bonus = !createData.bonus; show('create', createData); break;
-      case 'ctype': readCreate(); createData.type = { default: 'flat', flat: 'large', large: 'default' }[createData.type]; show('create', createData); break;
+      case 'ctype': readCreate(); createData.type = { default: 'flat', flat: 'large', large: 'amplified', amplified: 'default' }[createData.type] || 'default'; show('create', createData); break;
       case 'docreate': readCreate(); await createWorld(createData); break;
       case 'play': if (selected) await playWorld(selected); break;
       case 'delete': if (selected) { const s = selected; show('confirm', { title: 'Are you sure you want to delete this world?', text: `'${escapeHTML(s.name)}' will be lost forever! (A long time!)`, yes: 'Delete' }); confirmFn = async () => { await Save.deleteWorld(s.id); selected = null; show('single'); }; } break;

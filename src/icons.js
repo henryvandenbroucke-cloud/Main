@@ -118,6 +118,27 @@ const Icons = (() => {
     g.putImageData(img, 0, 0);
     rt.dispose(); mats.forEach(m => m.dispose());
   }
+  // one block icon drawn on its own (a decorated pot showing its sherds): the same camera and lighting as the
+  // atlas, read back into a 32x32 picture
+  const blockIcons = new Map();
+  function blockIconURL(blockId, st, conn) {
+    const k = blockId + ':' + st + ':' + conn; if (blockIcons.has(k)) return blockIcons.get(k);
+    const N = 32, rt = new THREE.WebGLRenderTarget(N, N), sc = new THREE.Scene(), s = 0.86;
+    const cam = new THREE.OrthographicCamera(-s, s, s, -s, 0.1, 10); cam.position.set(2, 2 * 0.8165, 2); cam.lookAt(0, 0, 0);
+    const m = ItemMesh.blockMesh(blockId, st, conn); if (!m) return null;
+    const mats = [];
+    m.traverse(o => { if (o.isMesh && o.material && o.material.uniforms && o.material.uniforms.uEnv) { o.material.uniforms.uEnv.value.set(1, 1); mats.push(o.material); } });
+    m.position.set(-0.5, -0.5, -0.5); sc.add(m);
+    const old = renderer.getRenderTarget(), oc = renderer.getClearColor(new THREE.Color()), oa = renderer.getClearAlpha();
+    renderer.setRenderTarget(rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(sc, cam);
+    const px = new Uint8Array(N * N * 4); renderer.readRenderTargetPixels(rt, 0, 0, N, N, px);
+    renderer.setRenderTarget(old); renderer.setClearColor(oc, oa); rt.dispose();
+    m.traverse(o => { if (o.isMesh) o.geometry && o.geometry.dispose && 0; });
+    const c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'), img = g.createImageData(N, N);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const a = ((N - 1 - y) * N + x) * 4, b = (y * N + x) * 4; for (let q = 0; q < 4; q++) img.data[b + q] = px[a + q]; }
+    g.putImageData(img, 0, 0);
+    const url = c.toDataURL(); blockIcons.set(k, url); return url;
+  }
   // CSS for an icon of item id at a given size in pixels
   function style(id, size) {
     const i = index[id]; if (i < 0) return '';
@@ -127,5 +148,18 @@ const Icons = (() => {
   }
   // draw an item icon on a 2D canvas
   function draw(g, id, x, y, size) { const i = index[id]; if (i < 0 || !canvas) return; g.drawImage(canvas, (i % COLS) * CELL, Math.floor(i / COLS) * CELL, CELL, CELL, x, y, size, size); }
-  return { build, style, draw, get canvas() { return canvas; }, CELL, spriteFor, index };
+  // stacks with a look of their own (banners with patterns, shields carrying a banner, pots with sherds)
+  function customURL(s) {
+    const n = ITEMS[s.id].name;
+    if (typeof Banners !== 'undefined') { if (n.endsWith('_banner') && s.tag && s.tag.patterns && s.tag.patterns.length) return Banners.iconURL(s); if (n === 'shield' && s.tag && s.tag.banner) return Banners.shieldIconURL(s); }
+    if (n === 'decorated_pot' && typeof Pots !== 'undefined' && Pots.iconURL) return Pots.iconURL(s);
+    return null;
+  }
+  const imgs = new Map();
+  function drawStack(g, s, x, y, size) {
+    const url = customURL(s);
+    if (url) { let im = imgs.get(url); if (!im) { im = new Image(); im.src = url; imgs.set(url, im); if (imgs.size > 200) imgs.delete(imgs.keys().next().value); } if (im.complete && im.naturalWidth) { g.imageSmoothingEnabled = false; g.drawImage(im, x, y, size, size); return; } }
+    draw(g, s.id, x, y, size);
+  }
+  return { build, style, draw, drawStack, customURL, blockIconURL, get canvas() { return canvas; }, CELL, spriteFor, index };
 })();

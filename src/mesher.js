@@ -54,18 +54,20 @@ const Mesher = (() => {
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) near[(dx + 1) + (dz + 1) * 3] = World.getChunk(c.cx + dx, c.cz + dz);
     const y0 = sy * 16 - 64;
     let empty = true;
+    // one run of cells along x from chunk n (whole rows are copied at once)
+    const run = (n, p, i, len, out, top) => {
+      if (!n || out) { for (let k = 0; k < len; k++) { PB[p + k] = n ? 0 : 1; PS[p + k] = 0; PL[p + k] = top ? 0xf0 : 0; } return; }
+      if (len === 1) { PB[p] = n.blocks[i]; PS[p] = n.states[i]; PL[p] = n.light[i]; return; }
+      PB.set(n.blocks.subarray(i, i + len), p); PS.set(n.states.subarray(i, i + len), p); PL.set(n.light.subarray(i, i + len), p);
+    };
     for (let y = -1; y <= 16; y++) {
-      const wy = y0 + y;
+      const wy = y0 + y, out = wy < MINY || wy > MAXY, top = wy > MAXY;
       for (let z = -1; z <= 16; z++) {
-        const cz = z < 0 ? 0 : z > 15 ? 2 : 1, lz = (z + 16) & 15;
-        for (let x = -1; x <= 16; x++) {
-          const cx = x < 0 ? 0 : x > 15 ? 2 : 1, lx = (x + 16) & 15;
-          const n = near[cx + cz * 3], p = P(x, y, z);
-          if (!n || wy < MINY || wy > MAXY) { PB[p] = 0; PS[p] = 0; PL[p] = wy > MAXY ? 0xf0 : 0; if (!n) PB[p] = 1; continue; }
-          const i = ((wy + 64) << 8) | (lz << 4) | lx;
-          PB[p] = n.blocks[i]; PS[p] = n.states[i]; PL[p] = n.light[i];
-          if (empty && x >= 0 && x < 16 && z >= 0 && z < 16 && y >= 0 && y < 16 && n.blocks[i]) empty = false;
-        }
+        const cz = z < 0 ? 0 : z > 15 ? 2 : 1, lz = (z + 16) & 15, p = P(-1, y, z), base = ((wy + 64) << 8) | (lz << 4);
+        run(near[cz * 3], p, base + 15, 1, out, top);
+        run(near[1 + cz * 3], p + 1, base, 16, out, top);
+        run(near[2 + cz * 3], p + 17, base, 1, out, top);
+        if (empty && cz === 1 && y >= 0 && y < 16 && !out) { const bl = near[4].blocks; for (let k = base; k < base + 16; k++) if (bl[k]) { empty = false; break; } }
       }
     }
     return empty;
@@ -153,8 +155,11 @@ const Mesher = (() => {
     }
     return BUFS;
   }
+  // full cubes (deepslate, logs, ores...) buried on all six sides show nothing: skip them before any model work
+  const FULL = new Uint8Array(BLOCKS.length); for (const d of BLOCKS) if (d.model === 'cube' && !d.fluidLog && !d.waterlog) FULL[d.id] = 1;
   function block(x, y, z, id, tintArr, ctx, bx, by, bz) {
     const p = P(x, y, z);
+    if (FULL[id] && OPAQUE[PB[p - 1]] && OPAQUE[PB[p + 1]] && OPAQUE[PB[p - S]] && OPAQUE[PB[p + S]] && OPAQUE[PB[p - S2]] && OPAQUE[PB[p + S2]]) return;
     const d = BLOCKS[id], st = PS[p];
     tintY = by + y;
     const model = d.model;

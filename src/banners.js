@@ -75,6 +75,30 @@ const Banners = (() => {
     const url = c.toDataURL(); iconCache.set(k, url);
     return url;
   }
+  // a shield carrying a banner: the shield's sprite with its wooden face painted with the top of the flag
+  const SHIELD_FACE = ['................', '................', '................', '.....#######....', '.....#######....', '.....#######....', '.....#######....', '.....#######....', '.....#######....', '.....#######....', '......#####.....', '.......###......', '................', '................', '................', '................'];
+  const shieldCache = new Map();
+  function shieldPixels(s) {
+    const b = s.tag.banner, k = b.base + JSON.stringify(b.patterns || []);
+    if (shieldCache.has(k)) return shieldCache.get(k);
+    const src = Icons.spriteFor(ITEMS[IID.shield]), px = new Uint8ClampedArray(1024);
+    if (src) px.set(src.subarray ? src.subarray(0, 1024) : src.slice(0, 1024));
+    const flag = flagCanvas(b.base, b.patterns || []).getContext('2d').getImageData(0, 0, 20, 40).data;
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+      if (SHIELD_FACE[y][x] !== '#') continue;
+      const fx = Math.min(19, Math.floor((x - 5 + 0.5) / 7 * 20)), fy = Math.min(39, Math.floor((y - 3 + 0.5) / 9 * 30)), j = (fy * 20 + fx) * 4, o = (y * 16 + x) * 4;
+      px[o] = flag[j]; px[o + 1] = flag[j + 1]; px[o + 2] = flag[j + 2]; px[o + 3] = 255;
+    }
+    shieldCache.set(k, px);
+    return px;
+  }
+  const shieldIcons = new Map();
+  function shieldIconURL(s) {
+    const k = JSON.stringify(s.tag.banner); if (shieldIcons.has(k)) return shieldIcons.get(k);
+    const c = document.createElement('canvas'); c.width = c.height = 16; c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(shieldPixels(s)), 16, 16), 0, 0);
+    const big = document.createElement('canvas'); big.width = big.height = 32; const g = big.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(c, 0, 0, 32, 32);
+    const url = big.toDataURL(); shieldIcons.set(k, url); return url;
+  }
   function tooltip(s) { return layersOf(s).map(([p, col]) => `<div style="color:#aaaaaa">${col.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ')} ${NAMES[p] || p}</div>`).join(''); }
   // ---------------------------------------------------------------- banners in the world
   const visuals = new Map();
@@ -119,7 +143,7 @@ const Banners = (() => {
   function placed(x, y, z, s) { const be = { type: 'banner', patterns: layersOf(s).slice() }; if (s && s.tag && s.tag.name) be.name = s.tag.name; World.setBE(x, y, z, be); refresh(x, y, z); }
   function dropTag(x, y, z) { const be = World.getBE(x, y, z); if (!be || be.type !== 'banner') return null; const t = {}; if (be.patterns && be.patterns.length) t.patterns = be.patterns.slice(); if (be.name) t.name = be.name; return Object.keys(t).length ? t : null; }
   function ominous() { return stack('white_banner', 1, { tag: { patterns: OMINOUS.map(l => l.slice()), name: 'Ominous Banner', ominous: true } }); }
-  return { COLOR, NAMES, NO_ITEM, ITEM_PATTERN, SHAPE, flagCanvas, iconURL, tooltip, layersOf, baseOf, refresh, frame, clear, placed, dropTag, ominous, isBanner };
+  return { COLOR, NAMES, NO_ITEM, ITEM_PATTERN, SHAPE, flagCanvas, iconURL, shieldPixels, shieldIconURL, tooltip, layersOf, baseOf, refresh, frame, clear, placed, dropTag, ominous, isBanner };
 })();
 
 /* The loom: banner, dye and an optional pattern item; pick a pattern, take the result. */

@@ -150,7 +150,7 @@ const RARITY = ['#ffffff', '#ffff55', '#55ffff', '#ff55ff'];
 function iconHTML(s, opts) {
   if (!s) return '';
   const it = ITEMS[s.id], S = GUI.S, size = 16 * S;
-  const custom = s.tag && s.tag.patterns && typeof Banners !== 'undefined' && it.name.endsWith('_banner') ? `background-image:url(${Banners.iconURL(s)});background-size:100% 100%;background-position:0 0;-webkit-mask:none;mask:none;` : '';
+  const cu = Icons.customURL(s), custom = cu ? `background-image:url(${cu});background-size:100% 100%;background-position:0 0;-webkit-mask:none;mask:none;` : '';
   let h = `<div class="icon${enchOf(s) || it.name === 'enchanted_golden_apple' || it.name === 'enchanted_book' || it.name === 'nether_star' || it.name === 'experience_bottle' || it.name === 'end_crystal' ? ' glint' : ''}" style="${custom || Icons.style(s.id, size)}width:${size}px;height:${size}px"></div>`;
   if (it.dur && s.dmg > 0) { const f = 1 - s.dmg / it.dur, w = Math.round(13 * f); const col = `hsl(${Math.round(f * 120)},100%,50%)`; h += `<div class="dura"><i style="width:${w * S}px;background:${col}"></i></div>`; }
   if (s.count > 1 || (s.count !== 1 && s.count !== undefined)) h += `<div class="count${s.count <= 0 ? ' red' : ''}">${s.count}</div>`;
@@ -169,6 +169,7 @@ function tooltipHTML(s) {
   if (s.tag && s.tag.potion && typeof Potions !== 'undefined') h += Potions.tooltip(s);
   if (s.tag && s.tag.trim && typeof SmithingScreen !== 'undefined') h += SmithingScreen.trimTooltip(s);
   if (s.tag && s.tag.patterns && typeof Banners !== 'undefined') h += Banners.tooltip(s);
+  if (s.tag && s.tag.banner && it.name === 'shield' && typeof Banners !== 'undefined') h += `<div style="color:#aaaaaa">${escapeHTML(itemName(stack(s.tag.banner.base + '_banner')).replace(' Banner', ''))}</div>` + Banners.tooltip({ tag: { patterns: s.tag.banner.patterns || [] } });
   if (it.name === 'filled_map' && typeof Maps !== 'undefined') h += Maps.tooltip(s);
   if (it.name === 'written_book') h += Books.tooltip(s);
   if (it.name === 'decorated_pot') h += Pots.tooltip(s);

@@ -298,7 +298,16 @@ const Cauldron = (() => {
     }
     if (n === 'glass_bottle' && kind === 0 && lvl > 0) { set(lvl - 1, 0); ItemUse.exchange(p, false, stack('potion', 1, { tag: { potion: 'water' } })); Sound.play('bottle_fill', p); return true; }
     if (n === 'potion' && s.tag && s.tag.potion === 'water' && kind === 0 && lvl < 3) { set(lvl + 1, 0); ItemUse.exchange(p, false, stack('glass_bottle')); Sound.play('bottle_empty', p); return true; }
-    if (kind === 0 && lvl > 0 && s && s.tag && s.tag.color && ITEMS[s.id].armor && ITEMS[s.id].armor.mat === 'leather') { delete s.tag.color; set(lvl - 1, 0); p.inv.changed(); return true; }
+    if (kind === 0 && lvl > 0 && s && s.tag && s.tag.color && ((ITEMS[s.id].armor && ITEMS[s.id].armor.mat === 'leather') || n === 'leather_horse_armor' || n === 'wolf_armor')) { delete s.tag.color; set(lvl - 1, 0); p.inv.changed(); Stats.add('custom', 'clean_armor'); return true; }
+    // a banner loses its top pattern (one at a time, like the game's BANNER cauldron interaction)
+    if (kind === 0 && lvl > 0 && n.endsWith('_banner') && s.tag && s.tag.patterns && s.tag.patterns.length) {
+      const washed = Object.assign({}, s, { count: 1, tag: Object.assign({}, s.tag, { patterns: s.tag.patterns.slice(0, -1) }) });
+      if (!washed.tag.patterns.length) delete washed.tag.patterns;
+      if (p.creative) { const left = p.inv.addItem(washed); if (left) ItemUse.drop(p, left); }
+      else if (s.count === 1) p.inv.held = washed;
+      else { s.count--; const left = p.inv.addItem(washed); if (left) ItemUse.drop(p, left); }
+      set(lvl - 1, 0); p.inv.changed(); Stats.add('custom', 'clean_banner'); return true;
+    }
     if (kind === 0 && lvl > 0 && n.endsWith('_shulker_box') && n !== 'shulker_box') { const ns = Object.assign({}, s, { id: IID.shulker_box }); p.inv.held = ns; set(lvl - 1, 0); return true; }
     return false;
   }

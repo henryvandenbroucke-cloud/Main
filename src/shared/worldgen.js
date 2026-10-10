@@ -65,6 +65,8 @@ SHARED.push(function worldgenModule(G) {
       this.seed = seed;
       // world types: default, superflat (bedrock, two dirt, grass) and large biomes (climate noise four times wider)
       this.flat = !!(opts && opts.type === 'flat'); this.bs = opts && opts.type === 'large' ? 4 : 1;
+      // amplified: the land above the sea stretched to the sky (squeezed under this world's ceiling)
+      this.amp = !!(opts && opts.type === 'amplified');
       this.structures = !(opts && opts.structures === false);
       const h = k => hashInt(seed, k, 31, 17);
       this.nC = new Octaves(h(1), 6, 0.5); this.nE = new Octaves(h(2), 5, 0.5); this.nW = new Octaves(h(3), 5, 0.5);
@@ -108,7 +110,8 @@ SHARED.push(function worldgenModule(G) {
       // mushroom islands rise from the deepest oceans
       const mush = C < -0.95 ? smooth(0.42, 0.55, this.nM.n2(x / 180, z / 180)) : 0;
       if (mush > 0) h = h + (SEA + 3 + this.nD.n2(x / 30, z / 30) * 4 - h) * mush;
-      if (h > 150) h = 150 + (h - 150) * 0.55;
+      if (this.amp && h > SEA) { h = SEA + (h - SEA) * 2.2 + Math.max(0, this.nR.n2(x / 90, z / 90)) * 20 * inland; if (h > 140) h = 140 + (h - 140) * 0.45; }
+      else if (h > 150) h = 150 + (h - 150) * 0.55;
       h = Math.round(clamp(h, -40, 186));
       o.h = h; o.C = C; o.E = E; o.PV = PV; o.Wn = Wn; o.T = T; o.Hm = Hm; o.m = m; o.river = river;
       o.biome = this.pickBiome(o, mush > 0.5);

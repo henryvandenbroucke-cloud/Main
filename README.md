@@ -19,7 +19,7 @@ This is a fan project. It is not affiliated with Mojang or Microsoft.
 Then click **Singleplayer → Create New World**. You can pick:
 - the game mode: Survival, Hardcore, Creative or Spectator;
 - the difficulty;
-- the world type: Default or Superflat;
+- the world type: Default, Superflat, Large Biomes or Amplified;
 - how common structures are: More Common (the default, about four times as many) or Normal (the game's own spacing);
 - a seed.
 
@@ -39,7 +39,7 @@ To rebuild the single file after changing the code, run `python3 tools/build_sin
 | 1–9 / wheel | hotbar | T / `/` | chat / commands |
 | L | advancements | F3 | debug screen |
 | F5 | camera view | F1 | hide the HUD |
-| F2 | screenshot | | |
+| F2 | screenshot | Tab | player list |
 
 ## What's in it
 

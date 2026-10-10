@@ -25,9 +25,21 @@ const HUD = (() => {
   }
   function shadowOf(c) { if (c[0] !== '#' || c.length < 7) return '#3f3f3f'; const v = parseInt(c.slice(1), 16); const r = (v >> 16 & 255) >> 2, gg = (v >> 8 & 255) >> 2, b = (v & 255) >> 2; return `rgb(${r},${gg},${b})`; }
   function sprite(name, x, y) { GUI.draw(g, name, x, y, S); }
+  // the player list (Tab): the game's PlayerTabOverlay, a dark box at the top with each player's face, name and
+  // connection bars (a world played alone has just the one player)
+  function playerList(p) {
+    const name = 'Player', nw = Math.ceil(g.measureText(name).width / S) || 36, w = 9 + nw + 2 + 13, x = Math.floor((W - (w + 2) * S) / 2), y = 10 * S;
+    g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(x - S, y - S, (w + 2) * S, 11 * S);
+    g.fillStyle = 'rgba(255,255,255,0.125)'; g.fillRect(x, y, w * S, 8 * S + S);
+    const skin = EntityModels.texture('player').canvas;
+    if (skin) { g.imageSmoothingEnabled = false; g.drawImage(skin, 8, 8, 8, 8, x, y, 8 * S, 8 * S); g.drawImage(skin, 40, 8, 8, 8, x, y, 8 * S, 8 * S); }
+    text(name, x + 9 * S, y, p.spectator ? '#aaaaaa' : '#ffffff');
+    // five green bars: no lag in a world played alone
+    for (let i = 0; i < 5; i++) { const bh = (i + 1) * 1.5; g.fillStyle = '#000'; g.fillRect(x + (w - 11 + i * 2) * S, y + (8 - bh) * S, 2 * S, bh * S); g.fillStyle = '#55ff55'; g.fillRect(x + (w - 11 + i * 2) * S, y + (8 - bh) * S, S, (bh - 0.5) * S); }
+  }
   function item(s, x, y) {
     if (!s) return;
-    Icons.draw(g, s.id, x, y, 16 * S);
+    Icons.drawStack(g, s, x, y, 16 * S);
     const it = ITEMS[s.id];
     if (enchOf(s) || it.name === 'enchanted_golden_apple') { g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.18 + 0.12 * Math.sin(performance.now() / 300); g.fillStyle = '#8040ff'; g.fillRect(x, y, 16 * S, 16 * S); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
     if (it.dur && s.dmg > 0) { const f = 1 - s.dmg / it.dur; g.fillStyle = '#000'; g.fillRect(x + 2 * S, y + 13 * S, 13 * S, 2 * S); g.fillStyle = `hsl(${Math.round(f * 120)},100%,50%)`; g.fillRect(x + 2 * S, y + 13 * S, Math.round(13 * f) * S, S); }
@@ -68,6 +80,7 @@ const HUD = (() => {
     if (titleTime > 0 && title) { g.globalAlpha = Math.min(1, titleTime / 10); text(title, cx, H / 2 - 30 * S, titleColor, { center: true, scale: 4 }); if (sub) text(sub, cx, H / 2 + 8 * S, '#ffffff', { center: true, scale: 2 }); g.globalAlpha = 1; }
     bossBars(cx);
     effects(p);
+    if (Input.isDown('playerList') && !UI.screenOpen()) playerList(p);
     Chat.draw(g, S, H, text);
     Advancements.drawToasts(g, S, W, text);
     if (debug) debugScreen(p);
