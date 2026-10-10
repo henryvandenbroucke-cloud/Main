@@ -5,6 +5,7 @@ const UI = (() => {
   const root = document.getElementById('menus');
   let page = null, game = false, screen = null;
   const SPLASHES = ['Also try terraria!', 'Pixels!', 'Now in your browser!', '100% blocks!', 'Punch a tree!', 'Watch out for creepers!', 'Diamonds at Y -59!', 'Made in JavaScript!', 'Survive the night!', 'Hello, world!', 'Ender Dragon awaits!', 'Redstone inside!', 'The cake is real!', 'Sheep come in 16 colours!', 'Don\'t dig straight down!', 'Not a shader pack!', 'Plain and simple!', 'As seen on your screen!', 'Infinite worlds!', 'Bring a torch!'];
+  const packName = () => { const st = SoundPack.status(); return st.loaded ? 'Minecraft' : st.pending ? 'Reconnect...' : 'Built-in'; };
   const btn = (label, act, o) => `<div class="mbtn${o && o.off ? ' off' : ''}${o && o.small ? ' small' : ''}" data-act="${act}"${o && o.w ? ` style="width:calc(var(--s)*${o.w})"` : ''}>${label}</div>`;
   function show(name, data) {
     if (name === 'title' && !Game.running) Panorama.start();
@@ -56,7 +57,17 @@ const UI = (() => {
       <div class="mbottom">${btn('Done', 'options')}</div>`,
     sounds: () => `<div class="mtitle">Music & Sound Options</div><div class="mcol wide grid2">
       ${slider('vMaster', 'Master Volume', 0, 1, 0.01, pct)}${slider('vMusic', 'Music', 0, 1, 0.01, pct)}${slider('vSfx', 'Blocks, Mobs & Players', 0, 1, 0.01, pct)}${slider('vAmbient', 'Ambient/Environment', 0, 1, 0.01, pct)}
-      ${btn('Subtitles: ' + (Settings.subtitles ? 'ON' : 'OFF'), 'tsubs', { w: 150 })}</div><div class="mbottom">${btn('Done', 'options')}</div>`,
+      ${btn('Subtitles: ' + (Settings.subtitles ? 'ON' : 'OFF'), 'tsubs', { w: 150 })}${btn('Sounds: ' + packName(), 'soundpack', { w: 150 })}</div><div class="mbottom">${btn('Done', 'options')}</div>`,
+    // the real game's sounds, from the player's own copy of Minecraft
+    soundpack: d => { const st = SoundPack.status(); return `<div class="mtitle">Minecraft Sounds</div><div class="mcol wide packinfo">
+      <div class="mtext">Play the real sounds and music from <b>your own copy of Minecraft: Java Edition</b> instead of the built-in ones.
+      Pick your <b>.minecraft</b> folder (or the <b>assets</b> folder inside it). Start the game once in the Minecraft launcher first, so the sounds are downloaded.</div>
+      <div class="mtext small">Windows: <code>%APPDATA%\.minecraft</code> &nbsp; macOS: <code>~/Library/Application Support/minecraft</code> &nbsp; Linux: <code>~/.minecraft</code><br>
+      A resource pack folder with its own sounds works too. The files stay on your computer: nothing is copied or uploaded.${st.canRemember ? '' : ' This browser can\'t remember the folder, so you pick it again each time.'}</div>
+      <div class="mtext status">${escapeHTML(d.msg || (st.loading ? 'Loading...' : st.loaded ? `Using ${st.count} sound events from "${st.label}".` : st.pending ? 'Your Minecraft folder was picked before. Click Reconnect to use it again.' : 'Using the built-in sounds.'))}</div>
+      <div class="mrow">${btn('Choose Folder...', 'packpick', { w: 150 })}${st.pending ? btn('Reconnect', 'packreconnect', { w: 150 }) : btn('Use Built-in Sounds', 'packoff', { w: 150, off: !st.loaded })}</div>
+      ${st.canRemember ? `<div class="mrow">${btn('Folder Won\'t Open? Upload It Instead...', 'packupload', { w: 304 })}</div>` : ''}
+      </div><div class="mbottom">${btn('Done', 'sounds')}</div>`; },
     access: () => `<div class="mtitle">Accessibility Settings</div><div class="mcol wide grid2">
       ${btn('Auto-Jump: ' + (Settings.autoJump ? 'ON' : 'OFF'), 'tajump', { w: 150 })}${btn('Sprint: ' + (Settings.toggleSprint ? 'Toggle' : 'Hold'), 'tsprint', { w: 150 })}
       ${btn('Sneak: ' + (Settings.toggleCrouch ? 'Toggle' : 'Hold'), 'tsneak', { w: 150 })}${btn('Subtitles: ' + (Settings.subtitles ? 'ON' : 'OFF'), 'tsubs', { w: 150 })}</div>
@@ -114,7 +125,7 @@ const UI = (() => {
       case 'optback': show(optionsFrom === 'pause' ? 'pause' : 'title'); break;
       case 'quit': show('confirm', { title: 'Quit Game?', text: 'You can close this browser tab to quit.', yes: 'OK', no: 'Back' }); confirmFn = () => show('title'); break;
       case 'back': show('title'); break;
-      case 'video': case 'controls': case 'sounds': case 'access': show(a); break;
+      case 'video': case 'controls': case 'sounds': case 'access': case 'soundpack': show(a); break;
       case 'create': createData = { name: 'New World', mode: 'survival', difficulty: 'normal', cheats: false, seed: '', structures: true, density: 'more', type: 'default' }; show('create', createData); break;
       case 'cmode': readCreate(); createData.mode = { survival: 'hardcore', hardcore: 'creative', creative: 'survival' }[createData.mode]; if (createData.mode === 'creative') createData.cheats = true; if (createData.mode === 'hardcore') createData.cheats = false; show('create', createData); break;
       case 'cdiff': readCreate(); if (createData.mode === 'hardcore') break; createData.difficulty = { peaceful: 'easy', easy: 'normal', normal: 'hard', hard: 'peaceful' }[createData.difficulty]; show('create', createData); break;
@@ -134,7 +145,14 @@ const UI = (() => {
       case 'savequit': await Save.saveGame(); Game.stop(); game = false; Screens.close(true); show('title'); Sound.music && Sound.music('menu'); break;
       case 'respawn': Game.player.respawn(); hide(); Input.requestLock(); break;
       case 'spectate': Game.player.respawn(); Game.player.setGamemode('spectator'); hide(); Input.requestLock(); break;
-      case 'deathtitle': if (Game.hardcore) { await Save.deleteWorld(Game.worldId); } else { Game.player.respawn(); await Save.saveGame(); } Game.stop(); game = false; show('title'); break;
+      case 'deathtitle': if (Game.hardcore) { await Save.deleteWorld(Game.worldId); } else { Game.player.respawn(); await Save.saveGame(); } Game.stop(); game = false; show('title'); Sound.music('menu'); break;
+      case 'packpick': case 'packupload': case 'packreconnect': {
+        show('soundpack', { msg: 'Looking for sounds...' });
+        try { const r = a === 'packreconnect' ? await SoundPack.reconnect() : await SoundPack.pick(a === 'packupload'); show('soundpack', { msg: r ? `Found ${r.count} sound events in "${r.label}". The game now uses them.` : '' }); if (r && !game) Sound.music('menu'); }
+        catch (e) { show('soundpack', { msg: e.message || String(e) }); }
+        break;
+      }
+      case 'packoff': SoundPack.clear(); show('soundpack', { msg: 'Using the built-in sounds again.' }); break;
       case 'odiff': if (!game || Game.hardcore) break; Game.difficulty = { peaceful: 'easy', easy: 'normal', normal: 'hard', hard: 'peaceful' }[Game.difficulty]; show('options'); break;
       case 'advancements': show('advancements'); break;
       case 'stats': show('stats'); break;

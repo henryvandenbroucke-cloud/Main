@@ -7,6 +7,7 @@ A browser recreation of plain vanilla **Minecraft: Java Edition 1.21**, written 
 - The game's rules come from the game's own data: recipes, loot tables, tags, hardness, drops, biomes, spawn lists, structure placement, trial spawner configs and advancements.
 - Behaviour was checked against the game's code and the Minecraft Wiki.
 - Textures, models, sounds and music are all made in code. No Mojang files are included.
+- **Real game sounds (optional):** if you own Minecraft: Java Edition, **Options → Music & Sounds → Sounds** can use the sound files from your own `.minecraft` folder (or a resource pack). It reads them from your computer and doesn't copy or upload them. Chrome and Edge remember the folder for next time.
 
 This is a fan project. It is not affiliated with Mojang or Microsoft.
 

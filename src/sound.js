@@ -4,32 +4,65 @@
    instruments, rain and thunder, and quiet generative piano music that plays now and then like the game's.
    Sounds fade with distance (up to 16 blocks, further for loud ones) and pan left or right. */
 const Sound = (() => {
-  let ac = null, master = null, cats = {}, noiseBuf = null, ready = false;
+  let ac = null, master = null, cats = {}, noiseBuf = null, ready = false, probe = null, probeBuf = null;
+  let pack = null; // real sound files from the player's own copy of the game (SoundPack), when loaded
   const SUBS = [];
   function init() {
     if (ac) return;
     try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
     master = ac.createGain(); master.connect(ac.destination);
+    // a tap on the output to notice when the audio has died (see watch())
+    probe = ac.createAnalyser(); probe.fftSize = 256; probeBuf = new Float32Array(probe.fftSize); master.connect(probe);
     for (const k of ['music', 'sfx', 'ambient', 'ui', 'records']) { cats[k] = ac.createGain(); cats[k].connect(master); }
     const n = ac.sampleRate * 2; noiseBuf = ac.createBuffer(1, n, ac.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
     volumes(); ready = true;
+    if (pack && pack.attach) pack.attach(ac, cats);
   }
-  addEventListener('mousedown', () => { init(); if (ac && ac.state === 'suspended') ac.resume(); }, true);
-  addEventListener('keydown', () => { init(); if (ac && ac.state === 'suspended') ac.resume(); }, true);
-  function volumes() { if (!ac) return; master.gain.value = Settings.vMaster; cats.music.gain.value = Settings.vMusic * 0.6; cats.sfx.gain.value = Settings.vSfx; cats.ambient.gain.value = Settings.vAmbient; cats.ui.gain.value = 1; cats.records.gain.value = Settings.vMusic; }
+  const wake = () => { init(); if (ac && ac.state !== 'running' && ac.state !== 'closed') ac.resume().catch(() => {}); };
+  addEventListener('mousedown', wake, true);
+  addEventListener('keydown', wake, true);
+  addEventListener('visibilitychange', () => { if (!document.hidden && ac) wake(); });
+  // throw the whole audio graph away and start again (everything playing stops; the next sounds play normally)
+  function rebuild(why) {
+    console.warn('Sound: restarting audio (' + why + ')');
+    const old = ac; ready = false; ac = null; rainNode = null; musicPlaying = false; piece = null; discs.clear(); voices.length = 0;
+    if (pack && pack.detach) pack.detach();
+    try { old && old.close(); } catch (e) { /* already gone */ }
+    init();
+  }
+  // the audio watchdog, once a second: wake a suspended context, and rebuild one whose clock has stopped or
+  // whose output has gone bad (a single NaN in a filter's memory silences everything after it for good)
+  let lastCheck = 0, lastClock = -1, stalled = 0;
+  function watch(now) {
+    if (!ac || now - lastCheck < 1000) return;
+    lastCheck = now;
+    if (ac.state === 'suspended' || ac.state === 'interrupted') { ac.resume().catch(() => {}); return; }
+    if (ac.state !== 'running') return;
+    if (ac.currentTime === lastClock) { if (++stalled >= 3) { stalled = 0; rebuild('the audio clock stopped'); } return; }
+    stalled = 0; lastClock = ac.currentTime;
+    probe.getFloatTimeDomainData(probeBuf);
+    for (let i = 0; i < probeBuf.length; i++) if (!Number.isFinite(probeBuf[i])) { rebuild('bad samples in the output'); return; }
+  }
+  // no more than this many sounds starting within a quarter of a second (a crowd of mobs can't flood the mixer)
+  const voices = [];
+  function voiceFree() { const now = performance.now(); while (voices.length && now - voices[0] > 250) voices.shift(); if (voices.length >= 40) return false; voices.push(now); return true; }
+  // run a piece of sound code without letting a failure reach the game
+  let warned = 0;
+  function safe(f) { try { return f(); } catch (e) { if (warned++ < 5) console.warn('Sound:', e); return undefined; } }
+  function volumes() { if (!ac) return; master.gain.value = Settings.vMaster; cats.music.gain.value = Settings.vMusic * 0.6; cats.sfx.gain.value = Settings.vSfx; cats.ambient.gain.value = Settings.vAmbient; cats.ui.gain.value = 1; cats.records.gain.value = Settings.vMusic; if (pack && pack.volumes) pack.volumes(); }
   const T = () => ac.currentTime;
   // ---------------------------------------------------------------- building blocks
   function out(cat, x, y, z, vol, range) {
-    const g = ac.createGain(); g.gain.value = vol;
-    if (x === undefined || x === null) { g.connect(cats[cat || 'sfx']); return g; }
+    const g = ac.createGain(); g.gain.value = Number.isFinite(vol) ? vol : 1;
+    if (cat !== 'music' && cat !== 'records' && !voiceFree()) return g; // too many at once: this one stays silent
+    if (x === undefined || x === null || !Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) { g.connect(cats[cat || 'sfx']); return g; }
     // distance: linear fade to the range; pan from the angle to the listener's view
     const cam = camera.position, dx = x - cam.x, dy = y - cam.y, dz = z - cam.z, d = Math.hypot(dx, dy, dz);
     const r = range || 16, att = Math.max(0, 1 - d / r);
-    if (att <= 0) { g.gain.value = 0; }
-    g.gain.value = vol * att;
+    const gv = (Number.isFinite(vol) ? vol : 1) * att; g.gain.value = Number.isFinite(gv) ? gv : 0;
     const p = Game.player, yaw = p ? p.yaw : 0;
     const rx = Math.cos(yaw), rz = -Math.sin(yaw); // the right-hand direction
-    const pan = d > 0.5 ? Math.max(-1, Math.min(1, (dx * rx + dz * rz) / d)) * 0.8 : 0;
+    let pan = d > 0.5 ? Math.max(-1, Math.min(1, (dx * rx + dz * rz) / d)) * 0.8 : 0; if (!Number.isFinite(pan)) pan = 0;
     let node = g;
     if (ac.createStereoPanner) { const sp = ac.createStereoPanner(); sp.pan.value = pan; g.connect(sp); node = sp; }
     node.connect(cats[cat || 'sfx']);
@@ -70,23 +103,74 @@ const Sound = (() => {
     glass: { f: 3500, q: 2, type: 'bandpass', dur: 0.08, ring: [2600, 3900] }, amethyst: { f: 3000, q: 3, type: 'bandpass', dur: 0.1, ring: [1800, 2700, 3600] }, coral: { f: 1600, q: 1, type: 'bandpass', dur: 0.1 },
     metal: { f: 2400, q: 3, type: 'bandpass', dur: 0.1, ring: [1250, 1870] }, lantern: { f: 2400, q: 3, type: 'bandpass', dur: 0.08, ring: [1600, 2300] }, chain: { f: 3000, q: 2, type: 'bandpass', dur: 0.08, ring: [2200, 3300] }, anvil: { f: 2000, q: 3, type: 'bandpass', dur: 0.2, ring: [700, 1050, 1600] },
   };
-  function material(id) { const d = BLOCKS[id]; if (!d) return MAT.stone; if (d.sound && MAT[d.sound]) return MAT[d.sound]; const n = d.name; if (n.endsWith('_leaves') || d.model === 'cross') return MAT.grass; if (n.includes('glass')) return MAT.glass; if (n.endsWith('_wool') || n.endsWith('_carpet')) return MAT.wool; if (n.includes('dirt') || n === 'farmland' || n === 'clay' || n === 'podzol' || n === 'mycelium' || n === 'grass_block') return MAT.gravel; return MAT.stone; }
+  function material(id) { const d = BLOCKS[id]; if (!d) return MAT.stone; if (d.sound && MAT[d.sound]) return MAT[d.sound]; const n = d.name; if (n.endsWith('_leaves') || d.model === 'cross') return MAT.grass; if (n.includes('glass')) return MAT.glass; if (n.endsWith('_wool') || n.endsWith('_carpet')) return MAT.wool; if (n === 'grass_block' || n === 'mycelium') return MAT.grass; if (n.includes('dirt') || n === 'farmland' || n === 'clay' || n === 'podzol') return MAT.gravel; return MAT.stone; }
   // one block sound: kind 'break' | 'place' | 'hit' | 'step'
   function blockSound(id, x, y, z, kind) {
     if (!ready) return;
-    const m = material(id);
+    if (pack && safe(() => pack.block(id, kind, x, y, z))) return;
+    safe(() => blockSynth(id, x, y, z, kind));
+  }
+  // each material family has its own recipe, so stone, wood, grass, gravel, sand, snow, wool, glass and metal
+  // sound clearly different from each other: hard clicks, hollow knocks, rustles, crunches, hisses and rings
+  const FAMILY = { wood: 'wood', nether_wood: 'wood', bamboo_wood: 'wood', ladder: 'wood', scaffolding: 'wood', bamboo: 'wood', stem: 'wood', mangrove_roots: 'wood',
+    gravel: 'gravel', nylium: 'gravel', grass: 'grass', wet_grass: 'grass', vine: 'grass', roots: 'grass', azalea: 'grass', fungus: 'grass', big_dripleaf: 'grass',
+    sand: 'sand', soul_sand: 'sand', soul_soil: 'sand', snow: 'snow', wool: 'soft', sponge: 'soft', moss: 'soft', wart: 'soft', shroomlight: 'soft',
+    mud: 'squish', honey: 'squish', slime: 'squish', glass: 'glass', amethyst: 'glass', metal: 'metal', lantern: 'metal', chain: 'metal', anvil: 'metal' };
+  const MAT_KEY = new Map(Object.entries(MAT).map(([k, v]) => [v, k]));
+  function blockSynth(id, x, y, z, kind) {
+    const m = material(id), fam = FAMILY[MAT_KEY.get(m)] || 'hard';
     const vol = { break: 1, place: 1, hit: 0.25, step: 0.15, fall: 0.5 }[kind] || 1;
-    const pitch = { break: 0.8, place: 0.8, hit: 0.5, step: 1, fall: 0.75 }[kind] || 1;
-    const t0 = T(), dest = out('sfx', x, y, z, vol);
-    const dur = m.dur * (kind === 'break' || kind === 'place' ? 1.6 : 1) * (2 - pitch);
-    const f = m.f * pitch * rp(0.85, 1.15);
-    const grains = (m.grains || 1) + (kind === 'break' ? 1 : 0);
-    for (let i = 0; i < grains; i++) noise(dest, t0 + i * dur * 0.35, dur * (i ? 0.6 : 1), m.type, f * rp(0.8, 1.2), m.q, (m.soft ? 0.35 : 0.5) / (i ? 2 : 1));
-    if (m.thump) tone(dest, t0, 'sine', m.thump * pitch, 0.06, 0.35, { to: m.thump * 0.5 });
-    if (m.knock) { tone(dest, t0, 'triangle', m.knock * pitch * rp(0.9, 1.1), 0.07, 0.35, { to: m.knock * 0.7 }); }
-    if (m.ring) for (const r of m.ring) tone(dest, t0, 'sine', r * pitch * rp(0.97, 1.03), kind === 'break' ? 0.35 : 0.15, kind === 'break' && m === MAT.glass ? 0.1 : 0.07);
-    if (m === MAT.glass && kind === 'break') for (let i = 0; i < 6; i++) noise(dest, t0 + i * 0.03, 0.06, 'highpass', 4000 + i * 300, 1, 0.2);
-    if (m.squish) tone(dest, t0, 'sine', 180, 0.12, 0.3, { to: 90 });
+    const pitch = ({ break: 0.8, place: 0.8, hit: 0.5, step: 1, fall: 0.75 }[kind] || 1) * rp(0.9, 1.1);
+    const t0 = T(), d = out('sfx', x, y, z, vol), big = kind === 'break' || kind === 'place', f = m.f * pitch;
+    const grains = (n, span, lo, hi, type, q, peak, len) => { for (let i = 0; i < n; i++) noise(d, t0 + Math.random() * span, len * rp(0.7, 1.3), type, rp(lo, hi) * pitch, q, peak * rp(0.6, 1)); };
+    switch (fam) {
+      case 'hard': // a sharp click with a stony body, and crumbles when it breaks
+        noise(d, t0, 0.035, 'bandpass', f * 1.2, 1.4, 0.6, 0.001);
+        noise(d, t0 + 0.006, big ? 0.12 : 0.07, 'bandpass', f * 0.55, 1.8, 0.35, 0.002);
+        if (m.thump) tone(d, t0, 'sine', m.thump * pitch, 0.05, 0.3, { to: m.thump * 0.6 });
+        if (big) grains(kind === 'break' ? 6 : 3, 0.14, 1500, 3500, 'bandpass', 3, 0.22, 0.02);
+        break;
+      case 'wood': // a hollow knock: a resonant body and a short pitched thunk
+        noise(d, t0, big ? 0.1 : 0.06, 'bandpass', f, 7, 0.9, 0.001);
+        tone(d, t0, 'triangle', (m.knock || 260) * pitch, big ? 0.09 : 0.06, 0.4, { to: (m.knock || 260) * pitch * 0.75 });
+        tone(d, t0, 'sine', (m.knock || 260) * pitch * 2.4, 0.04, 0.12);
+        if (kind === 'break') { noise(d, t0 + 0.05, 0.08, 'bandpass', f * 1.4, 5, 0.4, 0.001); grains(3, 0.12, 900, 1800, 'bandpass', 4, 0.2, 0.025); }
+        break;
+      case 'grass': // a soft rustle of leaves and stalks
+        grains(big ? 7 : 4, big ? 0.16 : 0.1, 2500, 5500, 'highpass', 0.8, 0.3, 0.03);
+        noise(d, t0, big ? 0.14 : 0.08, 'lowpass', 1100 * pitch, 0.7, 0.12, 0.01);
+        break;
+      case 'gravel': // a gritty crunch of many small stones
+        grains(big ? 11 : 6, big ? 0.17 : 0.1, 700, 2600, 'bandpass', 3.5, 0.45, 0.018);
+        noise(d, t0, big ? 0.12 : 0.07, 'lowpass', 700 * pitch, 1, 0.2, 0.005);
+        break;
+      case 'sand': // a smooth sliding hiss with a little grain in it
+        noise(d, t0, big ? 0.2 : 0.13, 'bandpass', f, 0.6, 0.3, 0.025);
+        grains(big ? 5 : 3, 0.12, 2500, 5000, 'highpass', 1, 0.12, 0.015);
+        break;
+      case 'snow': // a muffled, squeaky crunch
+        grains(big ? 6 : 4, big ? 0.15 : 0.1, 600, 1600, 'lowpass', 2, 0.35, 0.03);
+        tone(d, t0 + 0.01, 'sine', 900 * pitch, 0.04, 0.05, { to: 1300 * pitch });
+        break;
+      case 'soft': // wool and moss: a dull, padded thump
+        noise(d, t0, big ? 0.12 : 0.08, 'lowpass', 450 * pitch, 0.8, 0.5, 0.008);
+        tone(d, t0, 'sine', 110 * pitch, 0.06, 0.15, { to: 70 });
+        break;
+      case 'squish': // mud, honey and slime: a wet squelch
+        tone(d, t0, 'sine', 220 * pitch, 0.12, 0.35, { to: 90 * pitch });
+        noise(d, t0, 0.12, 'lowpass', 600 * pitch, 3, 0.25, 0.01);
+        break;
+      case 'glass': // a bright tinkle (and shards when it breaks)
+        noise(d, t0, 0.04, 'highpass', 3500 * pitch, 1, 0.35, 0.001);
+        for (const r of (m.ring || [2600, 3900])) tone(d, t0, 'sine', r * pitch * rp(0.97, 1.03), kind === 'break' ? 0.4 : 0.15, kind === 'break' ? 0.1 : 0.06);
+        if (kind === 'break') for (let i = 0; i < 8; i++) { noise(d, t0 + 0.02 + Math.random() * 0.2, 0.04, 'highpass', rp(4000, 7000), 2, 0.2); tone(d, t0 + 0.03 + Math.random() * 0.25, 'sine', rp(3000, 6000), 0.06, 0.04); }
+        break;
+      case 'metal': // a hard clank with a metallic ring
+        noise(d, t0, 0.04, 'bandpass', f, 3, 0.45, 0.001);
+        for (const r of (m.ring || [1250, 1870])) tone(d, t0, 'sine', r * pitch * rp(0.98, 1.02), big ? 0.4 : 0.18, 0.08);
+        tone(d, t0, 'square', 180 * pitch, 0.03, 0.08, { lp: 1200 });
+        break;
+    }
   }
   // ---------------------------------------------------------------- named sounds
   const N = {};
@@ -280,7 +364,8 @@ const Sound = (() => {
   N.iron_golem_attack = d => { noise(d, T(), 0.15, 'lowpass', 600, 1, 0.5); tone(d, T(), 'sine', 90, 0.2, 0.5, { to: 50 }); };
   function blockSoundTo(d, id, kind) { blockSound(id, undefined, undefined, undefined, kind); }
   // ---------------------------------------------------------------- the public API
-  function play(name, e, o) {
+  function play(name, e, o) { safe(() => play0(name, e, o)); }
+  function play0(name, e, o) {
     // the sounds of things that sculk sensors and wardens can feel (game events)
     if (EV[name] && typeof GameEvents !== 'undefined' && Game && Game.player) {
       const ev = typeof EV[name] === 'function' ? EV[name](o || {}) : EV[name];
@@ -290,6 +375,7 @@ const Sound = (() => {
     o = o || {};
     let [x, y, z] = at(e, o);
     if (e && e.isPlayer && e === Game.player) x = undefined; // the player's own sounds are not positioned
+    if (pack && safe(() => pack.play(name, x, y, z, o, e))) { if (o.subtitle !== false) subtitle(name, x, y, z); return; }
     const mobKey = name.replace(/_(hurt|death|ambient|say|eat)$/, ''), kind = (name.match(/_(hurt|death|ambient|say)$/) || [])[1];
     if (kind && (MOB[mobKey] || o.mob)) {
       const v = MOB[mobKey] || MOB.generic, fn = kind === 'ambient' ? v.say : v[kind] || v.hurt;
@@ -305,7 +391,8 @@ const Sound = (() => {
     fn(d, o);
     subtitle(name, x, y, z);
   }
-  function step(e) {
+  function step(e) { safe(() => step0(e)); }
+  function step0(e) {
     const x = Math.floor(e.x), y = Math.floor(e.y - 0.2), z = Math.floor(e.z);
     let id = World.getBlock(x, y, z); const above = World.getBlock(x, y + 1, z);
     if (BLOCKS[above].name === 'snow' || BLOCKS[above].model === 'carpet') id = above;
@@ -405,9 +492,9 @@ const Sound = (() => {
     if (!ready || musicPlaying) return;
     musicPlaying = true;
     const dest = ac.createGain(); dest.gain.value = 0.9;
-    // a soft echo for space
-    const dl = ac.createDelay(1); dl.delayTime.value = 0.38; const fb = ac.createGain(); fb.gain.value = 0.32; const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800;
-    dest.connect(cats.music); dest.connect(dl); dl.connect(lp); lp.connect(fb); fb.connect(dl); lp.connect(cats.music);
+    // a soft echo for space: three fading taps (no feedback loop, which could keep a bad sample circling forever)
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800; dest.connect(cats.music); dest.connect(lp);
+    const taps = [[0.38, 0.32], [0.76, 0.1], [1.14, 0.03]].map(([t, v]) => { const dl = ac.createDelay(2), g = ac.createGain(); dl.delayTime.value = t; g.gain.value = v; lp.connect(dl); dl.connect(g); g.connect(cats.music); return [dl, g]; });
     const scale = SCALES[Math.floor(Math.random() * SCALES.length)], root = 48 + Math.floor(Math.random() * 7), tempo = rp(0.55, 0.85);
     let t = T() + 0.5; const bars = 24 + Math.floor(Math.random() * 16);
     const chordAt = b => [0, 3, 4, 5, 2, 4][b % 6];
@@ -418,14 +505,24 @@ const Sound = (() => {
       for (let k = 0; k < 4; k++) if (Math.random() < 0.55) { const n = root + 12 + scale[(deg + Math.floor(Math.random() * 5)) % scale.length] + (Math.random() < 0.2 ? 12 : 0); pianoNote(dest, t + k * tempo + (Math.random() < 0.3 ? tempo / 2 : 0), n, tempo * 3, rp(0.4, 0.8)); }
       t += tempo * 4;
     }
-    setTimeout(() => { musicPlaying = false; }, (t - T() + 4) * 1000);
+    const ctx = ac, end = () => { if (ctx !== ac || piece !== me) return; piece = null; musicPlaying = false; try { dest.disconnect(); lp.disconnect(); for (const [dl, g] of taps) { dl.disconnect(); g.disconnect(); } } catch (e) { /* the graph was rebuilt */ } };
+    const me = { end }; piece = me;
+    setTimeout(end, (t - T() + 4) * 1000);
   }
-  function music(mode) { musicMode = mode; nextMusic = mode === 'menu' ? performance.now() + 2000 : performance.now() + rp(60, 180) * 1000; }
+  let piece = null;
+  // stop the generated piece now (when the game's real music takes over)
+  function stopPiece() { if (piece) piece.end(); }
+  function music(mode) { if (mode !== musicMode && pack) pack.stopMusic(); musicMode = mode; nextMusic = mode === 'menu' ? performance.now() + 2000 : performance.now() + rp(60, 180) * 1000; }
+  function startMusic(now) { if (musicMode && !musicPlaying && now > nextMusic && !(pack && pack.musicBusy())) { if (!(pack && pack.music(musicMode))) playPiece(); nextMusic = now + (musicMode === 'menu' ? rp(20, 60) : rp(600, 1200)) * 1000; } }
+  // outside a world (the title screen and menus) nothing calls tick, so the watchdog and the menu music run here
+  setInterval(() => safe(() => { const now = performance.now(); if (typeof Game !== 'undefined' && Game.running) return; watch(now); if (ready && musicMode === 'menu') startMusic(now); }), 500);
   // ---------------------------------------------------------------- music discs (a short generated tune per disc)
   const discs = new Map();
-  function playDisc(name, x, y, z) {
+  function playDisc(name, x, y, z) { safe(() => playDisc0(name, x, y, z)); }
+  function playDisc0(name, x, y, z) {
     if (!ready) return;
     stopDisc(x, y, z);
+    if (pack && pack.disc(name, x + 0.5, y + 0.5, z + 0.5, x + ',' + y + ',' + z)) return;
     const dest = out('records', x + 0.5, y + 0.5, z + 0.5, 1, 64);
     let seed = 0; for (const c of name) seed = (seed * 31 + c.charCodeAt(0)) | 0;
     const r = new Rand(seed), scale = SCALES[r.int(SCALES.length)], root = 52 + r.int(10), tempo = 0.25 + r.next() * 0.2;
@@ -433,7 +530,7 @@ const Sound = (() => {
     for (let i = 0; i < 160; i++) { const n = root + scale[r.int(scale.length)] + (r.next() < 0.3 ? 12 : 0); notes.push(n); const os = tone(dest, t, r.next() < 0.5 ? 'square' : 'triangle', 440 * Math.pow(2, (n - 69) / 12), tempo * 0.9, 0.06, { lp: 2500 }); void os; if (i % 4 === 0) tone(dest, t, 'triangle', 440 * Math.pow(2, (root - 12 + scale[r.int(scale.length)] - 69) / 12), tempo * 3.5, 0.08); t += tempo; }
     discs.set(x + ',' + y + ',' + z, dest);
   }
-  function stopDisc(x, y, z) { const k = x + ',' + y + ',' + z, d = discs.get(k); if (d) { d.gain.value = 0; d.disconnect(); discs.delete(k); } }
+  function stopDisc(x, y, z) { const k = x + ',' + y + ',' + z, d = discs.get(k); if (d) { d.gain.value = 0; d.disconnect(); discs.delete(k); } if (pack) safe(() => pack.stopDisc(k)); }
   // ---------------------------------------------------------------- note blocks (the game's instruments, pitch 2^((note-12)/12))
   const INSTR = {
     harp: (d, f) => { tone(d, T(), 'triangle', f, 0.8, 0.3, { lp: 3000, lpTo: 900 }); }, bass: (d, f) => tone(d, T(), 'triangle', f / 4, 0.6, 0.45, { lp: 800 }), basedrum: d => tone(d, T(), 'sine', 120, 0.2, 0.6, { to: 45 }),
@@ -442,27 +539,36 @@ const Sound = (() => {
     xylophone: (d, f) => tone(d, T(), 'sine', f * 2, 0.25, 0.4), iron_xylophone: (d, f) => { tone(d, T(), 'sine', f, 0.6, 0.3); tone(d, T(), 'sine', f * 3, 0.3, 0.1); }, cow_bell: (d, f) => { tone(d, T(), 'square', f, 0.3, 0.12, { lp: 2500 }); tone(d, T(), 'square', f * 1.48, 0.3, 0.08, { lp: 2500 }); },
     didgeridoo: (d, f) => tone(d, T(), 'sawtooth', f / 4, 0.8, 0.3, { lp: 700, vib: [6, 3] }), bit: (d, f) => tone(d, T(), 'square', f, 0.4, 0.15), banjo: (d, f) => tone(d, T(), 'sawtooth', f, 0.35, 0.2, { lp: 2500, lpTo: 600 }), pling: (d, f) => { tone(d, T(), 'sine', f, 0.8, 0.3); tone(d, T(), 'triangle', f * 2, 0.4, 0.1); },
   };
-  function note(instr, n, x, y, z) { if (!ready) return; const f = 370 * Math.pow(2, (n - 12) / 12); const d = out('records', x + 0.5, y + 0.5, z + 0.5, 1, 48); (INSTR[instr] || INSTR.harp)(d, f); }
+  function note(instr, n, x, y, z) { if (!ready) return; if (pack && safe(() => pack.note(instr, n, x + 0.5, y + 0.5, z + 0.5))) return; safe(() => { const f = 370 * Math.pow(2, (n - 12) / 12); const d = out('records', x + 0.5, y + 0.5, z + 0.5, 1, 48); (INSTR[instr] || INSTR.harp)(d, f); }); }
   // ---------------------------------------------------------------- ambience: rain, thunder, caves
-  let rainNode = null, caveTimer = 6000 + Math.floor(Math.random() * 6000);
-  function tick(p) {
-    if (!ready || !p) return;
+  let rainNode = null, rainTimer = 0, caveTimer = 6000 + Math.floor(Math.random() * 6000);
+  function tick(p) { safe(() => tick0(p)); }
+  function tick0(p) {
     const now = performance.now();
-    if (musicMode && !musicPlaying && now > nextMusic) { playPiece(); nextMusic = now + (musicMode === 'menu' ? rp(20, 60) : rp(600, 1200)) * 1000; }
+    watch(now);
+    if (!ready || !p) return;
+    startMusic(now);
+    if (pack) pack.tick(p);
     // mob calls now and then (the game's ambient sound timer: 1 in 1000 chance each tick after the interval)
-    for (const e of Entities.list) if (e.living && !e.dead && e.age % 80 === 0 && Math.random() < 0.15 && e.dist2(p.x, p.y, p.z) < 256) { const v = MOB[e.type]; if (v && v.say) play(e.type + '_ambient', e); if (e.onAmbient) e.onAmbient(); }
+    for (const e of Entities.list) if (e.living && !e.dead && e.age % 80 === 0 && Math.random() < 0.15 && e.dist2(p.x, p.y, p.z) < 256) { const v = MOB[e.type]; if ((v && v.say) || (pack && pack.has('entity.' + e.type + '.ambient'))) play(e.type + '_ambient', e); if (e.onAmbient) e.onAmbient(); }
     // rain on the surface
     const raining = Weather.rain > 0.2 && World.dim === 'overworld';
-    if (raining && !rainNode) { const g = ac.createGain(); g.gain.value = 0; const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true; const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1200; s.connect(f); f.connect(g); g.connect(cats.ambient); s.start(); rainNode = { g, s }; }
+    // with the game's own sounds loaded: its rain clips, a few times a second
+    if (pack && pack.has('weather.rain')) {
+      if (rainNode) { rainNode.s.stop(); rainNode = null; }
+      if (raining && --rainTimer <= 0) { const under = World.skyLight(Math.floor(p.x), Math.floor(p.eyeY), Math.floor(p.z)) < 15; pack.playEvent(under ? 'weather.rain.above' : 'weather.rain', p.x + rp(-6, 6), p.y + (under ? 3 : 0), p.z + rp(-6, 6), 'ambient', (under ? 0.1 : 0.2) * Weather.rain * 5, under ? 0.5 : 1, 24); rainTimer = 4 + Math.floor(Math.random() * 6); }
+    } else if (raining && !rainNode) { const g = ac.createGain(); g.gain.value = 0; const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true; const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1200; s.connect(f); f.connect(g); g.connect(cats.ambient); s.start(); rainNode = { g, s }; }
     if (rainNode) { const under = World.skyLight(Math.floor(p.x), Math.floor(p.eyeY), Math.floor(p.z)) < 15; const want = raining ? Weather.rain * (under ? 0.08 : 0.2) : 0; rainNode.g.gain.value += (want - rainNode.g.gain.value) * 0.05; if (!raining && rainNode.g.gain.value < 0.001) { rainNode.s.stop(); rainNode = null; } }
     // cave sounds: deep in the dark the game plays an eerie sound from time to time
     if (--caveTimer <= 0) {
       const l = World.getLight(Math.floor(p.x), Math.floor(p.eyeY), Math.floor(p.z));
-      if ((l >> 4) === 0 && (l & 15) < 4 && World.dim === 'overworld') { const d = out('ambient', p.x + rp(-8, 8), p.y + rp(-4, 4), p.z + rp(-8, 8), 0.5, 32); tone(d, T(), 'sine', rp(80, 160), 3, 0.25, { attack: 0.8, vib: [0.3, 10], to: rp(60, 120), glide: 3 }); noise(d, T(), 2.5, 'bandpass', rp(300, 700), 6, 0.08, 0.8); caveTimer = 6000 + Math.floor(Math.random() * 12000); }
+      if ((l >> 4) === 0 && (l & 15) < 4 && World.dim === 'overworld' && pack && pack.playEvent('ambient.cave', p.x + rp(-8, 8), p.y + rp(-4, 4), p.z + rp(-8, 8), 'ambient', 0.7, 0.8 + Math.random() * 0.2, 32)) caveTimer = 6000 + Math.floor(Math.random() * 12000);
+      else if ((l >> 4) === 0 && (l & 15) < 4 && World.dim === 'overworld') { const d = out('ambient', p.x + rp(-8, 8), p.y + rp(-4, 4), p.z + rp(-8, 8), 0.5, 32); tone(d, T(), 'sine', rp(80, 160), 3, 0.25, { attack: 0.8, vib: [0.3, 10], to: rp(60, 120), glide: 3 }); noise(d, T(), 2.5, 'bandpass', rp(300, 700), 6, 0.08, 0.8); caveTimer = 6000 + Math.floor(Math.random() * 12000); }
       else caveTimer = 20;
     }
   }
-  function thunder(x, y, z, near) { if (!ready) return; const d = out('ambient', x, y, z, near ? 1 : 0.6, 1e6); const t0 = T() + (near ? 0 : 0.6); noise(d, t0, 3.5, 'lowpass', near ? 900 : 300, 0.7, near ? 1.2 : 0.8, 0.02, (fl, t) => fl.frequency.exponentialRampToValueAtTime(70, t + 3)); tone(d, t0, 'sine', 45, 3, 0.6, { to: 25 }); }
+  function thunder(x, y, z, near) { if (!ready) return; if (pack && safe(() => pack.play('thunder', x, y, z, { near }))) return; safe(() => thunder0(x, y, z, near)); }
+  function thunder0(x, y, z, near) { const d = out('ambient', x, y, z, near ? 1 : 0.6, 1e6); const t0 = T() + (near ? 0 : 0.6); noise(d, t0, 3.5, 'lowpass', near ? 900 : 300, 0.7, near ? 1.2 : 0.8, 0.02, (fl, t) => fl.frequency.exponentialRampToValueAtTime(70, t + 3)); tone(d, t0, 'sine', 45, 3, 0.6, { to: 25 }); }
   return {
     play, step, ui: () => play('ui'), volumes, music, playDisc, stopDisc, note, tick, thunder, subtitles: SUBS,
     // for other modules adding their own sounds: N[name] = d => ..., MOB[type] = { say, hurt, death }
@@ -471,5 +577,8 @@ const Sound = (() => {
     blockHit: (id, x, y, z) => blockSound(id, x + 0.5, y + 0.5, z + 0.5, 'hit'),
     blockPlace: (id, x, y, z) => blockSound(id, x + 0.5, y + 0.5, z + 0.5, 'place'),
     get ready() { return ready; },
+    // the player's own game sounds (see soundpack.js)
+    setPack(p) { pack = p; if (ac && pack && pack.attach) pack.attach(ac, cats); if (pack) { stopPiece(); nextMusic = Math.min(nextMusic, performance.now() + (musicMode === 'menu' ? 1000 : 30000)); } },
+    get pack() { return pack; }, get ctx() { return ac; }, get master() { return master; }, out, rebuild, get musicMode() { return musicMode; },
   };
 })();

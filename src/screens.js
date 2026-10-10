@@ -399,8 +399,48 @@ class ChestScreen extends Screens.Screen {
 }
 
 // the small recipe book button and panel
+// the recipe book button: a green book with a gold label and the pages showing (20x18 pixels, brighter on hover)
+const RecipeBookIcon = (() => {
+  const ART = [
+    '....................',
+    '...KKKKKKKKKKKKKK...',
+    '...KSLLLLLLLLLLLDK..',
+    '...KSLGGGGGGGGGGDPK.',
+    '...KSLGGGGGGGGGGDPK.',
+    '...KSLGGKKKKKKGGDPK.',
+    '...KSLGGKYYYYKGGDPK.',
+    '...KSLGGKYyyyKGGDPK.',
+    '...KSLGGKKKKKKGGDPK.',
+    '...KSLGGGGGGGGGGDPK.',
+    '...KSLGGGGGGGGGGDPK.',
+    '...KSLGGGGGGGGGGDPK.',
+    '...KSLGGGGGGGGGGDPK.',
+    '...KSDDDDDDDDDDDDpK.',
+    '...KKPPPPPPPPPPPPpK.',
+    '....KppppppppppppK..',
+    '.....KKKKKKKKKKKK...',
+    '....................'];
+  const PAL = { K: 0x16300f, S: 0x1f5a19, D: 0x2b6e24, G: 0x3d9733, L: 0x6ccb57, P: 0xf1e9cc, p: 0xc8bb92, Y: 0xf5cf3a, y: 0xb98a1d };
+  const cache = {};
+  function url(hover) {
+    if (cache[hover]) return cache[hover];
+    const c = document.createElement('canvas'); c.width = 20; c.height = 18; const g = c.getContext('2d'), im = g.createImageData(20, 18);
+    ART.forEach((row, y) => [...row].forEach((ch, x) => {
+      const col = PAL[ch]; if (col === undefined) return;
+      let r = col >> 16, gg = (col >> 8) & 255, b = col & 255;
+      if (hover && ch !== 'K') { r = Math.min(255, r * 1.25 + 20); gg = Math.min(255, gg * 1.25 + 20); b = Math.min(255, b * 1.25 + 20); }
+      if (hover && ch === 'K') { r = gg = b = 255; }
+      const k = (y * 20 + x) * 4; im.data[k] = r; im.data[k + 1] = gg; im.data[k + 2] = b; im.data[k + 3] = 255;
+    }));
+    g.putImageData(im, 0, 0);
+    return (cache[hover] = c.toDataURL());
+  }
+  return { url };
+})();
 function recipeBookButton(scr, x, y) {
-  const b = elAt('rbook', x, y, '');
+  const b = elAt('rbook', x, y, `background-image:url(${RecipeBookIcon.url(false)})`);
+  b.addEventListener('mouseenter', () => { b.style.backgroundImage = `url(${RecipeBookIcon.url(true)})`; });
+  b.addEventListener('mouseleave', () => { b.style.backgroundImage = `url(${RecipeBookIcon.url(false)})`; });
   b.title = 'Recipe Book';
   b.addEventListener('mousedown', e => { e.stopPropagation(); RecipeBook.toggle(scr); });
   return b;

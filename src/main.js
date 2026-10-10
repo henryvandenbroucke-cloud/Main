@@ -80,5 +80,7 @@ const Panorama = (() => {
     give.forEach((n, i) => p.inv.set(i, stack(n, 64)));
     if (q.has('yaw')) p.yaw = +q.get('yaw'); if (q.has('pitch')) p.pitch = +q.get('pitch');
     HUD.refresh();
-  } else UI.show('title');
+  } else { UI.show('title'); Sound.music('menu'); }
+  // the player's own game sounds, if they were connected before and the browser still allows reading them
+  SoundPack.restore().then(() => { if (UI.page === 'sounds' || UI.page === 'soundpack') UI.show(UI.page); });
 })();

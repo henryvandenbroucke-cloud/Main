@@ -51,6 +51,10 @@ input { font-family: inherit; }
 .mlabel { width: 100%; color: #a0a0a0; text-align: left; margin-top: calc(var(--s) * 2); }
 .minput { box-sizing: border-box; width: calc(var(--s) * 200); height: calc(var(--s) * 20); flex: none; background: #000; border: var(--s) solid #a0a0a0; color: #e0e0e0; font-size: var(--fs); padding: 0 calc(var(--s) * 4); outline: none; text-shadow: var(--s) var(--s) 0 #3f3f3f; user-select: text; -webkit-user-select: text; }
 .minput:focus { border-color: #fff; }
+.mtext { color: #e0e0e0; text-align: center; max-width: calc(var(--s) * 310); line-height: 1.35; margin: calc(var(--s) * 2) 0; }
+.mtext.small { color: #a0a0a0; font-size: 0.85em; }
+.mtext.status { color: #ffff55; min-height: 1.4em; }
+.mtext code { color: #fff; font-family: inherit; }
 .mhint { color: #a0a0a0; text-align: center; max-width: calc(var(--s) * 300); }
 .mhint.big { color: #fff; margin: calc(var(--s) * 10) 0; }
 .titlelogo { position: relative; margin-top: calc(var(--s) * 30); margin-bottom: calc(var(--s) * 30); }
@@ -90,15 +94,14 @@ input { font-family: inherit; }
 .icon.glint { -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
 .icon.glint::after { content: ''; position: absolute; inset: 0; background: linear-gradient(115deg, rgba(128, 64, 255, 0) 30%, rgba(170, 110, 255, 0.75) 45%, rgba(128, 64, 255, 0) 60%, rgba(128, 64, 255, 0) 80%, rgba(170, 110, 255, 0.6) 92%, rgba(128, 64, 255, 0) 100%); background-size: 300% 300%; mix-blend-mode: screen; animation: glint 3s linear infinite; }
 @keyframes glint { from { background-position: 100% 0; } to { background-position: -50% 0; } }
-.count { left: var(--o, 0px); top: calc(var(--o, 0px) + var(--s) * 9); width: calc(var(--s) * 17); text-align: right; color: #fff; line-height: calc(var(--s) * 8); text-shadow: var(--s) var(--s) 0 #3f3f3f; pointer-events: none; z-index: 1; white-space: nowrap; }
+.count { left: var(--o, 0px); top: calc(var(--o, 0px) + var(--s) * 8); width: calc(var(--s) * 17); text-align: right; color: #fff; line-height: calc(var(--s) * 8); text-shadow: var(--s) var(--s) 0 #3f3f3f; pointer-events: none; z-index: 1; white-space: nowrap; }
 .count.red { color: #ff5555; }
 .dura { left: calc(var(--o, 0px) + var(--s) * 2); top: calc(var(--o, 0px) + var(--s) * 13); width: calc(var(--s) * 13); height: calc(var(--s) * 2); background: #000; pointer-events: none; z-index: 1; }
 .dura i { display: block; height: var(--s); }
 .gpart { position: absolute; pointer-events: none; image-rendering: pixelated; background-repeat: no-repeat; }
 .gpart.playerbox { width: calc(var(--s) * 49); height: calc(var(--s) * 70); background: #000; box-shadow: inset var(--s) var(--s) 0 #373737, inset calc(var(--s) * -1) calc(var(--s) * -1) 0 #fff; overflow: hidden; }
 .gpart.playerbox canvas { width: 100%; height: 100%; image-rendering: pixelated; }
-.gpart.rbook { pointer-events: auto; width: calc(var(--s) * 20); height: calc(var(--s) * 18); box-sizing: border-box; background: #3b7a2a; border: var(--s) solid #1d3d15; box-shadow: inset var(--s) var(--s) 0 #6cb24e, inset calc(var(--s) * -2) 0 0 #e8e0c8; }
-.gpart.rbook:hover { border-color: #fff; }
+.gpart.rbook { pointer-events: auto; width: calc(var(--s) * 20); height: calc(var(--s) * 18); background-size: 100% 100%; background-repeat: no-repeat; image-rendering: pixelated; cursor: pointer; }
 #cursorItem { position: fixed; z-index: 60; width: calc(var(--s) * 16); height: calc(var(--s) * 16); pointer-events: none; font-size: var(--fs); line-height: var(--lh); }
 #cursorItem .icon { left: 0; top: 0; }
 #tooltip { position: fixed; z-index: 70; pointer-events: none; font-size: var(--fs); line-height: calc(var(--s) * 10); padding: calc(var(--s) * 3) calc(var(--s) * 4) calc(var(--s) * 2); background: rgba(16, 0, 16, 0.94); border: var(--s) solid #25005c; box-shadow: inset 0 0 0 var(--s) #5000a0; text-shadow: var(--s) var(--s) 0 #3f3f3f; white-space: nowrap; color: #fff; }
@@ -9972,32 +9975,65 @@ const Structures = (() => {
    instruments, rain and thunder, and quiet generative piano music that plays now and then like the game's.
    Sounds fade with distance (up to 16 blocks, further for loud ones) and pan left or right. */
 const Sound = (() => {
-  let ac = null, master = null, cats = {}, noiseBuf = null, ready = false;
+  let ac = null, master = null, cats = {}, noiseBuf = null, ready = false, probe = null, probeBuf = null;
+  let pack = null; // real sound files from the player's own copy of the game (SoundPack), when loaded
   const SUBS = [];
   function init() {
     if (ac) return;
     try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
     master = ac.createGain(); master.connect(ac.destination);
+    // a tap on the output to notice when the audio has died (see watch())
+    probe = ac.createAnalyser(); probe.fftSize = 256; probeBuf = new Float32Array(probe.fftSize); master.connect(probe);
     for (const k of ['music', 'sfx', 'ambient', 'ui', 'records']) { cats[k] = ac.createGain(); cats[k].connect(master); }
     const n = ac.sampleRate * 2; noiseBuf = ac.createBuffer(1, n, ac.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
     volumes(); ready = true;
+    if (pack && pack.attach) pack.attach(ac, cats);
   }
-  addEventListener('mousedown', () => { init(); if (ac && ac.state === 'suspended') ac.resume(); }, true);
-  addEventListener('keydown', () => { init(); if (ac && ac.state === 'suspended') ac.resume(); }, true);
-  function volumes() { if (!ac) return; master.gain.value = Settings.vMaster; cats.music.gain.value = Settings.vMusic * 0.6; cats.sfx.gain.value = Settings.vSfx; cats.ambient.gain.value = Settings.vAmbient; cats.ui.gain.value = 1; cats.records.gain.value = Settings.vMusic; }
+  const wake = () => { init(); if (ac && ac.state !== 'running' && ac.state !== 'closed') ac.resume().catch(() => {}); };
+  addEventListener('mousedown', wake, true);
+  addEventListener('keydown', wake, true);
+  addEventListener('visibilitychange', () => { if (!document.hidden && ac) wake(); });
+  // throw the whole audio graph away and start again (everything playing stops; the next sounds play normally)
+  function rebuild(why) {
+    console.warn('Sound: restarting audio (' + why + ')');
+    const old = ac; ready = false; ac = null; rainNode = null; musicPlaying = false; piece = null; discs.clear(); voices.length = 0;
+    if (pack && pack.detach) pack.detach();
+    try { old && old.close(); } catch (e) { /* already gone */ }
+    init();
+  }
+  // the audio watchdog, once a second: wake a suspended context, and rebuild one whose clock has stopped or
+  // whose output has gone bad (a single NaN in a filter's memory silences everything after it for good)
+  let lastCheck = 0, lastClock = -1, stalled = 0;
+  function watch(now) {
+    if (!ac || now - lastCheck < 1000) return;
+    lastCheck = now;
+    if (ac.state === 'suspended' || ac.state === 'interrupted') { ac.resume().catch(() => {}); return; }
+    if (ac.state !== 'running') return;
+    if (ac.currentTime === lastClock) { if (++stalled >= 3) { stalled = 0; rebuild('the audio clock stopped'); } return; }
+    stalled = 0; lastClock = ac.currentTime;
+    probe.getFloatTimeDomainData(probeBuf);
+    for (let i = 0; i < probeBuf.length; i++) if (!Number.isFinite(probeBuf[i])) { rebuild('bad samples in the output'); return; }
+  }
+  // no more than this many sounds starting within a quarter of a second (a crowd of mobs can't flood the mixer)
+  const voices = [];
+  function voiceFree() { const now = performance.now(); while (voices.length && now - voices[0] > 250) voices.shift(); if (voices.length >= 40) return false; voices.push(now); return true; }
+  // run a piece of sound code without letting a failure reach the game
+  let warned = 0;
+  function safe(f) { try { return f(); } catch (e) { if (warned++ < 5) console.warn('Sound:', e); return undefined; } }
+  function volumes() { if (!ac) return; master.gain.value = Settings.vMaster; cats.music.gain.value = Settings.vMusic * 0.6; cats.sfx.gain.value = Settings.vSfx; cats.ambient.gain.value = Settings.vAmbient; cats.ui.gain.value = 1; cats.records.gain.value = Settings.vMusic; if (pack && pack.volumes) pack.volumes(); }
   const T = () => ac.currentTime;
   // ---------------------------------------------------------------- building blocks
   function out(cat, x, y, z, vol, range) {
-    const g = ac.createGain(); g.gain.value = vol;
-    if (x === undefined || x === null) { g.connect(cats[cat || 'sfx']); return g; }
+    const g = ac.createGain(); g.gain.value = Number.isFinite(vol) ? vol : 1;
+    if (cat !== 'music' && cat !== 'records' && !voiceFree()) return g; // too many at once: this one stays silent
+    if (x === undefined || x === null || !Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) { g.connect(cats[cat || 'sfx']); return g; }
     // distance: linear fade to the range; pan from the angle to the listener's view
     const cam = camera.position, dx = x - cam.x, dy = y - cam.y, dz = z - cam.z, d = Math.hypot(dx, dy, dz);
     const r = range || 16, att = Math.max(0, 1 - d / r);
-    if (att <= 0) { g.gain.value = 0; }
-    g.gain.value = vol * att;
+    const gv = (Number.isFinite(vol) ? vol : 1) * att; g.gain.value = Number.isFinite(gv) ? gv : 0;
     const p = Game.player, yaw = p ? p.yaw : 0;
     const rx = Math.cos(yaw), rz = -Math.sin(yaw); // the right-hand direction
-    const pan = d > 0.5 ? Math.max(-1, Math.min(1, (dx * rx + dz * rz) / d)) * 0.8 : 0;
+    let pan = d > 0.5 ? Math.max(-1, Math.min(1, (dx * rx + dz * rz) / d)) * 0.8 : 0; if (!Number.isFinite(pan)) pan = 0;
     let node = g;
     if (ac.createStereoPanner) { const sp = ac.createStereoPanner(); sp.pan.value = pan; g.connect(sp); node = sp; }
     node.connect(cats[cat || 'sfx']);
@@ -10038,23 +10074,74 @@ const Sound = (() => {
     glass: { f: 3500, q: 2, type: 'bandpass', dur: 0.08, ring: [2600, 3900] }, amethyst: { f: 3000, q: 3, type: 'bandpass', dur: 0.1, ring: [1800, 2700, 3600] }, coral: { f: 1600, q: 1, type: 'bandpass', dur: 0.1 },
     metal: { f: 2400, q: 3, type: 'bandpass', dur: 0.1, ring: [1250, 1870] }, lantern: { f: 2400, q: 3, type: 'bandpass', dur: 0.08, ring: [1600, 2300] }, chain: { f: 3000, q: 2, type: 'bandpass', dur: 0.08, ring: [2200, 3300] }, anvil: { f: 2000, q: 3, type: 'bandpass', dur: 0.2, ring: [700, 1050, 1600] },
   };
-  function material(id) { const d = BLOCKS[id]; if (!d) return MAT.stone; if (d.sound && MAT[d.sound]) return MAT[d.sound]; const n = d.name; if (n.endsWith('_leaves') || d.model === 'cross') return MAT.grass; if (n.includes('glass')) return MAT.glass; if (n.endsWith('_wool') || n.endsWith('_carpet')) return MAT.wool; if (n.includes('dirt') || n === 'farmland' || n === 'clay' || n === 'podzol' || n === 'mycelium' || n === 'grass_block') return MAT.gravel; return MAT.stone; }
+  function material(id) { const d = BLOCKS[id]; if (!d) return MAT.stone; if (d.sound && MAT[d.sound]) return MAT[d.sound]; const n = d.name; if (n.endsWith('_leaves') || d.model === 'cross') return MAT.grass; if (n.includes('glass')) return MAT.glass; if (n.endsWith('_wool') || n.endsWith('_carpet')) return MAT.wool; if (n === 'grass_block' || n === 'mycelium') return MAT.grass; if (n.includes('dirt') || n === 'farmland' || n === 'clay' || n === 'podzol') return MAT.gravel; return MAT.stone; }
   // one block sound: kind 'break' | 'place' | 'hit' | 'step'
   function blockSound(id, x, y, z, kind) {
     if (!ready) return;
-    const m = material(id);
+    if (pack && safe(() => pack.block(id, kind, x, y, z))) return;
+    safe(() => blockSynth(id, x, y, z, kind));
+  }
+  // each material family has its own recipe, so stone, wood, grass, gravel, sand, snow, wool, glass and metal
+  // sound clearly different from each other: hard clicks, hollow knocks, rustles, crunches, hisses and rings
+  const FAMILY = { wood: 'wood', nether_wood: 'wood', bamboo_wood: 'wood', ladder: 'wood', scaffolding: 'wood', bamboo: 'wood', stem: 'wood', mangrove_roots: 'wood',
+    gravel: 'gravel', nylium: 'gravel', grass: 'grass', wet_grass: 'grass', vine: 'grass', roots: 'grass', azalea: 'grass', fungus: 'grass', big_dripleaf: 'grass',
+    sand: 'sand', soul_sand: 'sand', soul_soil: 'sand', snow: 'snow', wool: 'soft', sponge: 'soft', moss: 'soft', wart: 'soft', shroomlight: 'soft',
+    mud: 'squish', honey: 'squish', slime: 'squish', glass: 'glass', amethyst: 'glass', metal: 'metal', lantern: 'metal', chain: 'metal', anvil: 'metal' };
+  const MAT_KEY = new Map(Object.entries(MAT).map(([k, v]) => [v, k]));
+  function blockSynth(id, x, y, z, kind) {
+    const m = material(id), fam = FAMILY[MAT_KEY.get(m)] || 'hard';
     const vol = { break: 1, place: 1, hit: 0.25, step: 0.15, fall: 0.5 }[kind] || 1;
-    const pitch = { break: 0.8, place: 0.8, hit: 0.5, step: 1, fall: 0.75 }[kind] || 1;
-    const t0 = T(), dest = out('sfx', x, y, z, vol);
-    const dur = m.dur * (kind === 'break' || kind === 'place' ? 1.6 : 1) * (2 - pitch);
-    const f = m.f * pitch * rp(0.85, 1.15);
-    const grains = (m.grains || 1) + (kind === 'break' ? 1 : 0);
-    for (let i = 0; i < grains; i++) noise(dest, t0 + i * dur * 0.35, dur * (i ? 0.6 : 1), m.type, f * rp(0.8, 1.2), m.q, (m.soft ? 0.35 : 0.5) / (i ? 2 : 1));
-    if (m.thump) tone(dest, t0, 'sine', m.thump * pitch, 0.06, 0.35, { to: m.thump * 0.5 });
-    if (m.knock) { tone(dest, t0, 'triangle', m.knock * pitch * rp(0.9, 1.1), 0.07, 0.35, { to: m.knock * 0.7 }); }
-    if (m.ring) for (const r of m.ring) tone(dest, t0, 'sine', r * pitch * rp(0.97, 1.03), kind === 'break' ? 0.35 : 0.15, kind === 'break' && m === MAT.glass ? 0.1 : 0.07);
-    if (m === MAT.glass && kind === 'break') for (let i = 0; i < 6; i++) noise(dest, t0 + i * 0.03, 0.06, 'highpass', 4000 + i * 300, 1, 0.2);
-    if (m.squish) tone(dest, t0, 'sine', 180, 0.12, 0.3, { to: 90 });
+    const pitch = ({ break: 0.8, place: 0.8, hit: 0.5, step: 1, fall: 0.75 }[kind] || 1) * rp(0.9, 1.1);
+    const t0 = T(), d = out('sfx', x, y, z, vol), big = kind === 'break' || kind === 'place', f = m.f * pitch;
+    const grains = (n, span, lo, hi, type, q, peak, len) => { for (let i = 0; i < n; i++) noise(d, t0 + Math.random() * span, len * rp(0.7, 1.3), type, rp(lo, hi) * pitch, q, peak * rp(0.6, 1)); };
+    switch (fam) {
+      case 'hard': // a sharp click with a stony body, and crumbles when it breaks
+        noise(d, t0, 0.035, 'bandpass', f * 1.2, 1.4, 0.6, 0.001);
+        noise(d, t0 + 0.006, big ? 0.12 : 0.07, 'bandpass', f * 0.55, 1.8, 0.35, 0.002);
+        if (m.thump) tone(d, t0, 'sine', m.thump * pitch, 0.05, 0.3, { to: m.thump * 0.6 });
+        if (big) grains(kind === 'break' ? 6 : 3, 0.14, 1500, 3500, 'bandpass', 3, 0.22, 0.02);
+        break;
+      case 'wood': // a hollow knock: a resonant body and a short pitched thunk
+        noise(d, t0, big ? 0.1 : 0.06, 'bandpass', f, 7, 0.9, 0.001);
+        tone(d, t0, 'triangle', (m.knock || 260) * pitch, big ? 0.09 : 0.06, 0.4, { to: (m.knock || 260) * pitch * 0.75 });
+        tone(d, t0, 'sine', (m.knock || 260) * pitch * 2.4, 0.04, 0.12);
+        if (kind === 'break') { noise(d, t0 + 0.05, 0.08, 'bandpass', f * 1.4, 5, 0.4, 0.001); grains(3, 0.12, 900, 1800, 'bandpass', 4, 0.2, 0.025); }
+        break;
+      case 'grass': // a soft rustle of leaves and stalks
+        grains(big ? 7 : 4, big ? 0.16 : 0.1, 2500, 5500, 'highpass', 0.8, 0.3, 0.03);
+        noise(d, t0, big ? 0.14 : 0.08, 'lowpass', 1100 * pitch, 0.7, 0.12, 0.01);
+        break;
+      case 'gravel': // a gritty crunch of many small stones
+        grains(big ? 11 : 6, big ? 0.17 : 0.1, 700, 2600, 'bandpass', 3.5, 0.45, 0.018);
+        noise(d, t0, big ? 0.12 : 0.07, 'lowpass', 700 * pitch, 1, 0.2, 0.005);
+        break;
+      case 'sand': // a smooth sliding hiss with a little grain in it
+        noise(d, t0, big ? 0.2 : 0.13, 'bandpass', f, 0.6, 0.3, 0.025);
+        grains(big ? 5 : 3, 0.12, 2500, 5000, 'highpass', 1, 0.12, 0.015);
+        break;
+      case 'snow': // a muffled, squeaky crunch
+        grains(big ? 6 : 4, big ? 0.15 : 0.1, 600, 1600, 'lowpass', 2, 0.35, 0.03);
+        tone(d, t0 + 0.01, 'sine', 900 * pitch, 0.04, 0.05, { to: 1300 * pitch });
+        break;
+      case 'soft': // wool and moss: a dull, padded thump
+        noise(d, t0, big ? 0.12 : 0.08, 'lowpass', 450 * pitch, 0.8, 0.5, 0.008);
+        tone(d, t0, 'sine', 110 * pitch, 0.06, 0.15, { to: 70 });
+        break;
+      case 'squish': // mud, honey and slime: a wet squelch
+        tone(d, t0, 'sine', 220 * pitch, 0.12, 0.35, { to: 90 * pitch });
+        noise(d, t0, 0.12, 'lowpass', 600 * pitch, 3, 0.25, 0.01);
+        break;
+      case 'glass': // a bright tinkle (and shards when it breaks)
+        noise(d, t0, 0.04, 'highpass', 3500 * pitch, 1, 0.35, 0.001);
+        for (const r of (m.ring || [2600, 3900])) tone(d, t0, 'sine', r * pitch * rp(0.97, 1.03), kind === 'break' ? 0.4 : 0.15, kind === 'break' ? 0.1 : 0.06);
+        if (kind === 'break') for (let i = 0; i < 8; i++) { noise(d, t0 + 0.02 + Math.random() * 0.2, 0.04, 'highpass', rp(4000, 7000), 2, 0.2); tone(d, t0 + 0.03 + Math.random() * 0.25, 'sine', rp(3000, 6000), 0.06, 0.04); }
+        break;
+      case 'metal': // a hard clank with a metallic ring
+        noise(d, t0, 0.04, 'bandpass', f, 3, 0.45, 0.001);
+        for (const r of (m.ring || [1250, 1870])) tone(d, t0, 'sine', r * pitch * rp(0.98, 1.02), big ? 0.4 : 0.18, 0.08);
+        tone(d, t0, 'square', 180 * pitch, 0.03, 0.08, { lp: 1200 });
+        break;
+    }
   }
   // ---------------------------------------------------------------- named sounds
   const N = {};
@@ -10248,7 +10335,8 @@ const Sound = (() => {
   N.iron_golem_attack = d => { noise(d, T(), 0.15, 'lowpass', 600, 1, 0.5); tone(d, T(), 'sine', 90, 0.2, 0.5, { to: 50 }); };
   function blockSoundTo(d, id, kind) { blockSound(id, undefined, undefined, undefined, kind); }
   // ---------------------------------------------------------------- the public API
-  function play(name, e, o) {
+  function play(name, e, o) { safe(() => play0(name, e, o)); }
+  function play0(name, e, o) {
     // the sounds of things that sculk sensors and wardens can feel (game events)
     if (EV[name] && typeof GameEvents !== 'undefined' && Game && Game.player) {
       const ev = typeof EV[name] === 'function' ? EV[name](o || {}) : EV[name];
@@ -10258,6 +10346,7 @@ const Sound = (() => {
     o = o || {};
     let [x, y, z] = at(e, o);
     if (e && e.isPlayer && e === Game.player) x = undefined; // the player's own sounds are not positioned
+    if (pack && safe(() => pack.play(name, x, y, z, o, e))) { if (o.subtitle !== false) subtitle(name, x, y, z); return; }
     const mobKey = name.replace(/_(hurt|death|ambient|say|eat)$/, ''), kind = (name.match(/_(hurt|death|ambient|say)$/) || [])[1];
     if (kind && (MOB[mobKey] || o.mob)) {
       const v = MOB[mobKey] || MOB.generic, fn = kind === 'ambient' ? v.say : v[kind] || v.hurt;
@@ -10273,7 +10362,8 @@ const Sound = (() => {
     fn(d, o);
     subtitle(name, x, y, z);
   }
-  function step(e) {
+  function step(e) { safe(() => step0(e)); }
+  function step0(e) {
     const x = Math.floor(e.x), y = Math.floor(e.y - 0.2), z = Math.floor(e.z);
     let id = World.getBlock(x, y, z); const above = World.getBlock(x, y + 1, z);
     if (BLOCKS[above].name === 'snow' || BLOCKS[above].model === 'carpet') id = above;
@@ -10373,9 +10463,9 @@ const Sound = (() => {
     if (!ready || musicPlaying) return;
     musicPlaying = true;
     const dest = ac.createGain(); dest.gain.value = 0.9;
-    // a soft echo for space
-    const dl = ac.createDelay(1); dl.delayTime.value = 0.38; const fb = ac.createGain(); fb.gain.value = 0.32; const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800;
-    dest.connect(cats.music); dest.connect(dl); dl.connect(lp); lp.connect(fb); fb.connect(dl); lp.connect(cats.music);
+    // a soft echo for space: three fading taps (no feedback loop, which could keep a bad sample circling forever)
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800; dest.connect(cats.music); dest.connect(lp);
+    const taps = [[0.38, 0.32], [0.76, 0.1], [1.14, 0.03]].map(([t, v]) => { const dl = ac.createDelay(2), g = ac.createGain(); dl.delayTime.value = t; g.gain.value = v; lp.connect(dl); dl.connect(g); g.connect(cats.music); return [dl, g]; });
     const scale = SCALES[Math.floor(Math.random() * SCALES.length)], root = 48 + Math.floor(Math.random() * 7), tempo = rp(0.55, 0.85);
     let t = T() + 0.5; const bars = 24 + Math.floor(Math.random() * 16);
     const chordAt = b => [0, 3, 4, 5, 2, 4][b % 6];
@@ -10386,14 +10476,24 @@ const Sound = (() => {
       for (let k = 0; k < 4; k++) if (Math.random() < 0.55) { const n = root + 12 + scale[(deg + Math.floor(Math.random() * 5)) % scale.length] + (Math.random() < 0.2 ? 12 : 0); pianoNote(dest, t + k * tempo + (Math.random() < 0.3 ? tempo / 2 : 0), n, tempo * 3, rp(0.4, 0.8)); }
       t += tempo * 4;
     }
-    setTimeout(() => { musicPlaying = false; }, (t - T() + 4) * 1000);
+    const ctx = ac, end = () => { if (ctx !== ac || piece !== me) return; piece = null; musicPlaying = false; try { dest.disconnect(); lp.disconnect(); for (const [dl, g] of taps) { dl.disconnect(); g.disconnect(); } } catch (e) { /* the graph was rebuilt */ } };
+    const me = { end }; piece = me;
+    setTimeout(end, (t - T() + 4) * 1000);
   }
-  function music(mode) { musicMode = mode; nextMusic = mode === 'menu' ? performance.now() + 2000 : performance.now() + rp(60, 180) * 1000; }
+  let piece = null;
+  // stop the generated piece now (when the game's real music takes over)
+  function stopPiece() { if (piece) piece.end(); }
+  function music(mode) { if (mode !== musicMode && pack) pack.stopMusic(); musicMode = mode; nextMusic = mode === 'menu' ? performance.now() + 2000 : performance.now() + rp(60, 180) * 1000; }
+  function startMusic(now) { if (musicMode && !musicPlaying && now > nextMusic && !(pack && pack.musicBusy())) { if (!(pack && pack.music(musicMode))) playPiece(); nextMusic = now + (musicMode === 'menu' ? rp(20, 60) : rp(600, 1200)) * 1000; } }
+  // outside a world (the title screen and menus) nothing calls tick, so the watchdog and the menu music run here
+  setInterval(() => safe(() => { const now = performance.now(); if (typeof Game !== 'undefined' && Game.running) return; watch(now); if (ready && musicMode === 'menu') startMusic(now); }), 500);
   // ---------------------------------------------------------------- music discs (a short generated tune per disc)
   const discs = new Map();
-  function playDisc(name, x, y, z) {
+  function playDisc(name, x, y, z) { safe(() => playDisc0(name, x, y, z)); }
+  function playDisc0(name, x, y, z) {
     if (!ready) return;
     stopDisc(x, y, z);
+    if (pack && pack.disc(name, x + 0.5, y + 0.5, z + 0.5, x + ',' + y + ',' + z)) return;
     const dest = out('records', x + 0.5, y + 0.5, z + 0.5, 1, 64);
     let seed = 0; for (const c of name) seed = (seed * 31 + c.charCodeAt(0)) | 0;
     const r = new Rand(seed), scale = SCALES[r.int(SCALES.length)], root = 52 + r.int(10), tempo = 0.25 + r.next() * 0.2;
@@ -10401,7 +10501,7 @@ const Sound = (() => {
     for (let i = 0; i < 160; i++) { const n = root + scale[r.int(scale.length)] + (r.next() < 0.3 ? 12 : 0); notes.push(n); const os = tone(dest, t, r.next() < 0.5 ? 'square' : 'triangle', 440 * Math.pow(2, (n - 69) / 12), tempo * 0.9, 0.06, { lp: 2500 }); void os; if (i % 4 === 0) tone(dest, t, 'triangle', 440 * Math.pow(2, (root - 12 + scale[r.int(scale.length)] - 69) / 12), tempo * 3.5, 0.08); t += tempo; }
     discs.set(x + ',' + y + ',' + z, dest);
   }
-  function stopDisc(x, y, z) { const k = x + ',' + y + ',' + z, d = discs.get(k); if (d) { d.gain.value = 0; d.disconnect(); discs.delete(k); } }
+  function stopDisc(x, y, z) { const k = x + ',' + y + ',' + z, d = discs.get(k); if (d) { d.gain.value = 0; d.disconnect(); discs.delete(k); } if (pack) safe(() => pack.stopDisc(k)); }
   // ---------------------------------------------------------------- note blocks (the game's instruments, pitch 2^((note-12)/12))
   const INSTR = {
     harp: (d, f) => { tone(d, T(), 'triangle', f, 0.8, 0.3, { lp: 3000, lpTo: 900 }); }, bass: (d, f) => tone(d, T(), 'triangle', f / 4, 0.6, 0.45, { lp: 800 }), basedrum: d => tone(d, T(), 'sine', 120, 0.2, 0.6, { to: 45 }),
@@ -10410,27 +10510,36 @@ const Sound = (() => {
     xylophone: (d, f) => tone(d, T(), 'sine', f * 2, 0.25, 0.4), iron_xylophone: (d, f) => { tone(d, T(), 'sine', f, 0.6, 0.3); tone(d, T(), 'sine', f * 3, 0.3, 0.1); }, cow_bell: (d, f) => { tone(d, T(), 'square', f, 0.3, 0.12, { lp: 2500 }); tone(d, T(), 'square', f * 1.48, 0.3, 0.08, { lp: 2500 }); },
     didgeridoo: (d, f) => tone(d, T(), 'sawtooth', f / 4, 0.8, 0.3, { lp: 700, vib: [6, 3] }), bit: (d, f) => tone(d, T(), 'square', f, 0.4, 0.15), banjo: (d, f) => tone(d, T(), 'sawtooth', f, 0.35, 0.2, { lp: 2500, lpTo: 600 }), pling: (d, f) => { tone(d, T(), 'sine', f, 0.8, 0.3); tone(d, T(), 'triangle', f * 2, 0.4, 0.1); },
   };
-  function note(instr, n, x, y, z) { if (!ready) return; const f = 370 * Math.pow(2, (n - 12) / 12); const d = out('records', x + 0.5, y + 0.5, z + 0.5, 1, 48); (INSTR[instr] || INSTR.harp)(d, f); }
+  function note(instr, n, x, y, z) { if (!ready) return; if (pack && safe(() => pack.note(instr, n, x + 0.5, y + 0.5, z + 0.5))) return; safe(() => { const f = 370 * Math.pow(2, (n - 12) / 12); const d = out('records', x + 0.5, y + 0.5, z + 0.5, 1, 48); (INSTR[instr] || INSTR.harp)(d, f); }); }
   // ---------------------------------------------------------------- ambience: rain, thunder, caves
-  let rainNode = null, caveTimer = 6000 + Math.floor(Math.random() * 6000);
-  function tick(p) {
-    if (!ready || !p) return;
+  let rainNode = null, rainTimer = 0, caveTimer = 6000 + Math.floor(Math.random() * 6000);
+  function tick(p) { safe(() => tick0(p)); }
+  function tick0(p) {
     const now = performance.now();
-    if (musicMode && !musicPlaying && now > nextMusic) { playPiece(); nextMusic = now + (musicMode === 'menu' ? rp(20, 60) : rp(600, 1200)) * 1000; }
+    watch(now);
+    if (!ready || !p) return;
+    startMusic(now);
+    if (pack) pack.tick(p);
     // mob calls now and then (the game's ambient sound timer: 1 in 1000 chance each tick after the interval)
-    for (const e of Entities.list) if (e.living && !e.dead && e.age % 80 === 0 && Math.random() < 0.15 && e.dist2(p.x, p.y, p.z) < 256) { const v = MOB[e.type]; if (v && v.say) play(e.type + '_ambient', e); if (e.onAmbient) e.onAmbient(); }
+    for (const e of Entities.list) if (e.living && !e.dead && e.age % 80 === 0 && Math.random() < 0.15 && e.dist2(p.x, p.y, p.z) < 256) { const v = MOB[e.type]; if ((v && v.say) || (pack && pack.has('entity.' + e.type + '.ambient'))) play(e.type + '_ambient', e); if (e.onAmbient) e.onAmbient(); }
     // rain on the surface
     const raining = Weather.rain > 0.2 && World.dim === 'overworld';
-    if (raining && !rainNode) { const g = ac.createGain(); g.gain.value = 0; const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true; const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1200; s.connect(f); f.connect(g); g.connect(cats.ambient); s.start(); rainNode = { g, s }; }
+    // with the game's own sounds loaded: its rain clips, a few times a second
+    if (pack && pack.has('weather.rain')) {
+      if (rainNode) { rainNode.s.stop(); rainNode = null; }
+      if (raining && --rainTimer <= 0) { const under = World.skyLight(Math.floor(p.x), Math.floor(p.eyeY), Math.floor(p.z)) < 15; pack.playEvent(under ? 'weather.rain.above' : 'weather.rain', p.x + rp(-6, 6), p.y + (under ? 3 : 0), p.z + rp(-6, 6), 'ambient', (under ? 0.1 : 0.2) * Weather.rain * 5, under ? 0.5 : 1, 24); rainTimer = 4 + Math.floor(Math.random() * 6); }
+    } else if (raining && !rainNode) { const g = ac.createGain(); g.gain.value = 0; const s = ac.createBufferSource(); s.buffer = noiseBuf; s.loop = true; const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1200; s.connect(f); f.connect(g); g.connect(cats.ambient); s.start(); rainNode = { g, s }; }
     if (rainNode) { const under = World.skyLight(Math.floor(p.x), Math.floor(p.eyeY), Math.floor(p.z)) < 15; const want = raining ? Weather.rain * (under ? 0.08 : 0.2) : 0; rainNode.g.gain.value += (want - rainNode.g.gain.value) * 0.05; if (!raining && rainNode.g.gain.value < 0.001) { rainNode.s.stop(); rainNode = null; } }
     // cave sounds: deep in the dark the game plays an eerie sound from time to time
     if (--caveTimer <= 0) {
       const l = World.getLight(Math.floor(p.x), Math.floor(p.eyeY), Math.floor(p.z));
-      if ((l >> 4) === 0 && (l & 15) < 4 && World.dim === 'overworld') { const d = out('ambient', p.x + rp(-8, 8), p.y + rp(-4, 4), p.z + rp(-8, 8), 0.5, 32); tone(d, T(), 'sine', rp(80, 160), 3, 0.25, { attack: 0.8, vib: [0.3, 10], to: rp(60, 120), glide: 3 }); noise(d, T(), 2.5, 'bandpass', rp(300, 700), 6, 0.08, 0.8); caveTimer = 6000 + Math.floor(Math.random() * 12000); }
+      if ((l >> 4) === 0 && (l & 15) < 4 && World.dim === 'overworld' && pack && pack.playEvent('ambient.cave', p.x + rp(-8, 8), p.y + rp(-4, 4), p.z + rp(-8, 8), 'ambient', 0.7, 0.8 + Math.random() * 0.2, 32)) caveTimer = 6000 + Math.floor(Math.random() * 12000);
+      else if ((l >> 4) === 0 && (l & 15) < 4 && World.dim === 'overworld') { const d = out('ambient', p.x + rp(-8, 8), p.y + rp(-4, 4), p.z + rp(-8, 8), 0.5, 32); tone(d, T(), 'sine', rp(80, 160), 3, 0.25, { attack: 0.8, vib: [0.3, 10], to: rp(60, 120), glide: 3 }); noise(d, T(), 2.5, 'bandpass', rp(300, 700), 6, 0.08, 0.8); caveTimer = 6000 + Math.floor(Math.random() * 12000); }
       else caveTimer = 20;
     }
   }
-  function thunder(x, y, z, near) { if (!ready) return; const d = out('ambient', x, y, z, near ? 1 : 0.6, 1e6); const t0 = T() + (near ? 0 : 0.6); noise(d, t0, 3.5, 'lowpass', near ? 900 : 300, 0.7, near ? 1.2 : 0.8, 0.02, (fl, t) => fl.frequency.exponentialRampToValueAtTime(70, t + 3)); tone(d, t0, 'sine', 45, 3, 0.6, { to: 25 }); }
+  function thunder(x, y, z, near) { if (!ready) return; if (pack && safe(() => pack.play('thunder', x, y, z, { near }))) return; safe(() => thunder0(x, y, z, near)); }
+  function thunder0(x, y, z, near) { const d = out('ambient', x, y, z, near ? 1 : 0.6, 1e6); const t0 = T() + (near ? 0 : 0.6); noise(d, t0, 3.5, 'lowpass', near ? 900 : 300, 0.7, near ? 1.2 : 0.8, 0.02, (fl, t) => fl.frequency.exponentialRampToValueAtTime(70, t + 3)); tone(d, t0, 'sine', 45, 3, 0.6, { to: 25 }); }
   return {
     play, step, ui: () => play('ui'), volumes, music, playDisc, stopDisc, note, tick, thunder, subtitles: SUBS,
     // for other modules adding their own sounds: N[name] = d => ..., MOB[type] = { say, hurt, death }
@@ -10439,7 +10548,331 @@ const Sound = (() => {
     blockHit: (id, x, y, z) => blockSound(id, x + 0.5, y + 0.5, z + 0.5, 'hit'),
     blockPlace: (id, x, y, z) => blockSound(id, x + 0.5, y + 0.5, z + 0.5, 'place'),
     get ready() { return ready; },
+    // the player's own game sounds (see soundpack.js)
+    setPack(p) { pack = p; if (ac && pack && pack.attach) pack.attach(ac, cats); if (pack) { stopPiece(); nextMusic = Math.min(nextMusic, performance.now() + (musicMode === 'menu' ? 1000 : 30000)); } },
+    get pack() { return pack; }, get ctx() { return ac; }, get master() { return master; }, out, rebuild, get musicMode() { return musicMode; },
   };
+})();
+
+</script>
+<script>
+'use strict';
+/* The game's real sounds, read from the player's own copy of Minecraft: Java Edition. Nothing from the game ships
+   with this project: in Options → Music & Sounds the player points it at their .minecraft folder (or its assets
+   folder, or a resource pack), and from then on every sound with a match plays the real file instead of the
+   built-in synthesized one. Sound events, their variants, volumes and pitches come from the game's sounds.json;
+   the files come from the launcher's asset index (assets/indexes/<n>.json → assets/objects/<xx>/<hash>) or from a
+   resource pack's assets/minecraft/sounds folder. Short sounds are decoded once and kept (up to ~200 MB); music
+   and records stream. Where the browser allows it, the folder is remembered for next time. */
+const SoundPack = (() => {
+  let ac = null, cats = null;
+  let events = null;        // event name → [{ name, volume, pitch, weight, stream, type }]
+  let has = null;           // sound path (as in sounds.json, without namespace) → true when the file exists
+  let getFile = null;       // sound path → Promise<Blob>
+  let label = '', count = 0, pending = null, loading = false;
+  const buffers = new Map(); let bytes = 0; const MAX_BYTES = 200e6;
+  const decoding = new Map();
+  // ---------------------------------------------------------------- reading a folder
+  const stripNs = n => n.replace(/^minecraft:/, '');
+  function parseSounds(json) {
+    const ev = {};
+    for (const [k, v] of Object.entries(json)) {
+      const list = (v.sounds || []).map(s => typeof s === 'string' ? { name: stripNs(s) } : Object.assign({}, s, { name: stripNs(s.name) }));
+      ev[k] = list;
+    }
+    return ev;
+  }
+  // entries: [{ path: 'assets/indexes/17.json', file }] (from a folder picked with <input webkitdirectory>)
+  async function fromEntries(entries, name) {
+    const byPath = new Map(entries.map(e => [e.path.replace(/\\/g, '/'), e.file]));
+    const paths = [...byPath.keys()];
+    // the launcher's asset store
+    const idx = paths.filter(p => /(^|\/)indexes\/[^/]+\.json$/.test(p)).sort((a, b) => byPath.get(b).lastModified - byPath.get(a).lastModified || b.localeCompare(a, undefined, { numeric: true }));
+    for (const ip of idx) {
+      let index; try { index = JSON.parse(await byPath.get(ip).text()); } catch (e) { continue; }
+      const objs = index.objects || {}, sj = objs['minecraft/sounds.json']; if (!sj) continue;
+      const root = ip.slice(0, ip.lastIndexOf('indexes/'));
+      const fileOf = h => byPath.get(root + 'objects/' + h.slice(0, 2) + '/' + h);
+      const sjFile = fileOf(sj.hash); if (!sjFile) continue;
+      const map = new Map();
+      for (const [p, o] of Object.entries(objs)) { const m = /^minecraft\/sounds\/(.+)\.ogg$/.exec(p); if (m && fileOf(o.hash)) map.set(m[1], o.hash); }
+      return setup(parseSounds(JSON.parse(await sjFile.text())), map, s => Promise.resolve(fileOf(map.get(s))), name || 'Minecraft assets');
+    }
+    // a resource pack (or an unpacked game jar): assets/minecraft/sounds.json and sounds/**.ogg
+    const sjp = paths.find(p => /(^|\/)assets\/minecraft\/sounds\.json$/.test(p));
+    if (sjp) {
+      const base = sjp.slice(0, -'sounds.json'.length) + 'sounds/', map = new Map();
+      for (const p of paths) if (p.startsWith(base) && p.endsWith('.ogg')) map.set(p.slice(base.length, -4), base + p.slice(base.length));
+      return setup(parseSounds(JSON.parse(await byPath.get(sjp).text())), map, s => Promise.resolve(byPath.get(map.get(s))), name || 'Resource pack');
+    }
+    throw new Error('No Minecraft sounds found there. Pick your .minecraft folder (or the assets folder inside it).');
+  }
+  // the same from a folder handle (File System Access API), reading files only when they are needed
+  async function fromHandle(dir) {
+    const sub = async (d, n) => { try { return await d.getDirectoryHandle(n); } catch (e) { return null; } };
+    const file = async (d, path) => { const parts = path.split('/'); for (const p of parts.slice(0, -1)) { d = await sub(d, p); if (!d) return null; } try { return await (await d.getFileHandle(parts[parts.length - 1])).getFile(); } catch (e) { return null; } };
+    // .minecraft, .minecraft/assets, or a resource pack
+    let assets = (await sub(dir, 'indexes')) ? dir : await sub(dir, 'assets');
+    if (assets && await sub(assets, 'indexes')) {
+      const ixDir = await sub(assets, 'indexes'), objDir = await sub(assets, 'objects');
+      const list = []; for await (const [n, h] of ixDir.entries()) if (h.kind === 'file' && n.endsWith('.json')) list.push(await h.getFile());
+      list.sort((a, b) => b.lastModified - a.lastModified);
+      for (const f of list) {
+        let index; try { index = JSON.parse(await f.text()); } catch (e) { continue; }
+        const objs = index.objects || {}, sj = objs['minecraft/sounds.json']; if (!sj || !objDir) continue;
+        const sjFile = await file(objDir, sj.hash.slice(0, 2) + '/' + sj.hash); if (!sjFile) continue;
+        const map = new Map(); for (const [p, o] of Object.entries(objs)) { const m = /^minecraft\/sounds\/(.+)\.ogg$/.exec(p); if (m) map.set(m[1], o.hash); }
+        return setup(parseSounds(JSON.parse(await sjFile.text())), map, s => file(objDir, map.get(s).slice(0, 2) + '/' + map.get(s)), dir.name);
+      }
+    }
+    const mc = (await sub(dir, 'minecraft')) || (assets && await sub(assets, 'minecraft'));
+    const sjFile = mc && await file(mc, 'sounds.json');
+    if (sjFile) {
+      const map = new Map(), sounds = await sub(mc, 'sounds');
+      const walk = async (d, pre) => { for await (const [n, h] of d.entries()) { if (h.kind === 'directory') await walk(h, pre + n + '/'); else if (n.endsWith('.ogg')) map.set(pre + n.slice(0, -4), pre + n); } };
+      if (sounds) await walk(sounds, '');
+      return setup(parseSounds(JSON.parse(await sjFile.text())), map, s => file(sounds, map.get(s)), dir.name);
+    }
+    throw new Error('No Minecraft sounds found there. Pick your .minecraft folder (or the assets folder inside it).');
+  }
+  function setup(ev, map, get, name) {
+    clear(true);
+    events = ev; getFile = get; has = map; label = name;
+    count = Object.keys(ev).filter(k => playable(k)).length;
+    if (!count) { events = null; throw new Error('That folder has no sound files the game can use.'); }
+    Sound.setPack(api);
+    warm();
+    return { label, count };
+  }
+  function clear(keepStore) {
+    stopMusic(); for (const k of [...discs.keys()]) stopDisc(k);
+    events = null; has = null; getFile = null; label = ''; count = 0; buffers.clear(); bytes = 0; decoding.clear();
+    if (Sound.pack === api) Sound.setPack(null);
+    if (!keepStore) forget();
+  }
+  // ---------------------------------------------------------------- remembering the folder (Chrome and Edge)
+  const DB = 'mcweb-soundpack';
+  function idb() { return new Promise((res, rej) => { const r = indexedDB.open(DB, 1); r.onupgradeneeded = () => r.result.createObjectStore('h'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+  async function remember(h) { try { const db = await idb(); db.transaction('h', 'readwrite').objectStore('h').put(h, 'dir'); } catch (e) { /* private window */ } }
+  async function forget() { pending = null; try { const db = await idb(); db.transaction('h', 'readwrite').objectStore('h').delete('dir'); } catch (e) { /* nothing stored */ } }
+  async function stored() { try { const db = await idb(); return await new Promise(res => { const r = db.transaction('h').objectStore('h').get('dir'); r.onsuccess = () => res(r.result || null); r.onerror = () => res(null); }); } catch (e) { return null; } }
+  // on start: load the remembered folder if the browser still lets us read it, else offer to reconnect
+  async function restore() {
+    const h = await stored(); if (!h || !h.queryPermission) return;
+    try { if (await h.queryPermission({ mode: 'read' }) === 'granted') { loading = true; await fromHandle(h); } else pending = h; } catch (e) { pending = h; } finally { loading = false; }
+  }
+  // ask for a folder (in a click handler); resolves to { label, count } or throws
+  async function pick(upload) {
+    if (window.showDirectoryPicker && !upload) {
+      let h; try { h = await window.showDirectoryPicker({ id: 'minecraft-sounds', mode: 'read' }); } catch (e) { if (e && e.name === 'AbortError') return null; h = null; }
+      if (h) { loading = true; try { const r = await fromHandle(h); remember(h); return r; } finally { loading = false; } }
+    }
+    // other browsers: a folder upload field (it has to be picked again next time)
+    return new Promise((res, rej) => {
+      const inp = document.createElement('input'); inp.type = 'file'; inp.webkitdirectory = true; inp.multiple = true; inp.style.display = 'none'; document.body.appendChild(inp);
+      inp.onchange = async () => { const files = [...inp.files]; inp.remove(); if (!files.length) return res(null); loading = true; try { res(await fromEntries(files.map(f => ({ path: f.webkitRelativePath || f.name, file: f })), files[0].webkitRelativePath.split('/')[0])); } catch (e) { rej(e); } finally { loading = false; } };
+      inp.click();
+    });
+  }
+  async function reconnect() {
+    const h = pending; if (!h) return null;
+    if (await h.requestPermission({ mode: 'read' }) !== 'granted') return null;
+    pending = null; loading = true; try { return await fromHandle(h); } finally { loading = false; }
+  }
+  // ---------------------------------------------------------------- playing
+  function attach(ctx, c) { ac = ctx; cats = c; buffers.clear(); bytes = 0; decoding.clear(); }
+  function detach() { stopMusic(); for (const k of [...discs.keys()]) stopDisc(k); ac = null; cats = null; buffers.clear(); bytes = 0; decoding.clear(); }
+  function playable(ev, depth = 0) { const list = events && events[ev]; if (!list || !list.length || depth > 4) return false; return list.some(s => s.type === 'event' ? playable(s.name, depth + 1) : has.has(s.name)); }
+  // a weighted random variant, following references to other events (with their volume and pitch)
+  function choose(ev, depth = 0) {
+    const list = (events[ev] || []).filter(s => s.type === 'event' ? playable(s.name, depth + 1) : has.has(s.name));
+    if (!list.length || depth > 4) return null;
+    let w = 0; for (const s of list) w += s.weight || 1;
+    let r = Math.random() * w, s = list[0]; for (const o of list) { r -= o.weight || 1; if (r <= 0) { s = o; break; } }
+    if (s.type === 'event') { const t = choose(s.name, depth + 1); return t && Object.assign({}, t, { volume: (t.volume ?? 1) * (s.volume ?? 1), pitch: (t.pitch ?? 1) * (s.pitch ?? 1) }); }
+    return s;
+  }
+  async function buffer(name) {
+    if (buffers.has(name)) { const b = buffers.get(name); buffers.delete(name); buffers.set(name, b); return b; }
+    if (decoding.has(name)) return decoding.get(name);
+    const ctx = ac;
+    const job = (async () => {
+      const f = await getFile(name); if (!f || !ctx) return null;
+      const b = await ctx.decodeAudioData(await f.arrayBuffer());
+      if (ctx !== ac) return null;
+      buffers.set(name, b); bytes += b.length * b.numberOfChannels * 4;
+      for (const [k, v] of buffers) { if (bytes <= MAX_BYTES) break; bytes -= v.length * v.numberOfChannels * 4; buffers.delete(k); }
+      return b;
+    })().catch(() => null).finally(() => decoding.delete(name));
+    decoding.set(name, job); return job;
+  }
+  // play a sound event: false when there is nothing to play for it (the built-in sound is used instead)
+  function playEvent(ev, x, y, z, cat, vol, pitch, range) {
+    if (!ac || !events || !events[ev]) return false;
+    const s = choose(ev); if (!s) return false;
+    if (s.stream) return stream(s, cat || 'music', vol, x, y, z);
+    const v = (vol ?? 1) * (s.volume ?? 1), pt = Math.max(0.5, Math.min(2, (pitch ?? 1) * (s.pitch ?? 1)));
+    // the game's attenuation: linear out to 16 blocks (or further for sounds louder than 1)
+    const g = Sound.out(cat || 'sfx', x, y, z, Math.min(1, v), (range || 16) * Math.max(1, v));
+    const ctx = ac;
+    buffer(s.name).then(b => { if (!b || ctx !== ac) return; const src = ac.createBufferSource(); src.buffer = b; src.playbackRate.value = pt; src.connect(g); src.start(); });
+    return true;
+  }
+  // ---------------------------------------------------------------- what each of the game's sounds is called in the real game
+  const NAMES = {
+    click: ['ui.button.click', 0.25], ui: ['ui.button.click', 0.25], pop: ['entity.item.pickup', 0.2], orb: ['entity.experience_orb.pickup', 0.1], levelup: ['entity.player.levelup', 0.75],
+    player_hurt: 'entity.player.hurt', attack_strong: 'entity.player.attack.strong', attack_weak: 'entity.player.attack.weak', attack_crit: 'entity.player.attack.crit', attack_sweep: 'entity.player.attack.sweep',
+    attack_nodamage: 'entity.player.attack.nodamage', attack_knockback: 'entity.player.attack.knockback', break_item: ['entity.item.break', 0.8], equip: 'item.armor.equip_generic', eat: ['entity.generic.eat', 0.5],
+    burp: ['entity.player.burp', 0.5], drink: ['entity.generic.drink', 0.5], fizz: ['block.fire.extinguish', 0.5], extinguish: ['block.fire.extinguish', 0.5], explode: ['entity.generic.explode', 4],
+    tnt_primed: 'entity.tnt.primed', creeper_primed: 'entity.creeper.primed', flint: 'item.flintandsteel.use', bow_shoot: 'entity.arrow.shoot', crossbow_shoot: 'item.crossbow.shoot', crossbow_loaded: 'item.crossbow.loading_end',
+    skeleton_shoot: 'entity.skeleton.shoot', snow_golem_shoot: 'entity.snow_golem.shoot', arrow_hit: 'entity.arrow.hit', arrow_hit_player: 'entity.arrow.hit_player', throw: ['entity.snowball.throw', 0.5],
+    ender_pearl_throw: ['entity.ender_pearl.throw', 0.5], witch_throw: 'entity.witch.throw', wind_charge_throw: 'entity.wind_charge.throw', trident_throw: 'item.trident.throw', splash_potion: 'entity.splash_potion.break',
+    chest_open: ['block.chest.open', 0.5], chest_close: ['block.chest.close', 0.5], barrel_open: ['block.barrel.open', 0.5], barrel_close: ['block.barrel.close', 0.5],
+    door_open: 'block.wooden_door.open', door_close: 'block.wooden_door.close', iron_door_open: 'block.iron_door.open', iron_door_close: 'block.iron_door.close',
+    trapdoor_open: 'block.wooden_trapdoor.open', trapdoor_close: 'block.wooden_trapdoor.close', iron_trapdoor_open: 'block.iron_trapdoor.open', iron_trapdoor_close: 'block.iron_trapdoor.close',
+    gate_open: 'block.fence_gate.open', gate_close: 'block.fence_gate.close', lever: ['block.lever.click', 0.3], button: ['block.stone_button.click_on', 0.3], click_off: ['block.stone_button.click_off', 0.3],
+    piston_extend: ['block.piston.extend', 0.5], piston_contract: ['block.piston.contract', 0.5], dispense: 'block.dispenser.dispense', dispense_fail: 'block.dispenser.fail',
+    copper_bulb_on: 'block.copper_bulb.turn_on', copper_bulb_off: 'block.copper_bulb.turn_off', torch_burnout: ['block.redstone_torch.burnout', 0.5],
+    honeycomb_wax: 'item.honeycomb.wax_on', waxed_sign_fail: 'block.sign.waxed_interact_fail', dye_use: 'item.dye.use', book_put: 'item.book.put', book_page_turn: 'item.book.page_turn',
+    chiseled_bookshelf_insert_enchanted: 'block.chiseled_bookshelf.insert.enchanted', chiseled_bookshelf_pickup_enchanted: 'block.chiseled_bookshelf.pickup.enchanted',
+    ui_toast_in: 'ui.toast.in', ui_toast_challenge_complete: 'ui.toast.challenge_complete', brush: 'item.brush.brushing.generic', brush_generic: 'item.brush.brushing.generic', brush_sand: 'item.brush.brushing.sand',
+    brush_gravel: 'item.brush.brushing.gravel', brush_sand_completed: 'item.brush.brushing.sand.complete', brush_gravel_completed: 'item.brush.brushing.gravel.complete',
+    glow_ink_use: 'item.glow_ink_sac.use', ink_use: 'item.ink_sac.use', bobber_throw: 'entity.fishing_bobber.throw', bobber_splash: 'entity.fishing_bobber.splash', bobber_retrieve: 'entity.fishing_bobber.retrieve',
+    leash_attach: 'entity.leash_knot.place', leash_place: 'entity.leash_knot.place', leash_untie: 'entity.leash_knot.break', leash_break: 'entity.leash_knot.break', loom_take: 'ui.loom.take_result', cartography_take: 'ui.cartography_table.take_result',
+    bucket_fill: 'item.bucket.fill', bucket_empty: 'item.bucket.empty', bottle_fill: 'item.bottle.fill', bottle_empty: 'item.bottle.empty', bucket_fill_lava: 'item.bucket.fill_lava', bucket_empty_lava: 'item.bucket.empty_lava',
+    splash: 'entity.player.splash', swim: ['entity.player.swim', 0.35], hoe_till: 'item.hoe.till', shovel_flatten: 'item.shovel.flatten', axe_strip: 'item.axe.strip', bone_meal: 'item.bone_meal.use',
+    shear: 'entity.sheep.shear', saddle: ['entity.horse.saddle', 0.5], berry_pick: 'block.sweet_berry_bush.pick_berries', pumpkin_carve: 'block.pumpkin.carve', composter_fill: 'block.composter.fill', composter_fill_success: 'block.composter.fill_success',
+    totem: 'item.totem.use', portal_ambient: ['block.portal.ambient', 0.5], teleport: 'entity.enderman.teleport', enderman_teleport: 'entity.enderman.teleport', enderman_stare: 'entity.enderman.stare',
+    fire_ambient: 'block.fire.ambient', campfire_crackle: 'block.campfire.crackle', lava_pop: ['block.lava.pop', 0.2], lava_ambient: ['block.lava.ambient', 0.2], firework_launch: ['entity.firework_rocket.launch', 3],
+    firework_blast: ['entity.firework_rocket.blast', 20], shield_block: 'item.shield.block', spyglass: 'item.spyglass.use', goat_horn: ['item.goat_horn.sound.0', 16], bell: ['block.bell.use', 2],
+    anvil_land: ['block.anvil.land', 0.3], anvil_use: ['block.anvil.use', 0.3], anvil_destroy: 'block.anvil.destroy', trident_hit: 'item.trident.hit', trident_return: 'item.trident.return', trident_riptide: 'item.trident.riptide_1',
+    ender_eye_launch: 'entity.ender_eye.launch', ender_eye_death: 'entity.ender_eye.death', eye_place: 'block.end_portal_frame.fill', anchor_charge: 'block.respawn_anchor.charge', anchor_set: 'block.respawn_anchor.set_spawn',
+    wind_burst: 'entity.wind_charge.wind_burst', chicken_egg: 'entity.chicken.egg', cow_milk: 'entity.cow.milk', mooshroom_milk: 'entity.mooshroom.milk', iron_golem_repair: 'entity.iron_golem.repair',
+    villager_no: 'entity.villager.no', zombie_villager_cure: 'entity.zombie_villager.cure', witch_drink: 'entity.witch.drink', fish_flop: 'entity.cod.flop', raid_horn: ['event.raid.horn', 64],
+    sculk_clicking: 'block.sculk_sensor.clicking', sculk_clicking_stop: 'block.sculk_sensor.clicking_stop', sculk_catalyst_bloom: 'block.sculk_catalyst.bloom', sculk_block_spread: 'block.sculk.spread',
+    portal_trigger: ['block.portal.trigger', 0.25], portal_travel: ['block.portal.travel', 0.25], end_portal_spawn: 'block.end_portal.spawn', thunder: ['entity.lightning_bolt.thunder', 10000],
+    magma_cube_squish: 'entity.magma_cube.squish', slime_squish: 'entity.slime.squish', slime_jump: 'entity.slime.jump', wolf_shake: ['entity.wolf.shake', 0.4], polar_bear_warning: 'entity.polar_bear.warning',
+    husk_converted_to_zombie: 'entity.husk.converted_to_zombie', zombie_converted_to_drowned: 'entity.zombie.converted_to_drowned', skeleton_converted_to_stray: 'entity.skeleton.converted_to_stray',
+    note: 'block.note_block.harp', shulker_box_open: 'block.shulker_box.open', shulker_box_close: 'block.shulker_box.close', ender_chest_open: 'block.ender_chest.open', ender_chest_close: 'block.ender_chest.close',
+    enchant: 'block.enchantment_table.use', brewing: 'block.brewing_stand.brew', grindstone: 'block.grindstone.use', smithing: 'block.smithing_table.use', stonecutter: 'ui.stonecutter.take_result',
+  };
+  const MOB_ALIAS = { mooshroom: 'cow', cave_spider: 'spider', trader_llama: 'llama', glow_squid: 'glow_squid', zombified_piglin: 'zombified_piglin', tropical_fish: 'tropical_fish' };
+  const MOB_VOL = { ghast: 5, ender_dragon: 5, wither: 2, warden: 4, bat: 0.1, ravager: 1, iron_golem: 1, elder_guardian: 1, creeper: 1 };
+  const auto = new Map();
+  // the event for one of the game's sound names: the table, mob calls, then a search of the real event names
+  function lookup(name) {
+    if (auto.has(name)) return auto.get(name);
+    let r = null;
+    const t = NAMES[name];
+    if (t) r = Array.isArray(t) ? { ev: t[0], vol: t[1] } : { ev: t };
+    if (!r) { const m = /^(.+)_(hurt|death|ambient|say)$/.exec(name); if (m) { const k = m[2] === 'say' ? 'ambient' : m[2]; for (const ty of [m[1], MOB_ALIAS[m[1]]]) if (ty && events['entity.' + ty + '.' + k]) { r = { ev: 'entity.' + ty + '.' + k, vol: MOB_VOL[ty] || 1, mob: true }; break; } } }
+    if (!r) {
+      // block.trial_spawner.detect_player from trial_spawner_detect_player, and so on
+      const us = []; for (let i = 0; i < name.length; i++) if (name[i] === '_') us.push(i);
+      outer: for (const i of us) { const a = name.slice(0, i), b = name.slice(i + 1); for (const pre of ['block.', 'entity.', 'item.', 'ui.', 'ambient.', 'event.']) { for (const ev of [pre + a + '.' + b, pre + a + '.' + b.replace(/_/g, '.')]) if (events[ev]) { r = { ev }; break outer; } } }
+    }
+    if (r && !playable(r.ev)) r = null;
+    auto.set(name, r); return r;
+  }
+  const rnd = () => Math.random();
+  function play(name, x, y, z, o, e) {
+    if (!events) return false;
+    const r = lookup(name); if (!r) return false;
+    o = o || {};
+    let vol = o.volume ?? r.vol ?? 1, pitch = o.pitch ?? 1;
+    if (r.mob) { pitch = (rnd() - rnd()) * 0.2 + (e && e.baby ? 1.5 : 1); if (e && e.type === 'slime' || e && e.type === 'magma_cube') vol = 0.4 * (e.size || 1); }
+    if (name === 'fall' && o.big) return playEvent('entity.generic.big_fall', x, y, z, 'sfx', 1, 1);
+    if (name === 'fall') return playEvent('entity.generic.small_fall', x, y, z, 'sfx', 1, 1);
+    if (name === 'firework_blast' && o.large) return playEvent('entity.firework_rocket.large_blast', x, y, z, 'sfx', 20, 0.95 + rnd() * 0.1);
+    if (name === 'explode') pitch = (1 + (rnd() - rnd()) * 0.2) * 0.7;
+    if (name === 'chest_open' || name === 'chest_close' || name === 'door_open' || name === 'door_close') pitch = rnd() * 0.1 + 0.9;
+    const cat = name === 'click' || name === 'ui' || name.startsWith('ui_') ? 'ui' : name === 'thunder' ? 'ambient' : 'sfx';
+    return playEvent(r.ev, x, y, z, cat, vol, pitch, name === 'thunder' ? 1e6 : 16);
+  }
+  // block sounds: the block's own sound type (block.<name>.<kind> where the game has one, else its group)
+  const GROUP = { coral: 'coral_block', slime: 'slime_block', honey: 'honey_block', amethyst: 'amethyst_block', wart: 'wart_block', bone: 'bone_block' };
+  const KIND = { break: [1, 0.8], place: [1, 0.8], hit: [0.25, 0.5], step: [0.15, 1], fall: [0.5, 0.75] };
+  const groupCache = new Map();
+  function blockEvent(id, kind) {
+    const key = id + ':' + kind; if (groupCache.has(key)) return groupCache.get(key);
+    const d = BLOCKS[id]; let ev = null;
+    if (d) {
+      const n = d.name, g = d.sound || (/_leaves$/.test(n) ? 'grass' : d.model === 'cross' ? 'grass' : n.includes('glass') ? 'glass' : /_wool$|_carpet$/.test(n) ? 'wool' : n === 'grass_block' || n === 'mycelium' ? 'grass' : /dirt|farmland|podzol|clay/.test(n) ? 'gravel' : 'stone');
+      const cands = ['block.' + n + '.' + kind, 'block.' + n.replace(/^(waxed_)?(exposed_|weathered_|oxidized_)?/, '').replace(/_block$/, '') + '.' + kind];
+      if (g === 'wood' && n.startsWith('cherry_')) cands.push('block.cherry_wood.' + kind);
+      if (g === 'metal' && n.includes('copper')) cands.push('block.copper.' + kind);
+      cands.push('block.' + (GROUP[g] || g) + '.' + kind, 'block.stone.' + kind);
+      ev = cands.find(c => events[c] && playable(c)) || null;
+    }
+    groupCache.set(key, ev); return ev;
+  }
+  function block(id, kind, x, y, z) { if (!events) return false; const ev = blockEvent(id, kind); if (!ev) return false; const [v, p] = KIND[kind] || [1, 1]; return playEvent(ev, x, y, z, 'sfx', v, p); }
+  // note blocks: the game's own pitch, 2^((note-12)/12), heard 48 blocks away
+  function note(instr, n, x, y, z) { return playEvent('block.note_block.' + instr, x, y, z, 'records', 3, Math.pow(2, (n - 12) / 12)); }
+  // ---------------------------------------------------------------- music and records: streamed from the file
+  let music0 = null;
+  const discs = new Map();
+  function stream(s, cat, vol, x, y, z, key) {
+    const ctx = ac, el = new Audio(); el.preload = 'auto';
+    const g = ac.createGain(); g.gain.value = Math.min(1, (vol ?? 1) * (s.volume ?? 1)); g.connect(cats[cat]);
+    let pan = null; if (x !== undefined && ac.createStereoPanner) { pan = ac.createStereoPanner(); g.disconnect(); g.connect(pan); pan.connect(cats[cat]); }
+    const st = { el, g, pan, x, y, z, vol: g.gain.value, url: null, cat };
+    getFile(s.name).then(f => { if (!f || ctx !== ac) return; st.url = URL.createObjectURL(f); el.src = st.url; const src = ac.createMediaElementSource(el); src.connect(g); st.src = src; el.play().catch(() => {}); });
+    el.onended = () => endStream(st, key);
+    if (cat === 'music') { music0 = st; } else discs.set(key, st);
+    return true;
+  }
+  function endStream(st, key) {
+    try { st.el.pause(); st.el.removeAttribute('src'); st.el.load(); st.g.disconnect(); st.pan && st.pan.disconnect(); st.src && st.src.disconnect(); } catch (e) { /* the graph is gone */ }
+    if (st.url) URL.revokeObjectURL(st.url);
+    if (music0 === st) music0 = null;
+    if (key && discs.get(key) === st) discs.delete(key);
+  }
+  function stopMusic() { if (music0) endStream(music0); }
+  function musicBusy() { return !!music0; }
+  // which music: the menu, the End (the dragon while it lives), the nether biome, under water, creative, the overworld biome
+  function music(mode) {
+    if (!events || !ac) return false;
+    const p = Game.player;
+    let evs = ['music.game'];
+    if (mode === 'menu') evs = ['music.menu'];
+    else if (World.dim === 'end') evs = [Entities.list.some(e => e.type === 'ender_dragon' && !e.dead) ? 'music.dragon' : 'music.end'];
+    else if (World.dim === 'nether' && p) { const b = BIOMES[World.biomeAt(Math.floor(p.x), Math.floor(p.z))]; evs = ['music.nether.' + (b ? b.name : 'nether_wastes'), 'music.nether.nether_wastes']; }
+    else if (p && p.eyesInWater) evs = ['music.under_water', 'music.game'];
+    else if (p && p.creative) evs = ['music.creative', 'music.game'];
+    else if (p) { const b = BIOMES[World.biomeAt3 ? World.biomeAt3(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z)) : World.biomeAt(Math.floor(p.x), Math.floor(p.z))]; if (b) evs = ['music.overworld.' + b.name, 'music.game']; }
+    for (const ev of evs) if (playable(ev)) return playEvent(ev, undefined, undefined, undefined, 'music', 1, 1);
+    return false;
+  }
+  function disc(name, x, y, z, key) {
+    if (!events || !ac) return false;
+    const ev = 'music_disc.' + String(name).replace('music_disc_', ''); if (!playable(ev)) return false;
+    stopDisc(key);
+    const s = choose(ev); if (!s) return false;
+    return stream(s, 'records', 4, x, y, z, key);
+  }
+  function stopDisc(key) { const st = discs.get(key); if (st) endStream(st, key); }
+  // records fade with distance (64 blocks) and pan as you move
+  function tick() {
+    if (!ac) return;
+    const cam = camera.position, p = Game.player, yaw = p ? p.yaw : 0;
+    for (const st of discs.values()) {
+      const dx = st.x - cam.x, dy = st.y - cam.y, dz = st.z - cam.z, d = Math.hypot(dx, dy, dz), att = Math.max(0, 1 - d / 64);
+      st.g.gain.value = att * Math.min(1, st.vol);
+      if (st.pan) { const pn = d > 0.5 ? Math.max(-1, Math.min(1, (dx * Math.cos(yaw) - dz * Math.sin(yaw)) / d)) * 0.8 : 0; st.pan.pan.value = Number.isFinite(pn) ? pn : 0; }
+    }
+    if (music0 && Sound.musicMode === 'game' && UI.page === 'title') stopMusic();
+  }
+  // decode the sounds heard most often right away, so the first footsteps aren't late
+  function warm() {
+    const list = ['block.grass.step', 'block.stone.step', 'block.wood.step', 'block.gravel.step', 'block.sand.step', 'block.grass.break', 'block.stone.break', 'block.wood.break', 'block.stone.hit', 'block.grass.hit', 'block.wood.hit', 'ui.button.click', 'entity.item.pickup', 'entity.player.hurt', 'entity.player.attack.strong', 'entity.player.attack.weak', 'entity.experience_orb.pickup', 'block.grass.place', 'block.stone.place', 'block.wood.place'];
+    let i = 0; const next = () => { if (!events || i >= list.length) return; const s = events[list[i++]] && choose(list[i - 1]); (s && ac ? buffer(s.name) : Promise.resolve()).finally(() => setTimeout(next, 30)); };
+    next();
+  }
+  function volumes() { for (const st of discs.values()) st.vol = Math.min(1, st.vol); }
+  function status() { return { loaded: !!events, label, count, pending: !!pending, loading, canRemember: !!window.showDirectoryPicker }; }
+  const api = { attach, detach, volumes, play, block, note, disc, stopDisc, music, musicBusy, stopMusic, tick, playEvent, has: ev => !!events && playable(ev), status, pick, reconnect, restore, clear, fromEntries, get events() { return events; } };
+  return api;
 })();
 
 </script>
@@ -15517,8 +15950,48 @@ class ChestScreen extends Screens.Screen {
 }
 
 // the small recipe book button and panel
+// the recipe book button: a green book with a gold label and the pages showing (20x18 pixels, brighter on hover)
+const RecipeBookIcon = (() => {
+  const ART = [
+    '....................',
+    '...KKKKKKKKKKKKKK...',
+    '...KSLLLLLLLLLLLDK..',
+    '...KSLGGGGGGGGGGDPK.',
+    '...KSLGGGGGGGGGGDPK.',
+    '...KSLGGKKKKKKGGDPK.',
+    '...KSLGGKYYYYKGGDPK.',
+    '...KSLGGKYyyyKGGDPK.',
+    '...KSLGGKKKKKKGGDPK.',
+    '...KSLGGGGGGGGGGDPK.',
+    '...KSLGGGGGGGGGGDPK.',
+    '...KSLGGGGGGGGGGDPK.',
+    '...KSLGGGGGGGGGGDPK.',
+    '...KSDDDDDDDDDDDDpK.',
+    '...KKPPPPPPPPPPPPpK.',
+    '....KppppppppppppK..',
+    '.....KKKKKKKKKKKK...',
+    '....................'];
+  const PAL = { K: 0x16300f, S: 0x1f5a19, D: 0x2b6e24, G: 0x3d9733, L: 0x6ccb57, P: 0xf1e9cc, p: 0xc8bb92, Y: 0xf5cf3a, y: 0xb98a1d };
+  const cache = {};
+  function url(hover) {
+    if (cache[hover]) return cache[hover];
+    const c = document.createElement('canvas'); c.width = 20; c.height = 18; const g = c.getContext('2d'), im = g.createImageData(20, 18);
+    ART.forEach((row, y) => [...row].forEach((ch, x) => {
+      const col = PAL[ch]; if (col === undefined) return;
+      let r = col >> 16, gg = (col >> 8) & 255, b = col & 255;
+      if (hover && ch !== 'K') { r = Math.min(255, r * 1.25 + 20); gg = Math.min(255, gg * 1.25 + 20); b = Math.min(255, b * 1.25 + 20); }
+      if (hover && ch === 'K') { r = gg = b = 255; }
+      const k = (y * 20 + x) * 4; im.data[k] = r; im.data[k + 1] = gg; im.data[k + 2] = b; im.data[k + 3] = 255;
+    }));
+    g.putImageData(im, 0, 0);
+    return (cache[hover] = c.toDataURL());
+  }
+  return { url };
+})();
 function recipeBookButton(scr, x, y) {
-  const b = elAt('rbook', x, y, '');
+  const b = elAt('rbook', x, y, `background-image:url(${RecipeBookIcon.url(false)})`);
+  b.addEventListener('mouseenter', () => { b.style.backgroundImage = `url(${RecipeBookIcon.url(true)})`; });
+  b.addEventListener('mouseleave', () => { b.style.backgroundImage = `url(${RecipeBookIcon.url(false)})`; });
   b.title = 'Recipe Book';
   b.addEventListener('mousedown', e => { e.stopPropagation(); RecipeBook.toggle(scr); });
   return b;
@@ -19385,6 +19858,7 @@ const UI = (() => {
   const root = document.getElementById('menus');
   let page = null, game = false, screen = null;
   const SPLASHES = ['Also try terraria!', 'Pixels!', 'Now in your browser!', '100% blocks!', 'Punch a tree!', 'Watch out for creepers!', 'Diamonds at Y -59!', 'Made in JavaScript!', 'Survive the night!', 'Hello, world!', 'Ender Dragon awaits!', 'Redstone inside!', 'The cake is real!', 'Sheep come in 16 colours!', 'Don\'t dig straight down!', 'Not a shader pack!', 'Plain and simple!', 'As seen on your screen!', 'Infinite worlds!', 'Bring a torch!'];
+  const packName = () => { const st = SoundPack.status(); return st.loaded ? 'Minecraft' : st.pending ? 'Reconnect...' : 'Built-in'; };
   const btn = (label, act, o) => `<div class="mbtn${o && o.off ? ' off' : ''}${o && o.small ? ' small' : ''}" data-act="${act}"${o && o.w ? ` style="width:calc(var(--s)*${o.w})"` : ''}>${label}</div>`;
   function show(name, data) {
     if (name === 'title' && !Game.running) Panorama.start();
@@ -19436,7 +19910,17 @@ const UI = (() => {
       <div class="mbottom">${btn('Done', 'options')}</div>`,
     sounds: () => `<div class="mtitle">Music & Sound Options</div><div class="mcol wide grid2">
       ${slider('vMaster', 'Master Volume', 0, 1, 0.01, pct)}${slider('vMusic', 'Music', 0, 1, 0.01, pct)}${slider('vSfx', 'Blocks, Mobs & Players', 0, 1, 0.01, pct)}${slider('vAmbient', 'Ambient/Environment', 0, 1, 0.01, pct)}
-      ${btn('Subtitles: ' + (Settings.subtitles ? 'ON' : 'OFF'), 'tsubs', { w: 150 })}</div><div class="mbottom">${btn('Done', 'options')}</div>`,
+      ${btn('Subtitles: ' + (Settings.subtitles ? 'ON' : 'OFF'), 'tsubs', { w: 150 })}${btn('Sounds: ' + packName(), 'soundpack', { w: 150 })}</div><div class="mbottom">${btn('Done', 'options')}</div>`,
+    // the real game's sounds, from the player's own copy of Minecraft
+    soundpack: d => { const st = SoundPack.status(); return `<div class="mtitle">Minecraft Sounds</div><div class="mcol wide packinfo">
+      <div class="mtext">Play the real sounds and music from <b>your own copy of Minecraft: Java Edition</b> instead of the built-in ones.
+      Pick your <b>.minecraft</b> folder (or the <b>assets</b> folder inside it). Start the game once in the Minecraft launcher first, so the sounds are downloaded.</div>
+      <div class="mtext small">Windows: <code>%APPDATA%\.minecraft</code> &nbsp; macOS: <code>~/Library/Application Support/minecraft</code> &nbsp; Linux: <code>~/.minecraft</code><br>
+      A resource pack folder with its own sounds works too. The files stay on your computer: nothing is copied or uploaded.${st.canRemember ? '' : ' This browser can\'t remember the folder, so you pick it again each time.'}</div>
+      <div class="mtext status">${escapeHTML(d.msg || (st.loading ? 'Loading...' : st.loaded ? `Using ${st.count} sound events from "${st.label}".` : st.pending ? 'Your Minecraft folder was picked before. Click Reconnect to use it again.' : 'Using the built-in sounds.'))}</div>
+      <div class="mrow">${btn('Choose Folder...', 'packpick', { w: 150 })}${st.pending ? btn('Reconnect', 'packreconnect', { w: 150 }) : btn('Use Built-in Sounds', 'packoff', { w: 150, off: !st.loaded })}</div>
+      ${st.canRemember ? `<div class="mrow">${btn('Folder Won\'t Open? Upload It Instead...', 'packupload', { w: 304 })}</div>` : ''}
+      </div><div class="mbottom">${btn('Done', 'sounds')}</div>`; },
     access: () => `<div class="mtitle">Accessibility Settings</div><div class="mcol wide grid2">
       ${btn('Auto-Jump: ' + (Settings.autoJump ? 'ON' : 'OFF'), 'tajump', { w: 150 })}${btn('Sprint: ' + (Settings.toggleSprint ? 'Toggle' : 'Hold'), 'tsprint', { w: 150 })}
       ${btn('Sneak: ' + (Settings.toggleCrouch ? 'Toggle' : 'Hold'), 'tsneak', { w: 150 })}${btn('Subtitles: ' + (Settings.subtitles ? 'ON' : 'OFF'), 'tsubs', { w: 150 })}</div>
@@ -19494,7 +19978,7 @@ const UI = (() => {
       case 'optback': show(optionsFrom === 'pause' ? 'pause' : 'title'); break;
       case 'quit': show('confirm', { title: 'Quit Game?', text: 'You can close this browser tab to quit.', yes: 'OK', no: 'Back' }); confirmFn = () => show('title'); break;
       case 'back': show('title'); break;
-      case 'video': case 'controls': case 'sounds': case 'access': show(a); break;
+      case 'video': case 'controls': case 'sounds': case 'access': case 'soundpack': show(a); break;
       case 'create': createData = { name: 'New World', mode: 'survival', difficulty: 'normal', cheats: false, seed: '', structures: true, density: 'more', type: 'default' }; show('create', createData); break;
       case 'cmode': readCreate(); createData.mode = { survival: 'hardcore', hardcore: 'creative', creative: 'survival' }[createData.mode]; if (createData.mode === 'creative') createData.cheats = true; if (createData.mode === 'hardcore') createData.cheats = false; show('create', createData); break;
       case 'cdiff': readCreate(); if (createData.mode === 'hardcore') break; createData.difficulty = { peaceful: 'easy', easy: 'normal', normal: 'hard', hard: 'peaceful' }[createData.difficulty]; show('create', createData); break;
@@ -19514,7 +19998,14 @@ const UI = (() => {
       case 'savequit': await Save.saveGame(); Game.stop(); game = false; Screens.close(true); show('title'); Sound.music && Sound.music('menu'); break;
       case 'respawn': Game.player.respawn(); hide(); Input.requestLock(); break;
       case 'spectate': Game.player.respawn(); Game.player.setGamemode('spectator'); hide(); Input.requestLock(); break;
-      case 'deathtitle': if (Game.hardcore) { await Save.deleteWorld(Game.worldId); } else { Game.player.respawn(); await Save.saveGame(); } Game.stop(); game = false; show('title'); break;
+      case 'deathtitle': if (Game.hardcore) { await Save.deleteWorld(Game.worldId); } else { Game.player.respawn(); await Save.saveGame(); } Game.stop(); game = false; show('title'); Sound.music('menu'); break;
+      case 'packpick': case 'packupload': case 'packreconnect': {
+        show('soundpack', { msg: 'Looking for sounds...' });
+        try { const r = a === 'packreconnect' ? await SoundPack.reconnect() : await SoundPack.pick(a === 'packupload'); show('soundpack', { msg: r ? `Found ${r.count} sound events in "${r.label}". The game now uses them.` : '' }); if (r && !game) Sound.music('menu'); }
+        catch (e) { show('soundpack', { msg: e.message || String(e) }); }
+        break;
+      }
+      case 'packoff': SoundPack.clear(); show('soundpack', { msg: 'Using the built-in sounds again.' }); break;
       case 'odiff': if (!game || Game.hardcore) break; Game.difficulty = { peaceful: 'easy', easy: 'normal', normal: 'hard', hard: 'peaceful' }[Game.difficulty]; show('options'); break;
       case 'advancements': show('advancements'); break;
       case 'stats': show('stats'); break;
@@ -26790,7 +27281,9 @@ const Panorama = (() => {
     give.forEach((n, i) => p.inv.set(i, stack(n, 64)));
     if (q.has('yaw')) p.yaw = +q.get('yaw'); if (q.has('pitch')) p.pitch = +q.get('pitch');
     HUD.refresh();
-  } else UI.show('title');
+  } else { UI.show('title'); Sound.music('menu'); }
+  // the player's own game sounds, if they were connected before and the browser still allows reading them
+  SoundPack.restore().then(() => { if (UI.page === 'sounds' || UI.page === 'soundpack') UI.show(UI.page); });
 })();
 
 </script>
