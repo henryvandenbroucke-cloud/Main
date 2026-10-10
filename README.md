@@ -66,11 +66,15 @@ To rebuild the single file after changing the code, run `python3 tools/build_sin
   - signs, banners, beds, respawn anchors, portals and maps.
 
 **Mobs.** Every 1.21 mob, with its own AI, model, animation, sounds and loot:
-- villagers with professions and trading, and iron golems;
+- villagers with professions, trading and reputation (gossip changes prices, and iron golems defend villagers from players who hurt them);
 - raids and patrols;
-- breeding, taming and riding;
-- cat and wolf variants;
-- bees, axolotls, sniffers, armadillos, breezes and bogged;
+- breeding, taming and riding, with the jump bar for horses and camels;
+- cat, wolf, axolotl and tropical fish variants;
+- buckets of fish, axolotls and tadpoles that keep the mob inside;
+- pufferfish that puff up and sting, and axolotls that hunt, play dead and help players;
+- allays that collect items and deliver them to a player or a note block, dance to jukeboxes and duplicate;
+- breezes that leap and turn projectiles back, camels with two riders and a dash, sniffers that dig up seeds, and armadillos that roll up;
+- bees and bogged;
 - the Warden, the Wither and the Ender Dragon, including respawning the dragon.
 
 **Survival.**
