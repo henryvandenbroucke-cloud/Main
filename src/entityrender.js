@@ -614,7 +614,8 @@ Hand = (() => {
   }
   function update(a, p) {
     if (!p) return;
-    hCam.aspect = camera.aspect; hCam.fov = camera.fov; hCam.updateProjectionMatrix();
+    // the hand is always drawn at 70 degrees, whatever the FOV setting or sprinting does to the world (as in the game)
+    hCam.aspect = camera.aspect; hCam.fov = 70; hCam.updateProjectionMatrix();
     hCam.position.set(0, 0, 0); hCam.rotation.set(0, 0, 0);
     // the hand lags behind the view a little when turning (the game's arm sway)
     ry += (p.yaw - ry) * 0.5; rx += (p.pitch - rx) * 0.5;
