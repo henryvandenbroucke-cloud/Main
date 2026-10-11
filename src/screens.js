@@ -198,6 +198,8 @@ const Screens = (() => {
   class Screen {
     constructor(title, w, h) {
       this.title = title; this.w = w; this.h = h; this.slots = []; this.parts = [];
+      // the game draws no dim behind a container, only behind the in-game menus
+      this.dim = false;
       this.el = document.createElement('div'); this.el.className = 'gscreen';
     }
     slot(inv, i, x, y, o) { const s = Object.assign({ inv, i, x, y }, o || {}); this.slots.push(s); return s; }
@@ -263,7 +265,7 @@ const Screens = (() => {
   function open(scr) {
     if (current) close(true);
     current = scr;
-    scr.build(); root.innerHTML = '<div class="dim"></div>'; root.appendChild(scr.el); root.classList.remove('hidden');
+    scr.build(); root.innerHTML = scr.dim === false ? '' : '<div class="dim"></div>'; root.appendChild(scr.el); root.classList.remove('hidden');
     if (scr.update) scr.update();
     render();
     Input.releaseLock();
@@ -280,7 +282,7 @@ const Screens = (() => {
   }
   function render() { if (current) { current.render(); Slots.renderCursor(); } HUD.refresh(); }
   function tick() { if (current && current.tick) { current.tick(); render(); } }
-  function rebuild() { if (current) { current.build(); root.innerHTML = '<div class="dim"></div>'; root.appendChild(current.el); render(); } }
+  function rebuild() { if (current) { current.build(); root.innerHTML = current.dim === false ? '' : '<div class="dim"></div>'; root.appendChild(current.el); render(); } }
   return { Screen, open, close, render, tick, rebuild, get current() { return current; }, root };
 })();
 
@@ -388,7 +390,7 @@ class ChestScreen extends Screens.Screen {
     super(title, 176, h);
     this.items = items;
     const mk = i => ({ get: () => items.get ? items.get(i) : items[i], set: v => { if (items.set) items.set(i, v); else items[i] = v && v.count > 0 ? v : null; } });
-    const x0 = o.dispenser ? 62 : o.hopper ? 44 : 8, y0 = 18;
+    const x0 = o.dispenser ? 62 : o.hopper ? 44 : 8, y0 = o.dispenser ? 17 : o.hopper ? 20 : 18;
     for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) Object.assign(this.slot(null, 0, x0 + c * 18, y0 + r * 18, { filter: o.filter }), mk(r * cols + c));
     const py = o.hopper ? 51 : o.dispenser ? 84 : 31 + rows * 18;
     this.playerSlots(8, py);

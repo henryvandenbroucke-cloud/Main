@@ -265,18 +265,46 @@ const Advancements = (() => {
 
   // ---------------------------------------------------------------- toasts (top right, 5 seconds)
   const toasts = [];
+  // a toast: 160x32 GUI pixels, sliding in from the right, drawn whole (the game slides the background and the
+  // text together), with the title wrapped onto a second line when it is too long for the box
   function drawToasts(g, S, W, text) {
     const now = performance.now();
     for (let i = toasts.length - 1; i >= 0; i--) if (now - toasts[i].t > 5600) toasts.splice(i, 1);
-    toasts.slice(0, 5).forEach((t, i) => {
+    toastLines(g, S); // measure with the same font the HUD uses
+    let stackY = 0;
+    toasts.slice(0, 5).forEach(t => {
       const age = now - t.t, slide = age < 300 ? age / 300 : age > 5300 ? 1 - (age - 5300) / 300 : 1;
-      const w = 160 * S, h = 32 * S, x = W - w * slide, y = i * h;
-      g.fillStyle = '#212121'; g.fillRect(x, y, w, h); g.fillStyle = '#555555'; g.fillRect(x + S, y + S, w - 2 * S, h - 2 * S); g.fillStyle = '#212121'; g.fillRect(x + 2 * S, y + 2 * S, w - 4 * S, h - 4 * S);
-      const a = t.a, IDX = IID[a.icon]; if (IDX !== undefined) Icons.draw(g, IDX, x + 8 * S, y + 8 * S, 16 * S);
+      const lines = wrapText(t.a.title, 122, S, 2);
+      const w = 160 * S, h = (32 + 10 * (lines.length - 1)) * S, x = W - w * slide, y = stackY;
+      stackY += h;
+      g.save();
+      g.translate(x, y);
+      g.fillStyle = '#212121'; g.fillRect(0, 0, w, h); g.fillStyle = '#555555'; g.fillRect(S, S, w - 2 * S, h - 2 * S); g.fillStyle = '#212121'; g.fillRect(2 * S, 2 * S, w - 4 * S, h - 4 * S);
+      const a = t.a, IDX = IID[a.icon]; if (IDX !== undefined) Icons.draw(g, IDX, 8 * S, 8 * S, 16 * S);
       const head = a.frame === 'challenge' ? 'Challenge Complete!' : a.frame === 'goal' ? 'Goal Reached!' : 'Advancement Made!';
-      text(head, x + 30 * S, y + 7 * S, a.frame === 'challenge' ? '#ff88ff' : '#ffff00');
-      text(a.title, x + 30 * S, y + 18 * S, '#ffffff');
+      text(head, 30 * S, 7 * S, a.frame === 'challenge' ? '#ff88ff' : '#ffff00');
+      lines.forEach((l, n) => text(l, 30 * S, (18 + n * 10) * S, '#ffffff'));
+      g.restore();
     });
+  }
+  // the font the HUD is drawing with, so a title can be measured
+  const measureCtx = document.createElement('canvas').getContext('2d');
+  function toastLines(g) { measureCtx.font = g.font; }
+  // break a string into at most max lines that fit width GUI pixels, ending the last one with "..."
+  function wrapText(str, width, S, max) {
+    const fits = t => measureCtx.measureText(t).width <= width * S;
+    const words = String(str).split(' '), out = []; let cur = '';
+    for (const word of words) {
+      const test = cur ? cur + ' ' + word : word;
+      if (fits(test) || !cur) { cur = test; continue; }
+      out.push(cur); cur = word;
+      if (out.length === max) break;
+    }
+    if (cur && out.length < max) out.push(cur);
+    if (!out.length) out.push('');
+    let last = out[out.length - 1];
+    if (!fits(last)) { let cut = last; while (cut.length > 1 && !fits(cut + '...')) cut = cut.slice(0, -1); out[out.length - 1] = cut + '...'; }
+    return out;
   }
 
   // ---------------------------------------------------------------- the screen
