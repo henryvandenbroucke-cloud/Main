@@ -98,7 +98,7 @@ const blurSamples = (f: number) => {
   const a = viewOf(L, f - 0.5), b = viewOf(L, f + 0.5);
   const pa = a.fromPlate([a.cam.cx, a.cam.cy]), pb = b.fromPlate([a.cam.cx, a.cam.cy]);
   const sp = Math.hypot(pb[0] - pa[0], pb[1] - pa[1]) + Math.abs(Math.log(b.s / a.s)) * 900;
-  return sp > 60 ? 7 : sp > 22 ? 5 : sp > 9 ? 3 : 1;
+  return sp > 60 ? 4 : sp > 14 ? 3 : 1;
 };
 
 const drawFrame = (g: CanvasRenderingContext2D, f: number) => {
