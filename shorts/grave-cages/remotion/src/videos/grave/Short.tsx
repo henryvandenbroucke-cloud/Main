@@ -63,11 +63,15 @@ const drawActor = (g: CanvasRenderingContext2D, v: View, a: Actor, p: PlateDef) 
 /** whip-pan offset (output px) for a shot at frame f: leaving to the left before the next shot's whip, arriving from
  *  the right at the start of its own */
 const WHIP = 6;
+/** whip pan: over 2*WHIP frames centred on the cut, the outgoing shot slides out to the left while the incoming one
+ *  slides in right behind it (cubic in-out), so the frame is always full; motion blur smears the move */
+const whipE = (s: Shot, f: number) => { const u = Math.min(1, Math.max(0, (f - (s.a - WHIP)) / (2 * WHIP))); return u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2; };
+const inWhip = (s: Shot, f: number) => !!s.whip && f >= s.a - WHIP && f < s.a + WHIP;
 const whipDx = (s: Shot, f: number) => {
   const next = SHOTS[s.id];
   let dx = 0;
-  if (next?.whip && f >= next.a - WHIP && f < next.a) { const u = (f - (next.a - WHIP)) / WHIP; dx -= u * u * u * 1500; }
-  if (s.whip && f >= s.a && f < s.a + WHIP) { const u = 1 - (f - s.a) / WHIP; dx += u * u * u * 1500; }
+  if (next && inWhip(next, f)) dx -= whipE(next, f) * 1080;
+  if (inWhip(s, f)) dx += (1 - whipE(s, f)) * 1080;
   return dx;
 };
 const viewOf = (s: Shot, f: number) => {
@@ -87,6 +91,7 @@ const drawShot = (g: CanvasRenderingContext2D, s: Shot, f: number) => {
  *  a whip shows only the outgoing shot before the cut and the incoming one after) */
 const layersAt = (f: number): { s: Shot; alpha: number }[] => {
   for (const s of SHOTS) {
+    if (inWhip(s, f)) return [{ s: SHOTS[s.id - 2], alpha: 1 }, { s, alpha: 1 }];
     const x = s.xfade;
     if (x && f >= s.a - x / 2 && f < s.a + x / 2) return [{ s: SHOTS[s.id - 2], alpha: 1 }, { s, alpha: Math.min(1, (f - (s.a - x / 2) + 1) / (x + 1)) }];
   }
@@ -98,7 +103,7 @@ const blurSamples = (f: number) => {
   const a = viewOf(L, f - 0.5), b = viewOf(L, f + 0.5);
   const pa = a.fromPlate([a.cam.cx, a.cam.cy]), pb = b.fromPlate([a.cam.cx, a.cam.cy]);
   const sp = Math.hypot(pb[0] - pa[0], pb[1] - pa[1]) + Math.abs(Math.log(b.s / a.s)) * 900;
-  return sp > 60 ? 4 : sp > 14 ? 3 : 1;
+  return sp > 60 ? 4 : sp > 30 ? 3 : 1;
 };
 
 const drawFrame = (g: CanvasRenderingContext2D, f: number) => {
