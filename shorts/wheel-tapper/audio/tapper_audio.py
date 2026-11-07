@@ -178,13 +178,19 @@ def gasp(t, base=180, g=0.15, p=0.0):
 # ---------------------------------------------------------------- the hammer sounds
 NOTES = [79, 83, 86, 91, 88, 84]
 def ting(t, m=79, g=0.55, long=1.0, p=0.15):
-    """a struck steel wheel: inharmonic modal ring + a bright click; tuned to a note of the key"""
+    """a struck steel wheel, made pleasant: a soft mallet onset, mostly the fundamental and one shimmering partial
+    (beating pair), gentle lowpass; tuned to a note of the key so a run of hits plays a little melody"""
     f0 = m2f(m) / 2
-    y = modal(1.6 * long, [(f0, 1.0, 0.9 * long), (f0 * 2.76, 0.55, 0.5 * long), (f0 * 5.40, 0.3, 0.25 * long), (f0 * 8.93, 0.15, 0.12)], R)
-    tt_ = tt(1.6 * long); y += hp(R.standard_normal(len(tt_)), 3000) * np.exp(-tt_ / 0.004) * 0.6
-    sfx(fades(y, 0.0003, 0.1), t, g, p); sfx(glock(m2f(m), 0.5, R, 1.0), t, g * 0.35, -p)
+    d = 1.8 * long; tt_ = tt(d)
+    y = (np.sin(2 * np.pi * f0 * tt_) * np.exp(-tt_ / (0.9 * long))
+         + 0.35 * np.sin(2 * np.pi * f0 * 2.0 * tt_) * np.exp(-tt_ / (0.45 * long))
+         + 0.18 * np.sin(2 * np.pi * f0 * 2.76 * tt_) * np.exp(-tt_ / 0.25)
+         + 0.12 * np.sin(2 * np.pi * (f0 * 2.0 + 3.0) * tt_) * np.exp(-tt_ / (0.6 * long)))
+    y *= np.minimum(1, tt_ / 0.0025)
+    y += lp(R.standard_normal(len(tt_)), 2500) * np.exp(-tt_ / 0.003) * 0.12
+    sfx(fades(lp(y, 6000), 0.0003, 0.15), t, g * 0.8, p); sfx(glock(m2f(m), 0.45, R, 1.4), t + 0.004, g * 0.3, -p)
 def thunk(t, g=0.9):
-    thud(t, g); sfx(wood_crack(R) * 0.3, t, g * 0.4)
+    thud(t, g * 0.8); sfx(lp(wood_crack(R), 2500) * 0.25, t, g * 0.3)
     tt_ = tt(0.6); y = np.sin(phase(70 * np.exp(-tt_ / 0.2) + 35)) * np.exp(-tt_ / 0.18); sfx(fades(y, 0.001, 0.05), t, g * 0.8)
 def glass(t, g=0.45):
     tt_ = tt(2.2); y = sum(a * np.sin(2 * np.pi * f * tt_) * np.exp(-tt_ / d) for f, a, d in [(1760, 1, 1.2), (1760 * 2.32, 0.4, 0.6), (1760 * 3.9, 0.2, 0.3)])
@@ -198,7 +204,7 @@ def whistle(t, g=0.25):
     y = y * env + bp(R.standard_normal(len(tt_)), 600, 3000) * env * 0.2; sfx(y, t, g, -0.3)
 def crash(t, g=0.6):
     tt_ = tt(1.0); y = bp(R.standard_normal(len(tt_)), 1500, 9000) * np.exp(-tt_ / 0.25)
-    sfx(y, t, g); thud(t, g * 0.8)
+    sfx(lp(y, 5000), t, g * 0.6); thud(t, g * 0.6)
     for k in range(10): sfx(clink(R, R.uniform(2500, 5000), 0.2, 1.0), t + 0.03 + k * 0.05 + R.uniform(0, 0.03), g * 0.4, R.uniform(-0.6, 0.6))
 def clack(t, g=0.25):
     tt_ = tt(0.08); y = bp(R.standard_normal(len(tt_)), 400, 2500) * np.exp(-tt_ / 0.015); sfx(y, t, g)
@@ -280,7 +286,11 @@ for i in range(0, len(speak), 64):
     a = max(speak[i], a * k ** 64); sm[i:i + 64] = a
 duck = dbg(-6.0 * sm)
 musb = mus * dbg(-23.0 - integrated(mus)) * duck[None, :]
-fxb = fx * dbg(-22.0 - integrated(fx))
+ir_t = tt(1.4); ir = R.standard_normal((2, len(ir_t))) * np.exp(-ir_t / 0.35)[None, :]; ir[:, :ns(0.012)] = 0
+from scipy.signal import fftconvolve
+wet = np.stack([fftconvolve(fx[c], lp(ir[c], 5000))[:N] for c in range(2)])
+fx = fx + wet * (0.22 * np.abs(fx).max() / max(1e-9, np.abs(wet).max()))
+fxb = fx * dbg(-26.5 - integrated(fx))
 mix = v + musb + fxb
 mix *= dbg(-14.0 - integrated(mix))
 # look-ahead peak limiter to -1.2 dBFS (sample peak; true peak checked after)
