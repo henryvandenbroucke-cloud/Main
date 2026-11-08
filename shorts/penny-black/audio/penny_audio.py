@@ -381,9 +381,9 @@ def riffle_burr(t, dur=0.9, g=0.14):
 paper(0.0, 0.25, 0.16); swoosh(0.05, 0.55, 0.2); soft_pop(0.08, 0.1, 900)
 spring(F(tRefused), 220, 520, 0.14); soft_pop(F(tExactly) + 0.05, 0.12, 1100); sparkle_s(F(tRead), 0.12)
 # 2 London: FREE / PAY labels, a coin into the palm
-swoosh(F(tBack) - 0.15, 0.4, 0.15); paper(F(tSend), 0.3, 0.12); soft_pop(F(tSend) + 0.05, 0.14, 1000); ding(F(tSend) + 0.1, 1568, 0.12)
-for k in range(5): tiptoe(F(tSend) + 0.35 + k * 0.2, 0.05, 1200 + 80 * (k % 2))
-soft_pop(F(tReceive) + 0.05, 0.16, 800); coins(F(tReceive) + 0.1, 2, 0.15)
+# (only whooshes here: the cut in, the letter passed over, the slide along the terrace, the PAY label)
+tYou = A("you", A("letter", tSend))
+swoosh(F(tBack) - 0.15, 0.4, 0.15); swoosh(F(tSend) + 0.05, 0.3, 0.08); swoosh(F(tYou) - 0.05, 0.55, 0.1); swoosh(F(tReceive) + 0.08, 0.25, 0.07)
 # 3 the shilling spins up; a day's wages trickles away
 coin_spin(F(tShilling) - 0.1, 0.18); ding(F(tShilling) + 0.15, 2093, 0.1)
 for k in range(8): sfx(clink(R, R.uniform(2600, 3800), 0.15, 1.0), F(tWhole) - 0.07 + k * 22 / 30 / 8 + 0.3, 0.12, 0.3)
