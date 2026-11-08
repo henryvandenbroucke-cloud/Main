@@ -470,13 +470,13 @@ fx = fx + wet * (0.22 * np.abs(fx).max() / max(1e-9, np.abs(wet).max()))
 from scipy.ndimage import maximum_filter1d
 pkenv = maximum_filter1d(np.abs(fx).max(axis=0), ns(0.01))
 act = pkenv[pkenv > pkenv.max() * 1e-3]
-thr = np.median(act) * dbg(3.0)                               # ~3 dB above a typical hit
+thr = np.median(act) * dbg(2.0)                               # ~2 dB above a typical hit
 grc = np.minimum(1.0, (thr / np.maximum(pkenv, 1e-9)) ** (1 - 1 / 4.0))   # ratio 4:1 above the threshold
 att, rel = np.exp(-1 / (SR * 0.003)), np.exp(-1 / (SR * 0.15)); sm2 = np.empty_like(grc); cur = 1.0
 for i in range(len(grc)):
     cur = grc[i] + (cur - grc[i]) * (att if grc[i] < cur else rel); sm2[i] = cur
 fx = fx * sm2[None, :]
-fxb = fx * dbg(-30.0 - integrated(fx))
+fxb = fx * dbg(-32.0 - integrated(fx))
 mix = v + musb + fxb
 mix *= dbg(-14.0 - integrated(mix))
 # look-ahead peak limiter to -1.2 dBFS (sample peak; true peak checked after)
