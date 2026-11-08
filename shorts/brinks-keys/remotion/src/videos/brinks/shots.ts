@@ -526,8 +526,29 @@ add({
   keys: [{ f: C12, at: [0.35, 1.7, 5.0], z: 1.25, creep: 0.002 }, { f: F(tPolice) - 4, dur: 12, at: [0.6, 1.25, 4.6], z: 1.55, creep: 0.003 }],
   cast: (f) => [stand(DETECTIVE, "det", [0.9, 0, 4.7], 61, f, [[0, "stern"], [F(tNothing), "dazed"]], [[0, { r: [-0.3, -0.5] }], [F(tNothing), { l: [-0.6, -0.6], r: [0.6, -0.6] }]], { facing: -1, headTilt: f > F(tNothing) ? -8 : 0 }, { noShadow: true })],
   over: (g, v, f) => {
-    const icons: [number, (x: number, y: number) => void, boolean][] = [[F(tNo1), (x, y) => bellIcon(g, x, y, 130), false], [F(tShots), (x, y) => gunIcon(g, x, y, 150), false], [F(tBroken), (x, y) => lockCyl(g, x, y, 90, 0), true]];
-    icons.forEach(([t0, draw, ok], i) => { if (f < t0 - 2 || f > F(tPolice) + 2) return; const k = easeOutBack(clamp01((f - t0 + 2) / 7), 2) * (1 - smooth((f - F(tPolice) + 4) / 6)); const x = 220 + i * 320, y = 420; g.save(); g.translate(x, y); g.scale(k, k); draw(0, 0); g.restore(); tick(g, x + 10, y + 10, 120, clamp01((f - t0 - 4) / 7) * k, ok); });
+    // three little animations, one after another, in the clear brick area above the door
+    const A0 = F(tNo1) - 3, B0 = F(tShots) - 3, C0 = F(tBroken) - 3, END = F(tPolice) + 2, X = 540, Y = 385, SC = 1.45;
+    const life = (t0: number, t1: number) => Math.min(easeOutBack(clamp01((f - t0) / 7), 1.8), 1 - smooth((f - t1 + 4) / 5));
+    if (f >= A0 && f < B0 + 1) { // the alarm bell that never rang: its hammer twitches and freezes, a spider lowers in front of it
+      const k = life(A0, B0) * SC; g.save(); g.translate(X, Y); g.scale(k, k);
+      g.fillStyle = "#6b4a2e"; g.strokeStyle = INK; g.lineWidth = 7; g.beginPath(); g.roundRect(-30, -150, 60, 40, 8); g.fill(); g.stroke();
+      g.beginPath(); g.arc(0, -10, 120, Math.PI, 0); g.lineTo(120, 30); g.lineTo(-120, 30); g.closePath(); const bg = g.createLinearGradient(-120, -130, 120, 30); bg.addColorStop(0, "#ffe9a0"); bg.addColorStop(0.5, "#e8b830"); bg.addColorStop(1, "#b07a10"); g.fillStyle = bg; g.fill(); g.stroke();
+      g.beginPath(); g.ellipse(-50, -60, 22, 12, -0.6, 0, 7); g.fillStyle = "rgba(255,255,255,0.6)"; g.fill();
+      const tw = f - A0 < 12 ? Math.sin((f - A0) * 1.6) * 0.12 * (1 - (f - A0) / 12) : 0; g.save(); g.translate(150, 60); g.rotate(-0.5 + tw); g.fillStyle = "#3a3540"; g.fillRect(-6, -70, 12, 70); g.strokeRect(-6, -70, 12, 70); g.beginPath(); g.arc(0, -78, 16, 0, 7); g.fill(); g.stroke(); g.restore();
+      const drop = easeOut(clamp01((f - A0 - 8) / 14)), sy = -260 + drop * 250; g.strokeStyle = "rgba(240,240,240,0.9)"; g.lineWidth = 2; g.beginPath(); g.moveTo(40, -330); g.lineTo(40, sy); g.stroke();
+      g.save(); g.translate(40, sy + Math.sin(f * 0.3) * 4); g.fillStyle = "#1d1a22"; g.beginPath(); g.ellipse(0, 0, 14, 17, 0, 0, 7); g.fill(); g.strokeStyle = "#1d1a22"; g.lineWidth = 4; for (const sx of [-1, 1]) for (let j = 0; j < 3; j++) { g.beginPath(); g.moveTo(sx * 10, -6 + j * 7); g.lineTo(sx * 28, -14 + j * 10); g.lineTo(sx * 34, j * 8); g.stroke(); } g.fillStyle = "#fff"; g.beginPath(); g.arc(-5, -4, 4, 0, 7); g.arc(5, -4, 4, 0, 7); g.fill(); g.restore();
+      g.restore();
+    }
+    if (f >= B0 && f < C0 + 1) { // the revolver that never fired: it spins round once on a finger and drops away
+      const k = life(B0, C0) * SC, spin = easeOut(clamp01((f - B0 - 3) / 12)) * Math.PI * 2, fall = clamp01((f - C0 + 6) / 6);
+      g.save(); g.translate(X, Y + fall * fall * 400); g.scale(k, k); g.rotate(spin); gunIcon(g, 0, 0, 230); g.restore();
+    }
+    if (f >= C0 && f < END) { // the lock: whole and untouched, it turns to show itself off and a gleam slides across
+      const k = life(C0, END) * SC, turn = Math.sin(clamp01((f - C0 - 2) / 14) * Math.PI) * 0.35;
+      g.save(); g.translate(X, Y); g.scale(k, k); lockCyl(g, 0, 0, 200, -turn, 0.8);
+      const gl = clamp01((f - C0 - 8) / 10); if (gl > 0 && gl < 1) { g.save(); g.beginPath(); g.rect(-110, -64, 220, 128); g.clip(); g.globalCompositeOperation = "screen"; const gx = -160 + gl * 320, gg = g.createLinearGradient(gx - 40, 0, gx + 40, 0); gg.addColorStop(0, "rgba(255,255,255,0)"); gg.addColorStop(0.5, "rgba(255,250,220,0.9)"); gg.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gg; g.fillRect(-160, -80, 320, 160); g.restore(); }
+      g.restore(); sparkle(g, X + 130, Y - 100, 50, f - C0 - 14);
+    }
     if (f >= F(tPolice)) { const cp = v.w([0.2, 0.05, 4.6]), m = v.ppm([0.2, 0, 4.6]); g.save(); g.translate(cp[0], cp[1]); g.fillStyle = "#1f2333"; g.strokeStyle = INK; g.lineWidth = 5; g.beginPath(); g.ellipse(0, -m * 0.04, m * 0.16, m * 0.06, 0, Math.PI, 0); g.fill(); g.stroke(); g.beginPath(); g.ellipse(m * 0.08, 0, m * 0.12, m * 0.03, 0, 0, 7); g.fillStyle = "#16171b"; g.fill(); g.stroke(); g.restore();
       const mg = v.w([0.55, 0.5, 4.5]); g.save(); g.lineWidth = 10; g.strokeStyle = INK; g.beginPath(); g.arc(mg[0], mg[1], 60, 0, 7); g.fillStyle = "rgba(200,230,255,0.3)"; g.fill(); g.stroke(); g.beginPath(); g.moveTo(mg[0] + 42, mg[1] + 42); g.lineTo(mg[0] + 100, mg[1] + 100); g.lineWidth = 16; g.stroke(); g.restore(); }
     const hd = v.w([0.9, 1.75, 4.7]); qmark(g, hd[0] - 80, hd[1] - 60, 80, f - F(tNothing) - 2, -0.15);
@@ -631,42 +652,44 @@ add({
   over: (g, v, f) => { const ep = v.w([-4.55, 1.05, 4.3]), m = v.ppm([-4.5, 1, 4.3]); if (f >= F(tHired)) { g.save(); g.translate(ep[0], ep[1]); g.rotate(0.1); g.fillStyle = "#e9dcc0"; g.strokeStyle = INK; g.lineWidth = 4; g.fillRect(-m * 0.12, -m * 0.07, m * 0.24, m * 0.14); g.strokeRect(-m * 0.12, -m * 0.07, m * 0.24, m * 0.14); g.fillStyle = "#3f7a4a"; g.font = `900 ${m * 0.08}px Georgia`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("$", 0, 0); g.restore(); } },
 });
 
-// 20 — "He got shot..."  (a white flash and a hard camera kick)  "...and survived."  (the hospital: Specs bandaged in bed,
-//      the heart monitor beeping, a stubborn thumbs-up)
+/** the hospital bed's quilt (output px) over Specs' legs: soft pale-blue cover with folds, folded-back sheet edge */
+const quilt = (g: CanvasRenderingContext2D, v: View) => {
+  const tl = v.w([299.15, 1.12, 3.0]), tr = v.w([300.85, 1.12, 3.0]), bl = v.w([299.0, 0.6, 1.6]), br = v.w([301.0, 0.6, 1.6]);
+  g.save(); g.lineJoin = "round"; g.beginPath(); g.moveTo(tl[0], tl[1]); for (let i = 1; i <= 8; i++) { const u = i / 8; g.lineTo(tl[0] + (tr[0] - tl[0]) * u, tl[1] + (tr[1] - tl[1]) * u + Math.sin(u * Math.PI * 3) * 8); } g.lineTo(br[0] + 20, 1960); g.lineTo(bl[0] - 20, 1960); g.closePath();
+  const gr = g.createLinearGradient(0, tl[1], 0, 1920); gr.addColorStop(0, "#dceaf2"); gr.addColorStop(1, "#b9cfdc"); g.fillStyle = gr; g.fill(); g.lineWidth = 7; g.strokeStyle = INK; g.stroke();
+  g.strokeStyle = "rgba(80,110,130,0.45)"; g.lineWidth = 5; for (let i = 0; i < 4; i++) { const x0 = tl[0] + (tr[0] - tl[0]) * (0.15 + i * 0.23); g.beginPath(); g.moveTo(x0, tl[1] + 40); g.quadraticCurveTo(x0 + 30, tl[1] + 260, x0 - 10, 1920); g.stroke(); }
+  g.restore();
+};
+/** a heart monitor on a wheeled stand beside the bed (output px): screen with a sweeping trace */
+const monitor = (g: CanvasRenderingContext2D, x: number, y: number, s: number, f: number, alive: number) => {
+  g.save(); g.strokeStyle = INK; g.lineWidth = s * 0.05; g.beginPath(); g.moveTo(x, y + s * 0.4); g.lineTo(x, y + s * 2.2); g.stroke(); g.beginPath(); g.moveTo(x - s * 0.4, y + s * 2.2); g.lineTo(x + s * 0.4, y + s * 2.2); g.stroke();
+  g.fillStyle = "#c9ccd2"; g.beginPath(); g.roundRect(x - s * 0.62, y - s * 0.45, s * 1.24, s * 0.9, s * 0.08); g.fill(); g.lineWidth = s * 0.04; g.stroke();
+  ecg(g, x, y - s * 0.04, s * 1.0, s * 0.62, f, alive); g.restore();
+};
+// 20 — "He got shot..."  (a white flash and a hard camera kick)  "...and survived."  (the hospital: Specs sits up in bed
+//      under the quilt, dazed, then grits his teeth; the heart monitor beside him beeps steadily)
 const C20 = F(tSo2) - 3;
 add({
   a: C19, b: C20, plate: "hosp", xfade: 2,
-  keys: [{ f: C19, at: [300, 1.25, 3.1], z: 1.7, creep: 0.004 }],
+  keys: [{ f: C19, at: [300, 1.35, 3.0], z: 1.35, creep: 0.004 }],
   kicks: [[C19 + 1, 1.4], [F(tSurvived) + 2, 0.4]],
-  under: (g, v, f) => nightGrade(g, v, [[300, 2.5, 2.4]], f, 0.45, "210,230,255"),
-  cast: (f) => [stand(SPECS, "specs", [300, 0.45, 3.15], 81, f, [[0, "dazed"], [F(tSurvived), "grit"], [F(tSurvived) + 10, "smile"]], [[0, {}], [F(tSurvived) + 8, { r: [0.15, -0.95] }]], { facing: 0 }, { clip: above(298, 302, 0.8, 1.66), noShadow: true })],
-  over: (g, v, f) => {
-    const hd = v.w([300, 1.95, 3.15]), m = v.ppm([300, 1.9, 3.15]);
-    g.save(); g.fillStyle = "#ffffff"; g.strokeStyle = INK; g.lineWidth = 5; g.beginPath(); g.roundRect(hd[0] - m * 0.24, hd[1] - m * 0.09, m * 0.48, m * 0.08, m * 0.03); g.fill(); g.stroke(); g.fillStyle = "#e04040"; g.beginPath(); g.arc(hd[0] + m * 0.12, hd[1] - m * 0.05, m * 0.02, 0, 7); g.fill(); g.restore();
-    const bl = v.w([300, 0.82, 2.2]), bw = v.ppm([300, 0.82, 2.2]); g.save(); g.fillStyle = "#cfe0ea"; g.strokeStyle = INK; g.lineWidth = 6; g.beginPath(); g.roundRect(bl[0] - bw * 0.95, bl[1] - bw * 0.42, bw * 1.9, bw * 0.55, bw * 0.08); g.fill(); g.stroke(); g.strokeStyle = "rgba(90,120,140,0.5)"; g.lineWidth = 4; for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(bl[0] - bw * 0.7 + i * bw * 0.45, bl[1] - bw * 0.35); g.quadraticCurveTo(bl[0] - bw * 0.6 + i * bw * 0.45, bl[1] - bw * 0.1, bl[0] - bw * 0.72 + i * bw * 0.45, bl[1] + bw * 0.08); g.stroke(); } g.fillStyle = "#ffffff"; g.fillRect(bl[0] - bw * 0.93, bl[1] - bw * 0.42, bw * 1.86, bw * 0.08); g.restore();
-    ecg(g, 860, 420, 300, 170, f, f < F(tSurvived) - 2 ? 0.3 : 1);
-    flash(g, f - C19, 1);
-  },
+  under: (g, v, f) => nightGrade(g, v, [[300, 2.5, 2.4]], f, 0.4, "210,230,255"),
+  cast: (f) => [stand(SPECS, "specs", [300, 0.25, 3.15], 81, f, [[0, "dazed"], [F(tSurvived), "grit"], [F(tSurvived) + 10, "smile"]], [[0, {}], [F(tSurvived) + 8, { r: [0.15, -0.95] }]], { facing: 0 }, { clip: above(298, 302, 1.16, 3.0), noShadow: true })],
+  over: (g, v, f) => { quilt(g, v); monitor(g, 905, 1030, 210, f, f < F(tSurvived) - 2 ? 0.25 : 1); flash(g, f - C19, 1); },
 });
 
-// 21 — "So when the FBI came to visit... Specs talked."  (two G-men in fedoras lean over the bed; Specs talks; the names
-//      pour out in a speech bubble)
+// 21 — "So when the FBI came to visit... Specs talked."  (two G-men in fedoras stand either side of the bed; Specs talks)
 const C21 = F(tThe9) - 3;
 add({
   a: C20, b: C21, plate: "hosp", xfade: 4,
-  keys: [{ f: C20, at: [300, 1.45, 2.9], z: 1.05, creep: 0.003 }, { f: F(tTalked) - 4, dur: 10, at: [300, 1.6, 3.1], z: 1.35, creep: 0.004 }],
-  under: (g, v, f) => nightGrade(g, v, [[300, 2.5, 2.4]], f, 0.4, "210,230,255"),
+  keys: [{ f: C20, at: [300, 1.3, 2.8], z: 1.0, creep: 0.003 }, { f: F(tTalked) - 4, dur: 10, at: [300, 1.35, 2.9], z: 1.12, creep: 0.004 }],
+  under: (g, v, f) => { nightGrade(g, v, [[300, 2.5, 2.4]], f, 0.4, "210,230,255"); quilt(g, v); },
   cast: (f) => [
-    stand(SPECS, "specs", [300, 0.45, 3.15], 81, f, [[0, "nervous"], [F(tTalked), "smile"]], [[0, {}]], { facing: 0, talk: talkAt(f, [[F(tTalked) - 1, C21 + 4]], 6) }, { clip: above(298, 302, 0.8, 1.66), noShadow: true }),
-    stand(FBI1, "fbi1", [300.72, 0, 4.0], 92, f, [[0, "stern"], [F(tTalked) + 6, "grin"]], [[0, {}]], { facing: -1 }, { alpha: clamp01((f - F(tFBI) + 2) / 6), noShadow: true, clip: above(297, 303, 1.3, 3.8) }),
-    stand(FBI2, "fbi2", [299.28, 0, 4.0], 93, f, [[0, "stern"], [F(tTalked) + 8, "grin"]], [[0, {}]], { facing: 1 }, { alpha: clamp01((f - F(tFBI)) / 6), noShadow: true, clip: above(297, 303, 1.3, 3.8) }),
+    stand(SPECS, "specs", [300, 0.25, 3.15], 81, f, [[0, "nervous"], [F(tTalked), "smile"]], [[0, {}]], { facing: 0, talk: talkAt(f, [[F(tTalked) - 1, C21 + 4]], 6) }, { clip: above(298, 302, 1.16, 3.0), noShadow: true }),
+    stand(FBI1, "fbi1", [300.62, 0, 2.05], 92, f, [[0, "stern"], [F(tTalked) + 6, "grin"]], [[0, {}]], { facing: -1 }, { alpha: clamp01((f - F(tFBI) + 2) / 6), noShadow: true }),
+    stand(FBI2, "fbi2", [299.38, 0, 2.05], 93, f, [[0, "stern"], [F(tTalked) + 8, "grin"]], [[0, {}]], { facing: 1 }, { alpha: clamp01((f - F(tFBI)) / 6), noShadow: true }),
   ],
-  over: (g, v, f) => {
-    const hd = v.w([300, 1.95, 3.15]), m = v.ppm([300, 1.9, 3.15]); g.save(); g.fillStyle = "#ffffff"; g.strokeStyle = INK; g.lineWidth = 5; g.beginPath(); g.roundRect(hd[0] - m * 0.24, hd[1] - m * 0.09, m * 0.48, m * 0.08, m * 0.03); g.fill(); g.stroke(); g.restore();
-    const bl = v.w([300, 0.82, 2.2]), bw = v.ppm([300, 0.82, 2.2]); g.save(); g.fillStyle = "#cfe0ea"; g.strokeStyle = INK; g.lineWidth = 6; g.beginPath(); g.roundRect(bl[0] - bw * 0.95, bl[1] - bw * 0.42, bw * 1.9, bw * 0.55, bw * 0.08); g.fill(); g.stroke(); g.strokeStyle = "rgba(90,120,140,0.5)"; g.lineWidth = 4; for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(bl[0] - bw * 0.7 + i * bw * 0.45, bl[1] - bw * 0.35); g.quadraticCurveTo(bl[0] - bw * 0.6 + i * bw * 0.45, bl[1] - bw * 0.1, bl[0] - bw * 0.72 + i * bw * 0.45, bl[1] + bw * 0.08); g.stroke(); } g.fillStyle = "#ffffff"; g.fillRect(bl[0] - bw * 0.93, bl[1] - bw * 0.42, bw * 1.86, bw * 0.08); g.restore();
-    label(g, 540, 300, "FBI", f - F(tFBI));
-    bubble(g, 540, 560, "PINO. McGINNIS. COSTA...", f - F(tTalked) - 2, [hd[0], hd[1] - 30], 52);
-  },
+  over: (g, v, f) => { label(g, 540, 330, "FBI", f - F(tFBI)); },
 });
 
 // 22 — "The gang was arrested five days before the clock ran out."  (by day at the Brink's door: the gang in a row get
