@@ -54,7 +54,7 @@ Run all of these from `remotion/`.
   ```bash
   PRESET=veryfast bash scripts/pennychunks.sh
   ```
-  It uses 3 workers. Re-render any blank range with 2 workers, then check with `scripts/short_qa.py`.
+  It uses 4 workers. Chrome runs through `scripts/chrome-cpu.sh`, which draws the canvas on the CPU in each tab instead of going through one emulated-GPU process. That is about 10x faster, with identical output (41 dB PSNR against the GPU path). Re-render any blank range with 2 workers, then check with `scripts/short_qa.py`.
 - **Sound:** build it with `python3 audio/penny_audio.py voice.wav voice/words.json out`, then mux `out/mix.wav` into the video as the audio track.
 
 Built on the claude-animated-shorts skill (see `LICENSE-claude-animated-shorts`).

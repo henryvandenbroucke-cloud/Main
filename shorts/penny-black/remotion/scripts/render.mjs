@@ -3,7 +3,7 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import path from "node:path";
 const [id, out, range, scale = "0.5", conc = "1"] = process.argv.slice(2);
-const browserExecutable = "/opt/pw-browsers/chromium";
+const browserExecutable = process.env.CHROME || "/opt/pw-browsers/chromium";
 const chromiumOptions = { gl: process.env.GL || "swangle" };
 const inputProps = process.env.PROPS ? JSON.parse(process.env.PROPS) : {};
 const serveUrl = await bundle({ entryPoint: path.resolve("src/index.ts"), publicDir: path.resolve("public") });
