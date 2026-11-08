@@ -368,7 +368,7 @@ const C5 = F(tProve) - 6;
       // the dealer flicks a card to each seat, again and again
       for (let r = 0; r < 3; r++) for (let i = 0; i < 4; i++) { const t0 = DEAL + r * 16 + i * 4, u = (f - t0) / 10; const to = v.w([seats[i][0] * 0.55 + 120 * 0.45, 0.82, seats[i][2] * 0.55 + 2.6 * 0.45]); cardFly(g, ctr, to, u, m * 0.1, 3 + i, { face: "back" }, 0.25); if (u >= 1) cardFlat(g, to[0], to[1], m * 0.1, 0.5, i * 0.4, { face: "back" }); }
       deck(g, ctr[0], ctr[1], m * 0.1, 8);
-      for (const P of seats) { const p = v.w([P[0], 0.95, P[2] - 0.15]); prop(g, "cup", p[0], p[1], m * 0.14); }
+      for (const P of seats) { const p = v.w([P[0] * 0.42 + 120 * 0.58, 0.86, P[2] * 0.42 + 2.6 * 0.58]); prop(g, "cup", p[0], p[1], m * 0.11); }
       // the taxman stamps each pack on the table: thunk, thunk, thunk
       for (let i = 0; i < 3; i++) { const t0 = EVERY + i * 8, p = v.w([120.6 - i * 0.6, 0.83, 2.2]); const drop = clamp01((f - t0 + 6) / 6); deck(g, p[0], p[1] - (1 - drop) * m * 0.2, m * 0.09, 5); if (f >= t0) { seal(g, p[0], p[1] - m * 0.05, m * 0.06, f - t0, -0.3 + i * 0.2); puffs(g, p[0], p[1], m * 0.06, f - t0, 4, true); } }
       const cd = v.w([120.6, 0.81, 3.0]); flame(g, cd[0], cd[1] - m * 0.25, m * 0.03, f);
@@ -495,10 +495,24 @@ add({
     stand(HOCKLEY, "hock", [1.9, 0, 1.9], 71, f, [[0, "smile"], [F(tBuys) + 6, "stern"], [F(tWork), "grin"]], [[0, { l: [0.3, -0.3] }], [F(tBuys) + 6, { l: [0.25, -0.55], r: [-0.35, -0.55] }], [F(tTurns), { r: [-0.6, -0.1] }]], { facing: 1 }),
   ],
   over: (g, v, f) => {
-    const hp = v.w([1.75, 1.45, 1.8]), m = v.ppm([1.8, 1.4, 1.9]);
-    if (f >= F(tBuys) - 2) { card(g, hp[0], hp[1] - m * 0.05, m * 0.16, 0.05, { face: "ace", fake: true });
-      if (f >= F(tBuys) + 6) { g.save(); g.lineWidth = m * 0.02; g.strokeStyle = INK; g.beginPath(); g.arc(hp[0] - m * 0.05, hp[1] - m * 0.1, m * 0.09, 0, 7); g.fillStyle = "rgba(210,235,255,0.35)"; g.fill(); g.stroke(); g.beginPath(); g.moveTo(hp[0] - m * 0.0, hp[1] - m * 0.03); g.lineTo(hp[0] + m * 0.08, hp[1] + m * 0.06); g.lineWidth = m * 0.025; g.stroke(); g.restore(); } }
-    const bp = v.w([1.95, 1.3, 1.75]); badge(g, bp[0], bp[1], m * 0.32, easeOutBack(clamp01((f - F(tTurns) - 2) / 8), 2.2));
+    const hp = v.w([1.5, 1.32, 1.8]), m = v.ppm([1.8, 1.4, 1.9]);
+    if (f >= F(tBuys) - 2) {
+      const cw = m * 0.2; card(g, hp[0], hp[1], cw, 0.04, { face: "ace", fake: true });
+      // the magnifier slides over the card's banner; inside the lens the misprint is shown enlarged (clipped to the glass)
+      const u = easeOut(clamp01((f - F(tBuys) - 6) / 10));
+      if (u > 0) {
+        const lx = hp[0] + cw * (0.9 - 0.9 * u) + Math.sin(f * 0.15) * cw * 0.04, ly = hp[1] + cw * 0.44 - (1 - u) * cw * 0.6, r = cw * 0.36;
+        g.save(); g.globalAlpha = u;
+        g.beginPath(); g.moveTo(lx + r * 0.7, ly + r * 0.7); g.lineTo(lx + r * 1.9, ly + r * 1.9); g.lineWidth = r * 0.32; g.strokeStyle = "#5a3a22"; g.lineCap = "round"; g.stroke(); g.lineWidth = r * 0.12; g.strokeStyle = INK; g.stroke();
+        g.save(); g.beginPath(); g.arc(lx, ly, r, 0, 7); g.clip();
+        const Z = 2.0; g.translate(lx, ly); g.scale(Z, Z); g.translate(-lx, -ly); card(g, hp[0], hp[1], cw, 0.04, { face: "ace", fake: true, shadow: false });
+        g.restore();
+        g.beginPath(); g.arc(lx, ly, r, 0, 7); g.fillStyle = "rgba(200,230,255,0.16)"; g.fill(); g.lineWidth = r * 0.16; g.strokeStyle = "#c9a14a"; g.stroke(); g.lineWidth = r * 0.06; g.strokeStyle = INK; g.stroke();
+        g.beginPath(); g.arc(lx, ly, r * 0.72, -2.5, -1.7); g.lineWidth = r * 0.08; g.strokeStyle = "rgba(255,255,255,0.7)"; g.stroke();
+        g.restore();
+      }
+    }
+    const bp = v.w([2.05, 1.12, 1.75]); badge(g, bp[0], bp[1], m * 0.27, easeOutBack(clamp01((f - F(tTurns) - 2) / 8), 2.2));
     const rh = v.w([0.3, 2.1, 2.3]); emark(g, rh[0] - 30, rh[1] - 40, m * 0.25, f - F(tWork) - 2, -0.15);
     const cdl = v.w([3.9, 1.27, 2.0]); flame(g, cdl[0], cdl[1], v.ppm([3.9, 1.27, 2.0]) * 0.05, f);
   },

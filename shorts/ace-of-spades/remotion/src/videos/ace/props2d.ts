@@ -951,6 +951,7 @@ export const card = (g: CanvasRenderingContext2D, x: number, y: number, w: numbe
   corner("A", ink);
   const k = o.flourish ?? 1;
   g.save(); if (fk) g.rotate(0.03);
+  g.save(); g.translate(0, -h * 0.06); g.scale(0.82, 0.82);
   // the frame of swirls round the big spade
   const swirls: [number, number][][] = [
     spiral(-w * 0.2, -h * 0.17, w * 0.13, 1.1, 1, Math.PI), spiral(w * 0.2, -h * 0.17, w * 0.13, 1.1, -1, 0),
@@ -969,8 +970,15 @@ export const card = (g: CanvasRenderingContext2D, x: number, y: number, w: numbe
     g.strokeStyle = "rgba(255,255,255,0.18)"; g.lineWidth = Math.max(1, w * 0.008); for (let i = 1; i < 4; i++) { spadePath(g, 0, h * 0.01 * i, h * (0.34 - i * 0.06)); g.stroke(); }
     g.restore();
   }
-  // "DUTY" banner
-  if (k > 0.75) { g.globalAlpha = clamp01((k - 0.75) / 0.25); g.fillStyle = fk ? "#7a6a5a" : "#8c2f39"; g.font = `900 ${w * 0.085}px Georgia, serif`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(fk ? "STAMP OFIICE" : "STAMP OFFICE", 0, h * 0.27, w * 0.7); g.globalAlpha = 1; }
+  g.restore();
+  // "STAMP OFFICE" on its own little ribbon, in the clear band under the ornament
+  if (k > 0.75) {
+    g.globalAlpha = clamp01((k - 0.75) / 0.25);
+    const by = h * 0.315, bw = w * 0.56, bh = h * 0.065;
+    g.beginPath(); g.moveTo(-bw / 2, by - bh / 2); g.lineTo(bw / 2, by - bh / 2); g.lineTo(bw / 2 - w * 0.03, by); g.lineTo(bw / 2, by + bh / 2); g.lineTo(-bw / 2, by + bh / 2); g.lineTo(-bw / 2 + w * 0.03, by); g.closePath();
+    g.fillStyle = fk ? "#e9dcc4" : "#f3e6c8"; g.fill(); g.lineWidth = Math.max(1, w * 0.01); g.strokeStyle = fk ? "#7a6a5a" : "#8c2f39"; g.stroke();
+    g.fillStyle = fk ? "#7a6a5a" : "#8c2f39"; g.font = `900 ${w * 0.062}px Georgia, serif`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(fk ? "STAMP OFIICE" : "STAMP OFFICE", 0, by + h * 0.002, bw * 0.8); g.globalAlpha = 1;
+  }
   g.restore();
   g.restore();
 };
