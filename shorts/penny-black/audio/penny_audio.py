@@ -466,7 +466,17 @@ ir_t = tt(1.4); ir = R.standard_normal((2, len(ir_t))) * np.exp(-ir_t / 0.35)[No
 from scipy.signal import fftconvolve
 wet = np.stack([fftconvolve(fx[c], lp(ir[c], 5000))[:N] for c in range(2)])
 fx = fx + wet * (0.22 * np.abs(fx).max() / max(1e-9, np.abs(wet).max()))
-fxb = fx * dbg(-26.5 - integrated(fx))
+# even out the effects: a soft peak compressor on the SFX bus (loud hits pulled toward the typical one), then quieter overall
+from scipy.ndimage import maximum_filter1d
+pkenv = maximum_filter1d(np.abs(fx).max(axis=0), ns(0.01))
+act = pkenv[pkenv > pkenv.max() * 1e-3]
+thr = np.median(act) * dbg(3.0)                               # ~3 dB above a typical hit
+grc = np.minimum(1.0, (thr / np.maximum(pkenv, 1e-9)) ** (1 - 1 / 4.0))   # ratio 4:1 above the threshold
+att, rel = np.exp(-1 / (SR * 0.003)), np.exp(-1 / (SR * 0.15)); sm2 = np.empty_like(grc); cur = 1.0
+for i in range(len(grc)):
+    cur = grc[i] + (cur - grc[i]) * (att if grc[i] < cur else rel); sm2[i] = cur
+fx = fx * sm2[None, :]
+fxb = fx * dbg(-30.0 - integrated(fx))
 mix = v + musb + fxb
 mix *= dbg(-14.0 - integrated(mix))
 # look-ahead peak limiter to -1.2 dBFS (sample peak; true peak checked after)
@@ -487,4 +497,5 @@ os.makedirs(sys.argv[3], exist_ok=True)
 write_wav(os.path.join(sys.argv[3], "mix.wav"), mix)
 write_wav(os.path.join(sys.argv[3], "music.wav"), musb)
 write_wav(os.path.join(sys.argv[3], "sfx.wav"), fxb)
+print("sfx peak spread after compression (dB):", round(float(20 * np.log10(np.percentile(act, 99) / np.median(act))), 1), "->", round(float(20 * np.log10(np.percentile(maximum_filter1d(np.abs(fx).max(axis=0), ns(0.01))[pkenv > pkenv.max() * 1e-3], 99) / np.median(maximum_filter1d(np.abs(fx).max(axis=0), ns(0.01))[pkenv > pkenv.max() * 1e-3]))), 1))
 print(f"mix {integrated(mix):.1f} LUFS, TP {true_peak(mix):.1f} dBTP, music {integrated(musb):.1f}, sfx {integrated(fxb):.1f}, voice {integrated(v):.1f}")
