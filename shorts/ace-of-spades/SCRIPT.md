@@ -25,3 +25,6 @@ The top existing Short on the tax-ace story has 1.5K views ("Why Faking the Ace 
 - Something happens on every line, with constant camera moves.
 - Brick-tax style: characters acting inside real 3D sets.
 - The render is not rushed: a stills check before the render and a frame QA after it.
+
+## Frame-1 rule (user request)
+Frame 1 already moves, with sound. The open is tight on the fresh Ace of Spades lifting off the press, with a press thunk and a crisp paper peel on frame 1. Then a fast zoom-out with a soft whoosh reveals Richard in his candlelit shop, timed so the gavel slam lands on "hanged".
