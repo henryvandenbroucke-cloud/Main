@@ -38,21 +38,18 @@ Hook paradox in sentence 1 (10-16 words, no setup) > setting in 1-2 lines with a
 ## Topic candidates and competition (YouTube search, 12 results each)
 | Candidate | Best existing result | Viral short already? | Verdict |
 |---|---|---|---|
-| Tokyo Skytree's central pillar, copied from Japanese pagodas | Half as Interesting 555K (long), Bloomberg 491K, Science Channel 133K | No | **Best.** Japan is Rick's strongest theme. |
+| Tokyo Skytree's central pillar, copied from Japanese pagodas (dropped) | Half as Interesting 555K (long), Bloomberg 491K, Science Channel 133K | No | **Best.** Japan is Rick's strongest theme. |
 | The Vasa warship (sank 1628, stability test) | Smithsonian Channel 333K | No, but crowded with tiny channels | Good second choice |
 | Boston Molasses Flood | Atlas Obscura 181K | No, but crowded with tiny channels | Backup |
 | Leaning Tower of Pisa fix | Idan David Animations 5.4M (43 s) | Yes | Skip |
 | Millennium Bridge wobble | British Pathe 4.5M (Tacoma), mdepablo 1.1M | Yes, and too close to the skill's bridge example | Skip |
 
-## Chosen topic: Skytree's pillar that is not holding anything up
-- Why it fits: a physical cause and effect, a visual (a tall tower swaying, a pillar swinging inside it), an everyday analogy (a spoon swung inside a cup / a tail swinging to balance), a Japan link, and a paradox hook.
-- Draft hook (needs fact check): "Tokyo's tallest tower has a giant concrete pillar in the middle, and it isn't holding anything up."
-- Facts that need checking before the script (web search found contested points):
-  - The Skytree pillar is a free-swinging reinforced concrete column that moves at a different period from the tower body, with oil dampers between them: supported.
-  - The "50%" figure: sources disagree on whether it means less sway or less energy. Say neither, or word it carefully.
-  - "No Japanese pagoda has ever fallen in an earthquake": NOT confirmed. Say "almost no records of one toppling".
-  - Newer research suggests the wide eaves also help pagodas, so the pillar is not the only reason.
-- Sources: [Shinbashira (Wikipedia)](https://en.wikipedia.org/wiki/Shinbashira), [nippon.com on Skytree](https://www.nippon.com/en/articles/-/12382), [A Tokyo Skytree Tour](https://nippon.com/en/views/b01101), [Pillars of Strength (gov-online.go.jp)](https://gov-online.go.jp/eng/publicity/book/hlj/html/201112/201112_01.html), [The B1M on Skytree](https://theb1m.com/video/tokyo-skytree-insane-engineering)
+## Chosen topic: why Amsterdam's houses lean forward on purpose (changed from the Skytree idea on 2026-11-12)
+- Why: simplest to understand, very visual, and a physical cause and effect. The houses are tall and narrow, the stairs are too steep for furniture, so goods are hoisted up the outside with a beam and hook, and a small forward lean stops them scraping the front.
+- Competition check (YouTube): the biggest existing result is a long documentary at 246K views ("Why Amsterdam Looks Like That"). No viral short found. Other options checked: Plimsoll line (one 264-view video), Kingfisher bullet train (largest 125K short clip), Skytree pillar (long documentaries up to 555K).
+- Draft title: "Why Amsterdam's Houses Lean Forward on Purpose". Draft hook (needs fact check): "Amsterdam built its houses leaning forward on purpose, so nobody's sofa would smash through the window."
+- Facts: the hoisting beam and forward lean to protect the facade are well supported. The building rule that required the lean (Expatica) is supported by one source. The tax on frontage width is thinly sourced (one blog): verify or leave out. Some houses lean by accident from sinking wooden foundations: do not mix these up.
+- Sources: [Canal Houses](https://accidentallywesanderson.com/places/canal-houses/), [Why Dutch houses have those hooks](https://amsterdamian.com/see/amsterdam/why-dutch-houses-have-those-hooks-on-the-facades/), [DutchReview](https://dutchreview.com/cities/amsterdam/amsterdam-canal-houses/), [Expatica](https://expatica.com/nl/moving/society-history/amsterdam-crooked-houses-1126943), [Culture Trip](https://theculturetrip.com/europe/the-netherlands/articles/why-do-houses-and-buildings-in-amsterdam-tilt-forward)
 
 ## Sound effects downloaded
 164 free previews from Mixkit (28 categories, 6 each), 1,453 s in total, saved at:
