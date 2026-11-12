@@ -4,7 +4,7 @@
 |---|---|---|
 | 0 Research and topic | DONE (2026-11-12) | Topic chosen: "What If You Could See Everyone's Future Job?" as a short (2026-11-12; replaced Skytree and Amsterdam ideas). Idea comes from the ConChaser channel's format. See inputs/ANALYSIS.md. 164 Mixkit SFX catalogued (inputs/SFX_CATALOG.md). |
 | 1 Story | DONE (2026-11-12) | outputs/01_story/FACTS.md (10 facts, each with a source link and a confidence label; the 65% myth is marked DEBUNKED) and STORY.md (power rules, cast, icon list, 11 beats, about 237 words / 62 s). Hook (13 words): "You can see everyone's future job, and your best friend's is: your boss." Payoff "Now you're his boss." loops back into the hook. Next: step 2 (voiceover). |
-| 2 Voiceover | IN PROGRESS (2026-11-12) | Script DONE: outputs/02_voice/SCRIPT.md (243 words, about 64 s at 3.8 w/s, 12 eleven_v4 tags, facts F1, F5, F6 in safe wording only). Waiting for the user to generate it in ElevenLabs (eleven_v4; voice pick 1: Marcus - Bright, Upbeat and Clear; 2: Haven Sands; 3: Tyler) and bring the chosen take back. Then: words.json (speech-to-text word times, hand-fixed) and real beat times. Audio file name: (fill in). |
+| 2 Voiceover | IN PROGRESS (2026-11-12) | Script DONE: outputs/02_voice/SCRIPT.md (243 words). Take 1 (flowspeech-single-1794507803951.wav, on the user's PC) reads every word correctly but runs 90.6 s (2.7 words/s) instead of 60-65 s. Its word times are in outputs/02_voice/words_take1.json. Next: a faster take (voice pick 1: Marcus - Bright, Upbeat and Clear), or cut the script to about 185 words. Then words.json and the real beat times. |
 | 3 Shot plan | not started | |
 | 4 Build | not started | |
 | 5 Sound | not started | |

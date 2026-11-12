@@ -88,5 +88,6 @@ If a line reads badly, spare versions:
 | File | Where | State |
 |---|---|---|
 | SCRIPT.md | here (git) | done |
-| voice.wav (or .mp3) | user's PC (not in git) | waiting: user makes it in ElevenLabs |
-| words.json | here (git) | waiting: made from the chosen take with speech-to-text word times, then hand-fixed |
+| Take 1: `flowspeech-single-1794507803951.wav` | user's PC (not in git) | Made 2026-11-12. Every word is read correctly, but it is **90.6 s** long (about 2.7 words/s), against a 60-65 s target. Shorter pauses plus a 1.1x speed-up only bring it to about 77-81 s. **Not chosen yet.** |
+| words_take1.json | here (git) | Word times for take 1: 242 entries `{w, s, e}` in seconds (the format the skill's mix.py reads). Made with faster-whisper small.en. Each word was checked against the script, and the zero-length "Imagine" and "Then" were fixed by hand. Rename it to words.json only if take 1 is kept. |
+| words.json | here (git) | waiting: needs a take that fits the 60-65 s target |
