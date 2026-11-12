@@ -44,12 +44,16 @@ Hook paradox in sentence 1 (10-16 words, no setup) > setting in 1-2 lines with a
 | Leaning Tower of Pisa fix | Idan David Animations 5.4M (43 s) | Yes | Skip |
 | Millennium Bridge wobble | British Pathe 4.5M (Tacoma), mdepablo 1.1M | Yes, and too close to the skill's bridge example | Skip |
 
-## Chosen topic: why Amsterdam's houses lean forward on purpose (changed from the Skytree idea on 2026-11-12)
-- Why: simplest to understand, very visual, and a physical cause and effect. The houses are tall and narrow, the stairs are too steep for furniture, so goods are hoisted up the outside with a beam and hook, and a small forward lean stops them scraping the front.
-- Competition check (YouTube): the biggest existing result is a long documentary at 246K views ("Why Amsterdam Looks Like That"). No viral short found. Other options checked: Plimsoll line (one 264-view video), Kingfisher bullet train (largest 125K short clip), Skytree pillar (long documentaries up to 555K).
-- Draft title: "Why Amsterdam's Houses Lean Forward on Purpose". Draft hook (needs fact check): "Amsterdam built its houses leaning forward on purpose, so nobody's sofa would smash through the window."
-- Facts: the hoisting beam and forward lean to protect the facade are well supported. The building rule that required the lean (Expatica) is supported by one source. The tax on frontage width is thinly sourced (one blog): verify or leave out. Some houses lean by accident from sinking wooden foundations: do not mix these up.
-- Sources: [Canal Houses](https://accidentallywesanderson.com/places/canal-houses/), [Why Dutch houses have those hooks](https://amsterdamian.com/see/amsterdam/why-dutch-houses-have-those-hooks-on-the-facades/), [DutchReview](https://dutchreview.com/cities/amsterdam/amsterdam-canal-houses/), [Expatica](https://expatica.com/nl/moving/society-history/amsterdam-crooked-houses-1126943), [Culture Trip](https://theculturetrip.com/europe/the-netherlands/articles/why-do-houses-and-buildings-in-amsterdam-tilt-forward)
+## Chosen topic: "What If You Could See Everyone's Future Job?" (short version)
+Changed on 2026-11-12 (earlier ideas dropped: Skytree pillar, Amsterdam leaning houses).
+- Source of the idea: the channel ConChaser (24.3K subscribers, started 23 Oct 2026, one 10-20 minute "What If You Could See..." story a day).
+  Top videos: Future Wealth 1.87M, IQ 1.73M, Future Height 928K, Crush 669K, Attractive 554K. Winners are a number everyone compares themselves on. Dark or odd ideas flop (Antichrist 26K, GTA 6 22K, Hearing Thoughts 25K).
+  Views fell after the first week (about 318K median in the first 9 videos, about 50K median in the last 10 days, one outlier of 554K), so the format may be saturating. Many tiny clone channels get 0-100 views on the same titles.
+- Competition for this exact title (YouTube search): five long-form copies with 20-1,814 views each, no short. "Future Job" is the same kind of idea as his biggest hit (Future Wealth).
+- Format: second-person "Imagine you're..." story (one of the two modes in the skill's style bible), 55-65 s, 3.5-4.1 words per second.
+- Rule conflicts to handle: the skill and the user rule forbid text labels, so jobs are shown with props, outfits and icons. The skill expects a true story, so the premise is invented and every fact in it must be real.
+- Draft title: "What If You Could See Everyone's Future Job?". Draft hook (to test): "You can see everyone's future job, and your best friend's is: your boss."
+- Risk: this is a hypothetical with no physical cause and effect, so it relies on the script, the twist and the visuals.
 
 ## Sound effects downloaded
 164 free previews from Mixkit (28 categories, 6 each), 1,453 s in total, saved at:
