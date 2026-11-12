@@ -14,7 +14,7 @@ Rules: story, characters and voice are our own. This topic is a HYPOTHETICAL, no
 |---|---|---|---|---|
 | 1 | 01_STORY.md | Opus 5.5, xhigh | inputs/ANALYSIS.md | outputs/01_story/FACTS.md, STORY.md |
 | 2 | 02_VOICEOVER.md | Opus 5.5, high | 01 outputs | outputs/02_voice/SCRIPT.md, voice.wav, words.json |
-| 3 | 03_SHOTPLAN.md | Opus 5.5, xhigh | 01, 02 | outputs/03_shots/storyboard.md, story.ts draft |
+| 3 | 03_SHOTPLAN.md | Opus 5.5, xhigh | 01, 02 | outputs/03_shots/storyboard.md, story.ts draft (+ check_story.mjs, blocking_sheet.jpg) |
 | 4 | 04_BUILD.md | Opus 5.5, xhigh | 02, 03 + the skill | Remotion project, stills |
 | 5 | 05_SOUND.md | Sonnet 5.5 or Opus 5.5 high | 02, 03, reference audio | mix.wav, cues.md |
 | 6 | 06_CHECKS.md | Opus 5.5, max (2-3 rounds only) | 04, 05 | scores + numbered fix list |
