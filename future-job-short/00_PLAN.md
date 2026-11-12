@@ -1,8 +1,8 @@
-# Amsterdam leaning houses short: master plan (read this first in every new chat)
+# Future-job short: master plan (read this first in every new chat)
 
-Goal: ONE perfect ~60-65 s vertical animated short: why Amsterdam's canal houses lean forward on purpose (hoisting beam and hook, narrow stairs, furniture),
+Goal: ONE perfect ~55-65 s vertical animated short: "What If You Could See Everyone's Future Job?" (a hypothetical, second-person 'Imagine you're...' story),
 in the "2D cartoon characters in a 3D painted world" style, made with the skill `mromidev/claude-animated-shorts`.
-Rules: story, characters and voice are our own. Never copy Rick's scripts or shots. Never say his channel name. No captions unless asked.
+Rules: story, characters and voice are our own. This topic is a HYPOTHETICAL, not a true story: the premise is invented, but every fact, number or job detail used in it must be real and sourced. Never copy Rick's scripts or shots. Never say his channel name. No captions unless asked.
 
 ## How to use (one new chat per step)
 1. Open a new chat on the model in the table. Paste the "START PROMPT" from that step's file.
@@ -23,7 +23,7 @@ Rules: story, characters and voice are our own. Never copy Rick's scripts or sho
 Steps 4 and 5 can swap order, but the sound must be made AFTER the picture timing is locked (changing timing later means redoing the sound).
 
 ## Where files live
-- This folder is `amsterdam-houses-short/` in the repo `henryvandenbroucke-cloud/Main` (the only place that survives between chats).
+- This folder is `future-job-short/` in the repo `henryvandenbroucke-cloud/Main` (the only place that survives between chats).
 - Big files (voice.wav, mp3s, renders) do NOT go in git. Keep them on your own PC or cloud drive and write their names in STATUS.md.
 - Each new chat is a fresh machine: it must clone the skill again (`git clone https://github.com/mromidev/claude-animated-shorts`).
 

@@ -1,7 +1,7 @@
 # Step 5: Music and sound effects   (Sonnet 5.5 or Opus 5.5 high)
 
 START PROMPT:
-"Read amsterdam-houses-short/00_PLAN.md, STATUS.md, inputs/SFX_CATALOG.md, outputs/02_voice/*, outputs/03_shots/*. If reference mp3s are attached, measure them first.
+"Read future-job-short/00_PLAN.md, STATUS.md, inputs/SFX_CATALOG.md, outputs/02_voice/*, outputs/03_shots/*. If reference mp3s are attached, measure them first.
 Do step 5 only: build the sound with the skill's templates/audio (timeline.py, sfx.py, music.py, mix.py)."
 
 Do: (a) measure the reference mp3s: loudness, music-to-voice gap, SFX per second, which sounds mark impacts, whooshes, camera moves;
