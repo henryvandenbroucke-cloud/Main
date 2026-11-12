@@ -83,11 +83,38 @@ If a line reads badly, spare versions:
 - Hook B: "You can see everyone's future job, and your best friend will be your boss."
 - Beat 10 B: "Luckily, nothing's set in stone. Unluckily, that includes Kevin."
 
-## 6. Files
+## 6. Final voice (take 1, edited)
+
+Take 1 was 90.6 s. On 2026-11-12 the user asked to speed it up a little and remove the silences. What was done:
+1. Pauses shortened: between sentences to 0.15 s, breaths inside a sentence to 0.07 s, and the hook beat before "your boss" kept at 0.24 s. Each cut has an 8 ms crossfade, so there are no clicks. Result: 80.4 s.
+2. Sped up 1.2x with rubberband (pitch and formants kept, so it does not sound like a chipmunk). Result: **67.0 s**.
+3. Loudness set to -16.6 LUFS (true peak -1.5 dB), 48 kHz mono 16-bit.
+
+Check: a fresh speech-to-text pass on the final file matches the script (mean word confidence 0.956, against 0.965 for the original), and "YOUR dentist" is clear when checked on its own.
+
+Real beat times (from words.json, in seconds):
+
+| # | Beat | Starts | Ends | Words/s |
+|---|---|---|---|---|
+| 1 | Hook | 0.00 | 3.84 | 3.4 |
+| 2 | Setting and rules | 4.19 | 10.33 | 3.4 |
+| 3 | Family dinner | 10.55 | 18.42 | 3.4 |
+| 4 | Kevin | 18.61 | 23.78 | 4.4 |
+| 5 | Bully | 24.01 | 27.69 | 4.6 |
+| 6 | Stranger | 28.09 | 32.05 | 4.5 |
+| 7 | Manager | 32.18 | 40.14 | 4.0 |
+| 8 | "Wait...?" mirror | 40.51 | 47.45 | 3.6 |
+| 9 | "You see," GPS | 47.65 | 57.75 | 3.4 |
+| 10 | Luckily / Unluckily | 58.10 | 61.98 | 3.1 |
+| 11 | Payoff | 61.98 | 66.71 | 4.2 |
+
+The last word ("boss.") ends at 66.71 s. At 30 fps that is frame 2001.
+
+## 7. Files
 
 | File | Where | State |
 |---|---|---|
-| SCRIPT.md | here (git) | done |
-| Take 1: `flowspeech-single-1794507803951.wav` | user's PC (not in git) | Made 2026-11-12. Every word is read correctly, but it is **90.6 s** long (about 2.7 words/s), against a 60-65 s target. Shorter pauses plus a 1.1x speed-up only bring it to about 77-81 s. **Not chosen yet.** |
-| words_take1.json | here (git) | Word times for take 1: 242 entries `{w, s, e}` in seconds (the format the skill's mix.py reads). Made with faster-whisper small.en. Each word was checked against the script, and the zero-length "Imagine" and "Then" were fixed by hand. Rename it to words.json only if take 1 is kept. |
-| words.json | here (git) | waiting: needs a take that fits the 60-65 s target |
+| Take 1 original: `flowspeech-single-1794507803951.wav` (90.6 s) | user's PC (not in git) | the raw ElevenLabs take; keep it as a backup |
+| **voice.wav** (67.0 s, the edited take 1) | user's PC (not in git) | **FINAL** |
+| **words.json** | here (git) | **FINAL**: 242 entries `{w, s, e}` in seconds, timed to voice.wav (the format the skill's mix.py reads). Made with faster-whisper small.en on take 1, checked word by word against the script, 2 zero-length words fixed by hand, then remapped through the cuts and the 1.2x speed-up. A second speech-to-text pass on voice.wav agrees: median start error 0.011 s, 90% under 0.042 s. |
+| words_take1.json | here (git) | word times for the unedited 90.6 s take (reference only) |
