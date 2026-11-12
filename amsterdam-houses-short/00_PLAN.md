@@ -1,6 +1,6 @@
-# Skytree short: master plan (read this first in every new chat)
+# Amsterdam leaning houses short: master plan (read this first in every new chat)
 
-Goal: ONE perfect ~60-65 s vertical animated short about Tokyo Skytree's central pillar (copied from Japanese pagodas),
+Goal: ONE perfect ~60-65 s vertical animated short: why Amsterdam's canal houses lean forward on purpose (hoisting beam and hook, narrow stairs, furniture),
 in the "2D cartoon characters in a 3D painted world" style, made with the skill `mromidev/claude-animated-shorts`.
 Rules: story, characters and voice are our own. Never copy Rick's scripts or shots. Never say his channel name. No captions unless asked.
 
@@ -23,7 +23,7 @@ Rules: story, characters and voice are our own. Never copy Rick's scripts or sho
 Steps 4 and 5 can swap order, but the sound must be made AFTER the picture timing is locked (changing timing later means redoing the sound).
 
 ## Where files live
-- This folder is `skytree-short/` in the repo `henryvandenbroucke-cloud/Main` (the only place that survives between chats).
+- This folder is `amsterdam-houses-short/` in the repo `henryvandenbroucke-cloud/Main` (the only place that survives between chats).
 - Big files (voice.wav, mp3s, renders) do NOT go in git. Keep them on your own PC or cloud drive and write their names in STATUS.md.
 - Each new chat is a fresh machine: it must clone the skill again (`git clone https://github.com/mromidev/claude-animated-shorts`).
 
