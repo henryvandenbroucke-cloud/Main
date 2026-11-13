@@ -561,7 +561,6 @@ add({
   under: (g, v, f) => hotelGrade(g, v, f, f < F(tTV2) ? 0.95 : 0.85),
   over: (g, v, f) => {
     const on = clamp01((f - F(tTV2) + 1) / 6), r = tvPicture(g, v, f, on, on);
-    if (f < F(tTV2) - 1) { g.save(); g.fillStyle = "rgba(0,0,0,0.5)"; g.fillRect(0, 0, 1080, 1920); g.restore(); }
     const sx = r.x1 + 10, sy = r.y1 - 30, ins = easeOut(clamp01((f - F(tStreaming) + 3) / 8));
     if (f >= F(tStreaming) - 3) streamStick(g, sx + (1 - ins) * 180, sy, 120, ins >= 1 ? 0.5 + 0.5 * Math.sin(f * 0.4) : 0);
     if (f >= F(tBrand) - 4) { const lid = easeOut(clamp01((f - F(tBrand) + 4) / 8)), rise = easeOutBack(clamp01((f - F(tBrand) - 2) / 9), 1.5); phoneBox(g, 230, 1640, 240, lid); if (rise > 0) { phone2d(g, 230, 1640 - rise * 250, 240, -0.08, "glow", f); sparkle(g, 320, 1380, 46, f - F(tPhone)); } }
@@ -609,7 +608,7 @@ add({
     for (let i = 0; i < cols * rows; i++) { const c = i % cols, r = Math.floor(i / cols), t0 = C9 + ((r * cols + c) * 0.9) | 0; clipTile(g, gx + c * (w + 16), 300 + r * (h + 16), w, h, i, easeOutBack(clamp01((f - t0) / 6), 1.8)); }
     const n = Math.min(90, Math.round(90 * clamp01((f - C9) / (F(tClips) - C9 + 6))));
     pill(g, 540, 220, n + " SECRET CLIPS", 99, "#ff3aa0");
-    if (f >= F(tGTA) - 2) { g.save(); g.fillStyle = `rgba(20,10,40,${0.45 * clamp01((f - F(tGTA) + 2) / 4)})`; g.fillRect(0, 0, 1080, 1920); g.restore(); flash(g, f - F(tGTA) + 1, 0.6); gtaTitle(g, 540, 820, 250, easeOutBack(clamp01((f - F(tGTA) + 2) / 6), 2.2)); }
+    if (f >= F(tGTA) - 2) { g.save(); g.fillStyle = `rgba(20,10,40,${0.45 * clamp01((f - F(tGTA) + 2) / 4)})`; g.fillRect(0, 0, 1080, 1920); g.restore(); flash(g, f - F(tGTA) + 1, 0.3); gtaTitle(g, 540, 820, 250, easeOutBack(clamp01((f - F(tGTA) + 2) / 6), 2.2)); }
   },
 });
 // 11 — "He posted all of them online."  The tiles stream up into a phone; a share counter explodes.
@@ -679,7 +678,7 @@ add({
 const C14 = F(tYear) - 4;
 add({
   a: C13, b: C14, plate: "court", xfade: 6,
-  keys: [{ f: C13, at: [180, 1.95, 4.2], z: 1.2, creep: 0.003 }],
+  keys: [{ f: C13, at: [180, 1.8, 4.2], z: 1.2, creep: 0.0012 }],
   cast: (f) => [stand(JUDGE, "judge", [180, 0, 4.0], 61, f, [[0, "neutral"], [F(tOrdered), "stern"]], [[0, {}]], { facing: 0, talk: talkAt(f, [[F(tOrdered), F(tSecure) + 4]], 3) }, { clip: above(176, 184, 1.18, 3.34), noShadow: true })],
   over: (g, v, f) => {
     const gp = v.w([180.55, 1.2, 3.4]), m = v.ppm([180.55, 1.2, 3.4]), H = F(tOrdered) + 4;
