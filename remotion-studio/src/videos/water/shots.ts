@@ -390,7 +390,7 @@ export const SHOTS: Shot[] = [
   mk("twist", 47.87, 49.43, "field", "day", (u, S, F) => {
     const hit = F(48.62), fall = u < hit ? lerp(16, 1.1, span(u, hit - 9, hit) ** 2) : 0, dt = u - hit;
     balance(S, dt < 0 ? 0 : 0.24 * (1 - Math.exp(-dt / 3) * Math.cos(dt * 0.85)), u >= hit - 9 ? fall : 30);
-    const cam = bump(glide(u, { pos: [2.2, 2.0, 23], look: [0, 2.2, 0], fov: 40, roll: 3 }, { pos: [1.0, 2.3, 19.5], look: [0, 2.0, 0], fov: 38, roll: 0 }, 16), 0.1 * kick(u, hit, 1.2, 9));
+    const cam = bump(glide(u, { pos: [2.2, 0.8, 22], look: [0, 3.6, 0], fov: 40, roll: 3 }, { pos: [1.0, 0.75, 18.5], look: [0, 3.3, 0], fov: 38, roll: 0 }, 16), 0.1 * kick(u, hit, 1.2, 9));
     const fx: FxP[] = [];
     if (dt >= 0 && dt < 10) { fx.push(burst([-2.23, 1.5, 0.9], 4.2, dt / 10)); for (let k = 0; k < 4; k++) fx.push(steam([-2.23 + (k - 1.5) * (0.9 + dt * 0.12), 0.9 + dt * 0.05, 0.8], 1.3 * (1 - dt / 10), k % 3)); }
     return { cam, cInf: 0, fx, places: [], flash: u < 4 ? [1, 0.75, 0.45, 0.2][u] : 0 };
@@ -401,7 +401,7 @@ export const SHOTS: Shot[] = [
     const gal = F(50.6), toCow = F(52.3), drinks = F(53.75);
     balance(S, 0.24, 0);
     S.field.lake.scale.setScalar(1 - 0.42 * sm(span(u, drinks - 6, drinks + 14)));
-    const A: Cam = { pos: [-0.4, 1.9, 5.8 - 0.008 * u], look: [-2.23, 1.25, 0], fov: 36, roll: -2 }, B: Cam = { pos: [8.6, 1.6, 9.6], look: [8.9, 0.9, -3.2], fov: 40, roll: 1 };
+    const A: Cam = { pos: [-0.4, 1.9, 5.8 - 0.008 * u], look: [-2.23, 1.25, 0], fov: 36, roll: -2 }, B: Cam = { pos: [9.0, 0.75, 5.6], look: [8.75, 1.3, -3.2], fov: 38, roll: 1 };
     const k = ss(span(u, toCow - 7, toCow + 9));
     let cam = lc(A, B, k);
     cam.pos = l3(cam.pos, cam.look, 0.0012 * Math.max(0, u - toCow - 9));
@@ -424,7 +424,7 @@ export const SHOTS: Shot[] = [
   mk("35000", 54.07, 57.73, "field", "day", (u, S, F) => {
     const level = F(56.9), g = span(u, 6, level - 4), dt = u - level;
     balance(S, dt < 0 ? 0.24 * (1 - 0.25 * sm(span(u, level - 30, level))) : 0.18 * Math.exp(-dt / 3.5) * Math.cos(dt * 0.9), 0);
-    const cam = bump(glide(u, { pos: [2.0, 2.3, 23], look: [0.2, 2.4, 0], fov: 42, roll: 2 }, { pos: [1.1, 2.5, 20], look: [0.2, 2.3, 0], fov: 40, roll: 0 }, 20, 0.0006), 0.05 * kick(u, level, 1.2, 9));
+    const cam = bump(glide(u, { pos: [2.0, 0.8, 22], look: [0.2, 3.9, 0], fov: 42, roll: 2 }, { pos: [1.1, 0.75, 19], look: [0.2, 3.6, 0], fov: 40, roll: 0 }, 20, 0.0006), 0.05 * kick(u, level, 1.2, 9));
     const pr = S.field.panR.position, top = pr.y - 1.6;
     const fx: FxP[] = [{ key: `pile|${q(g, 9)}`, cw: 1200, ch: 800, draw: (p) => fxPile(p, Math.ceil(g * 9) / 9), at: [pr.x, top + 1.1, 0.2], w: 3.4, h: 2.27 }];
     if (dt < 0) for (let j = 0; j < 9; j++) { const ph = (u * 0.06 + j / 9) % 1; fx.push(bub("dots", [pr.x + (hash(j) - 0.5) * 2.0, top + 6.5 - ph * (6.2 - 1.9 * g), 0.4], 0.6, j % 2 ? 1 : -1, (hash(j, 2) - 0.5))); }
