@@ -1,7 +1,7 @@
 # "ChatGPT Takes a Sip of Water Every Time You Say Thanks" — facts and voiceover script (2026-11-14)
 
 Short, about 65 s, second person, in the look of the skill `mromidev/claude-animated-shorts`.
-The voice text to paste is in `voice_tagged.txt` (with tags) and `voice_clean.txt` (no tags). 249 words.
+The voice text to paste is in `voice_tagged.txt` (with tags) and `voice_clean.txt` (no tags). 252 words.
 
 ## Facts (each line in the script uses only these)
 | # | Fact | Source |
