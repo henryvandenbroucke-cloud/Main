@@ -15,7 +15,8 @@ const log = (...a) => console.log(`[${new Date().toISOString().slice(11, 19)}]`,
 const serveUrl = await bundle({ entryPoint: path.resolve("src/index.tsx") });
 const composition = await selectComposition({ serveUrl, id, browserExecutable, chromiumOptions });
 const jobs = [];
-for (let a = 0, i = 0; a < Number(total); a += Number(chunk), i++) jobs.push({ i, a, b: Math.min(Number(total), a + Number(chunk)) - 1 });
+const START = Number(process.env.START || 0);
+for (let a = START, i = 0; a < Number(total); a += Number(chunk), i++) jobs.push({ i, a, b: Math.min(Number(total), a + Number(chunk)) - 1 });
 const name = (j) => path.join(outDir, `chunk_${String(j.i).padStart(3, "0")}.mp4`);
 const todo = jobs.filter((j) => !fs.existsSync(name(j)));
 log(`${jobs.length} chunks, ${todo.length} to render, ${workers} workers`);
