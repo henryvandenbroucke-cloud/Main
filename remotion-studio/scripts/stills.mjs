@@ -10,7 +10,7 @@ const chromiumOptions = { gl: process.env.GL || "vulkan" };
 const inputProps = JSON.parse(props);
 fs.mkdirSync(path.dirname(prefix), { recursive: true });
 const serveUrl = await bundle({ entryPoint: path.resolve("src/index.tsx") });
-const composition = await selectComposition({ serveUrl, id: "PointingShort", browserExecutable, chromiumOptions, inputProps });
+const composition = await selectComposition({ serveUrl, id: process.env.COMP || "WaterShort", browserExecutable, chromiumOptions, inputProps });
 const onBrowserLog = (l) => { if (l.type === "error" || l.type === "warning") console.log(`[${l.type}]`, l.text.slice(0, 400)); };
 for (const f of frames.split(",").map(Number)) {
   const t0 = Date.now();

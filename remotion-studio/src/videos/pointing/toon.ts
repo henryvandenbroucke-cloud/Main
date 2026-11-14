@@ -19,7 +19,7 @@ export type Build = "adult" | "stout" | "kid";
 export type Outfit = {
   jacket: string; pants: string; boots: string; hat?: string | null; belt?: string | null; buttons?: string; rifle?: boolean;
   sash?: string; sword?: boolean; moustache?: string; skin?: string; head?: number; cap?: string; hair?: string; dress?: string;
-  gloves?: string; tie?: string; // ADDED
+  gloves?: string; tie?: string; glasses?: boolean; // ADDED
   build?: Build;
 };
 type P2 = [number, number];
@@ -458,6 +458,8 @@ export type FrontOpts = {
   prop?: Prop; tilt?: number; headTilt?: number; wave?: number;
   /** ADDED: right arm points; [angle in degrees (0 = screen right, + = up), reach 0..1] */
   point?: [number, number];
+  /** ADDED: right hand holds a prop in front of the chest (up 0) .. at the mouth (up 1); drawn over the head */
+  hold?: { draw: (p: Pen, hx: number, hy: number, u: number) => void; up?: number };
   /** canvas angle the key light comes FROM (painted crescent + thick outline side) */
   light?: number; facing?: -1 | 0 | 1; seed?: number;
 };
@@ -468,7 +470,7 @@ const footStroke = (p: Pen, a: P2, b: P2, w: number, col: string) => {
 };
 
 export const bodyFront = (p: Pen, o: Outfit, opts: FrontOpts) => {
-  const { phase = 0, expr = "neutral", mode = "march", look = 0, blink = false, lift = 60, prop = null, tilt = 0, headTilt = 0, wave, point,
+  const { phase = 0, expr = "neutral", mode = "march", look = 0, blink = false, lift = 60, prop = null, tilt = 0, headTilt = 0, wave, point, hold,
     light = DEF_LIGHT, facing = 0, seed = 1 } = opts;
   const Bd = BUILD[o.build ?? "adult"], skin = o.skin ?? SKIN, two = Math.PI * 2, lid = lidOf(blink);
   const H = headBlob(seed, Bd.a, facing), W = 2 * H.a, HH = 2 * H.b, u = W / 100;
@@ -533,13 +535,14 @@ export const bodyFront = (p: Pen, o: Outfit, opts: FrontOpts) => {
   const rifle = !!o.rifle && (mode === "march" || mode === "stand" || mode === "stroll");
   type Arm = { pts: [P2, P2, P2]; front: boolean; dir?: P2 };
   const arms: Arm[] = [];
-  if (mode === "sit") for (const side of [-1, 1]) arms.push({ pts: [sh(side), [tcx + side * (1.1 * T.a + 6 * u), sh(side)[1] + 0.4 * HH], [tcx + side * (1.2 * T.a + 10 * u), torsoBot + 0.04 * HH]], front: false });
+  if (mode === "sit") for (const side of [-1, 1]) { if (hold && side === 1) continue; arms.push({ pts: [sh(side), [tcx + side * (1.1 * T.a + 6 * u), sh(side)[1] + 0.4 * HH], [tcx + side * (1.2 * T.a + 10 * u), torsoBot + 0.04 * HH]], front: false }); }
   else if (mode === "fall") for (const side of [-1, 1]) arms.push({ pts: [sh(side), [tcx + side * (1.15 * T.a + 12 * u), sh(side)[1] - 0.25 * HH], [tcx + side * (1.3 * T.a + 24 * u), sh(side)[1] - 0.68 * HH]], front: false });
   else {
     arms.push({ pts: prop === "shako" ? hang(-1, 0) : hang(-1, -sw), front: false });
     if (rifle) {
       const G = lerp2(R0, R1, 0.1);
       arms.push({ pts: [sh(1), [tcx + 1.12 * T.a + 5 * u, sh(1)[1] + 0.45 * HH], G], front: false });
+    } else if (hold) { // ADDED: drawn after the head (see the end of this function)
     } else if (point) { // ADDED: straight arm from the shoulder, slightly foreshortened, index finger out
       const S = sh(1), a = rad(point[0]), L = 0.8 * HH * (0.55 + 0.45 * point[1]), dx = Math.cos(a), dy = -Math.sin(a);
       const Hd: P2 = [S[0] + L * dx, S[1] + L * dy];
@@ -640,6 +643,20 @@ export const bodyFront = (p: Pen, o: Outfit, opts: FrontOpts) => {
   hatOn(p, o, hp, H, 300, hc, light, seed, facing, false);
   const brim = !!o.hat && o.hat !== "hair" && o.hat !== "bonnet" && o.hat !== "cap";
   faceFront(p, 300, hc, W, expr, facing, look, lid, brim, skin, o.moustache, o.build === "stout");
+  if (o.glasses) { // ADDED: round glasses
+    const gx = 300 + 7 * u * facing;
+    for (const sd of [-1, 1]) p.ell(gx + sd * 13.5 * u, hc, 12.5 * u, 11.5 * u, null, 2.6 * u);
+    p.stroke([[gx - 2 * u, hc - 2 * u], [gx + 2 * u, hc - 2 * u]], 2.4 * u);
+  }
+  if (hold) { // ADDED: the holding arm and its prop go over the body and the head
+    p.rot = A ? [rad(A), 300, hipY] : null;
+    const S = sh(1), k = clamp(hold.up ?? 0, 0, 1);
+    const Hd = lerp2([tcx + 0.62 * T.a, S[1] + 0.44 * HH], [tcx + 30 * u, chin - 0.04 * HH], k);
+    const E = lerp2([tcx + 1.08 * T.a + 5 * u, S[1] + 0.46 * HH], [tcx + 1.3 * T.a + 9 * u, S[1] + 0.2 * HH], k);
+    drawArm({ pts: [S, E, Hd], front: true });
+    hold.draw(p, Hd[0], Hd[1], u);
+    if (o.gloves) { p.dot(Hd[0], Hd[1], 7.2 * u, INK); p.dot(Hd[0], Hd[1], 5.2 * u, o.gloves); } else p.dot(Hd[0], Hd[1], 5.5 * u);
+  }
   p.rot = null;
 };
 

@@ -13,7 +13,7 @@ const chromiumOptions = { gl: process.env.GL || "vulkan" };
 fs.mkdirSync(path.dirname(out), { recursive: true });
 const serveUrl = await bundle({ entryPoint: path.resolve("src/index.tsx") });
 const inputProps = JSON.parse(process.env.PROPS || "{}");
-const composition = await selectComposition({ serveUrl, id: "PointingShort", browserExecutable, chromiumOptions, inputProps });
+const composition = await selectComposition({ serveUrl, id: process.env.COMP || "WaterShort", browserExecutable, chromiumOptions, inputProps });
 const t0 = Date.now();
 await renderMedia({ composition, serveUrl, codec: "h264", crf: 16, outputLocation: out, scale: Number(scale), concurrency: Number(conc),
   browserExecutable, chromiumOptions, inputProps, timeoutInMilliseconds: 900000, imageFormat: "jpeg", jpegQuality: 95, muted: true, frameRange,
