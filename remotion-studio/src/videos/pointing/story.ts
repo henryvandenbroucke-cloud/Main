@@ -45,7 +45,7 @@ export const camAt = (f: number): Cam => {
   c.pos = lerp3(c.pos, c.look, creep);
   for (const [bf] of BEATS) { // flip kick on every snap
     const t = f - bf;
-    if (t >= 0 && t < 7) c.look[1] += 0.03 * (1 - t / 7) * (t % 2 ? -1 : 1);
+    if (t >= 0 && t < 7) c.look[1] += 0.011 * (1 - t / 7) * (t % 2 ? -1 : 1);
   }
   return c;
 };

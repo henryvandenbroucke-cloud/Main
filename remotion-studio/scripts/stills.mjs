@@ -6,7 +6,7 @@ import path from "node:path";
 import fs from "node:fs";
 const [prefix, frames, scale = "0.5", props = "{}"] = process.argv.slice(2);
 const browserExecutable = process.env.CHROME || "/opt/pw-browsers/chromium-1243/chrome-linux64/chrome";
-const chromiumOptions = { gl: process.env.GL || "swangle" };
+const chromiumOptions = { gl: process.env.GL || "vulkan" };
 const inputProps = JSON.parse(props);
 fs.mkdirSync(path.dirname(prefix), { recursive: true });
 const serveUrl = await bundle({ entryPoint: path.resolve("src/index.tsx") });
