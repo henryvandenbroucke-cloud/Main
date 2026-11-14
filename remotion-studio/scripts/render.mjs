@@ -17,5 +17,6 @@ const composition = await selectComposition({ serveUrl, id: process.env.COMP || 
 const t0 = Date.now();
 await renderMedia({ composition, serveUrl, codec: "h264", crf: 16, outputLocation: out, scale: Number(scale), concurrency: Number(conc),
   browserExecutable, chromiumOptions, inputProps, timeoutInMilliseconds: 900000, imageFormat: "jpeg", jpegQuality: 95, muted: true, frameRange,
+  onBrowserLog: (l) => { if (process.env.BLOG && !/ReadPixels|swiftshader/i.test(l.text)) console.log(`[${l.type}]`, l.text.slice(0, 300)); },
   onProgress: ({ renderedFrames }) => { if (renderedFrames % (frameRange ? 1 : 5) === 0) console.log("frames", renderedFrames, ((Date.now() - t0) / 1000).toFixed(0) + "s"); } });
 console.log("done", out, ((Date.now() - t0) / 1000).toFixed(0) + "s");
