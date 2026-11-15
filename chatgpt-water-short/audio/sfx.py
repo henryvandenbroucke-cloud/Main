@@ -154,11 +154,19 @@ def db(x):
     return 10 ** (x / 20)
 
 
+# Optional: TIMEMAP=<timemap.json> (from retime.py) moves every cue from the old picture timeline to the new one.
+import os, json
+_tm = json.load(open(os.environ["TIMEMAP"])) if os.environ.get("TIMEMAP") else None
+if _tm:
+    TOTAL = _tm["new_total"]
+    _o, _n = zip(*_tm["anchors"])
+remap = (lambda t: float(np.interp(t, _o, _n))) if _tm else (lambda t: t)
 bus = np.zeros(int(TOTAL * SR))
 cues = []
 
 
 def put(at, sound, level_db, name):
+    at = remap(at)
     s = sound / (np.max(np.abs(sound)) + 1e-9) * db(level_db)
     i = int(at * SR)
     j = min(len(bus), i + len(s))
