@@ -8,18 +8,11 @@
 
 ## Description
 
-Every time you say thank you to ChatGPT... it takes a sip of water. 💧
+Every "thank you" to ChatGPT costs a sip of water. 💧 But one hamburger beats 35,000 questions. 🍔
 
-OpenAI's CEO says one question uses about 1/15 of a teaspoon. Researchers counted the water behind the electricity too and got up to 150 times more. But one hamburger still beats 35,000 questions. 🍔
+Do you still say please to AI? 👇
 
-So be honest: do you still say "please" and "thank you" to AI? 👇 Tell me in the comments.
-
-Sources:
-- Sam Altman, "The Gentle Singularity" (June 2025): https://blog.samaltman.com/the-gentle-singularity
-- Li, Yang, Islam, Ren, "Making AI Less Thirsty" (UC Riverside / UT Arlington): https://arxiv.org/abs/2304.03271
-- 2.5 billion prompts a day (TechCrunch, July 2025): https://techcrunch.com/2025/07/21/chatgpt-users-send-2-5-billion-prompts-a-day/
-- "Tens of millions of dollars" on please and thank you (Altman, April 2025): https://www.techtimes.com/articles/310105/20250423/chatgpt-ceo-gladly-loses-tens-millions-when-ai-users-are-polite-money-well-spent.htm
-- Beef water footprint: Water Footprint Network (Mekonnen and Hoekstra)
+Sources: blog.samaltman.com/the-gentle-singularity · arxiv.org/abs/2304.03271
 
 #shorts #chatgpt #ai #water #funfacts
 
