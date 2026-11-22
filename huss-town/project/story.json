@@ -1,0 +1,730 @@
+{
+ "title": "Huss Town",
+ "logline": "In a town where everybody goes out partying, one kid stays out on the street dribbling a basketball. Even when the mayor makes partying mandatory.",
+ "fps": 30,
+ "width": 720,
+ "height": 1280,
+ "lead": 0.15,
+ "tail": 0.7,
+ "style": {
+  "caption": {
+   "size": 56,
+   "y": 0.72,
+   "anim": "pop"
+  },
+  "saturate": 1.22,
+  "contrast": 1.07,
+  "vignette": 0.4
+ },
+ "cast": {
+  "hero": {
+   "preset": "kid",
+   "skin": "#f5cd30",
+   "shirt": "#e8352e",
+   "shirtDesign": "number:1",
+   "accent": "#ffffff",
+   "sleeves": "none",
+   "bottom": "shorts",
+   "pants": "#1f1f24",
+   "shoes": "#ffffff",
+   "hat": "cap_back",
+   "hatColor": "#151518"
+  },
+  "mayor": {
+   "preset": "mayor"
+  },
+  "teacher": {
+   "preset": "teacher"
+  }
+ },
+ "shots": [
+  {
+   "set": "plaza",
+   "mood": "night",
+   "lines": [
+    "In this town,",
+    "everybody goes out",
+    "*partying...*"
+   ],
+   "extras": {
+    "crowd": {
+     "n": 21,
+     "rows": 3,
+     "center": [
+      0,
+      0,
+      5
+     ],
+     "yaw": 0,
+     "spacing": 2.5,
+     "aisle": false,
+     "expr": "happy",
+     "do": [
+      {
+       "do": "dance",
+       "at": 0,
+       "dur": 30
+      },
+      {
+       "do": "cheer",
+       "at": "partying",
+       "dur": 1.2,
+       "expr": "laugh"
+      }
+     ]
+    }
+   },
+   "camera": {
+    "on": "crowd",
+    "shot": "wide",
+    "angle": "high",
+    "move": "crane-down"
+   },
+   "fx": [
+    {
+     "flicker": [
+      "night",
+      "sunset"
+     ],
+     "at": "partying",
+     "every": 0.16,
+     "until": "end"
+    },
+    {
+     "punch": 0.14,
+     "at": "partying"
+    }
+   ]
+  },
+  {
+   "set": "street",
+   "mood": "night",
+   "lines": [
+    "except *me.*"
+   ],
+   "cast": {
+    "hero": {
+     "spot": "sidewalk",
+     "face": "front",
+     "expr": "blank",
+     "do": [
+      {
+       "do": "dribble",
+       "at": 0,
+       "dur": 30,
+       "rate": 2.6
+      }
+     ]
+    }
+   },
+   "camera": {
+    "on": "hero",
+    "shot": "full",
+    "move": "push",
+    "crash": {
+     "at": "me.",
+     "dur": 0.3,
+     "shot": "medium"
+    }
+   },
+   "fx": [
+    {
+     "glint": "hero",
+     "at": "me.+0.35"
+    }
+   ]
+  },
+  {
+   "set": "street",
+   "mood": "night",
+   "lines": [
+    "*Huss.*",
+    "*Huss.*",
+    "*Huss.*"
+   ],
+   "cast": {
+    "hero": {
+     "spot": "sidewalk",
+     "face": "front",
+     "expr": "strain",
+     "do": [
+      {
+       "do": "dribble",
+       "at": 0,
+       "dur": 30,
+       "rate": 3.2
+      }
+     ]
+    }
+   },
+   "camera": {
+    "on": "hero",
+    "shot": "full",
+    "from": "front-right",
+    "move": "orbit-left",
+    "amount": 0.25
+   },
+   "fx": [
+    {
+     "punch": 0.12,
+     "at": "#0"
+    },
+    {
+     "punch": 0.12,
+     "at": "#1"
+    },
+    {
+     "punch": 0.14,
+     "at": "#2"
+    },
+    {
+     "icon": "sweat",
+     "on": "hero",
+     "at": "#1",
+     "dur": 1.0
+    }
+   ]
+  },
+  {
+   "set": "living_room",
+   "mood": "sunset",
+   "lines": [
+    "Friday night?",
+    "Pizza *party.*"
+   ],
+   "cast": {
+    "p1": {
+     "spot": "center",
+     "expr": "happy",
+     "do": [
+      {
+       "do": "dance",
+       "at": 0,
+       "dur": 30
+      }
+     ]
+    },
+    "p2": {
+     "at": [
+      -2.4,
+      0,
+      1.6
+     ],
+     "expr": "laugh",
+     "hold": "pizza",
+     "do": [
+      {
+       "do": "eat",
+       "at": 0,
+       "dur": 30
+      }
+     ]
+    },
+    "p3": {
+     "at": [
+      2.4,
+      0,
+      1.4
+     ],
+     "expr": "happy",
+     "do": [
+      {
+       "do": "cheer",
+       "at": "party",
+       "dur": 2
+      }
+     ]
+    }
+   },
+   "props": [
+    {
+     "type": "balloon",
+     "at": [
+      -3.6,
+      0,
+      -1.5
+     ],
+     "color": "#ff5fa2"
+    },
+    {
+     "type": "balloon",
+     "at": [
+      3.8,
+      0,
+      -1.2
+     ],
+     "color": "#3fd0ff"
+    },
+    {
+     "type": "cake",
+     "at": [
+      0.8,
+      0,
+      3.2
+     ]
+    }
+   ],
+   "camera": {
+    "on": "p1",
+    "shot": "wide",
+    "angle": "high",
+    "from": "front",
+    "move": "push"
+   },
+   "fx": [
+    {
+     "punch": 0.15,
+     "at": "party."
+    },
+    {
+     "sparkle": "p1",
+     "at": "party."
+    }
+   ]
+  },
+  {
+   "set": "bedroom",
+   "mood": "night",
+   "lines": [
+    "Me?",
+    "*Huss.*",
+    "*Huss.*",
+    "*Huss.*"
+   ],
+   "cast": {
+    "hero": {
+     "spot": "center",
+     "face": "front",
+     "expr": "blank",
+     "do": [
+      {
+       "do": "dribble",
+       "at": 0,
+       "dur": 30,
+       "rate": 3.4
+      },
+      {
+       "expr": "strain",
+       "at": "#1"
+      }
+     ]
+    }
+   },
+   "camera": {
+    "on": "hero",
+    "shot": "full",
+    "from": "front-left",
+    "move": "push",
+    "amount": 0.3
+   },
+   "fx": [
+    {
+     "punch": 0.12,
+     "at": "#1"
+    },
+    {
+     "punch": 0.12,
+     "at": "#2"
+    },
+    {
+     "punch": 0.16,
+     "at": "#3"
+    },
+    {
+     "shake": 0.06,
+     "at": "#3",
+     "dur": 0.4
+    }
+   ]
+  },
+  {
+   "set": "classroom",
+   "setOpts": {
+    "board": "DISCO\nTODAY!!"
+   },
+   "mood": "day",
+   "lines": [
+    "Monday?",
+    "School *disco.*"
+   ],
+   "cast": {
+    "teacher": {
+     "spot": "teacher",
+     "face": "front",
+     "expr": "happy",
+     "do": [
+      {
+       "do": "dance",
+       "at": 0,
+       "dur": 30
+      }
+     ]
+    },
+    "s1": {
+     "spot": "center",
+     "face": "front",
+     "expr": "laugh",
+     "do": [
+      {
+       "do": "dance",
+       "at": 0.15,
+       "dur": 30
+      }
+     ]
+    }
+   },
+   "camera": {
+    "on": [
+     "teacher",
+     "s1"
+    ],
+    "shot": "full",
+    "from": "front-right",
+    "move": "orbit-left"
+   },
+   "fx": [
+    {
+     "flicker": [
+      "day",
+      "sunset",
+      "night"
+     ],
+     "at": "disco",
+     "every": 0.14,
+     "until": "end"
+    },
+    {
+     "punch": 0.14,
+     "at": "disco."
+    }
+   ]
+  },
+  {
+   "set": "classroom",
+   "setOpts": {
+    "board": "DISCO\nTODAY!!"
+   },
+   "mood": "sunset",
+   "lines": [
+    "Me?",
+    "*Huss.*"
+   ],
+   "cast": {
+    "hero": {
+     "spot": "board",
+     "face": "front",
+     "expr": "blank",
+     "do": [
+      {
+       "do": "dribble",
+       "at": 0,
+       "dur": 30,
+       "rate": 3.0
+      },
+      {
+       "expr": "strain",
+       "at": "Huss."
+      }
+     ]
+    }
+   },
+   "camera": {
+    "on": "hero",
+    "shot": "full",
+    "from": "front-right",
+    "move": "push",
+    "amount": 0.3
+   },
+   "fx": [
+    {
+     "punch": 0.16,
+     "at": "Huss."
+    }
+   ]
+  },
+  {
+   "set": "plaza",
+   "mood": "day",
+   "lines": [
+    "They have",
+    "no *talents.*"
+   ],
+   "cast": {
+    "d1": {
+     "at": [
+      -1.4,
+      0,
+      8
+     ],
+     "face": "front",
+     "expr": "happy",
+     "do": [
+      {
+       "do": "dance",
+       "at": 0,
+       "dur": 30
+      }
+     ]
+    },
+    "d2": {
+     "at": [
+      1.4,
+      0,
+      8
+     ],
+     "face": "front",
+     "expr": "grin",
+     "do": [
+      {
+       "do": "spin",
+       "at": 0.1,
+       "dur": 0.6
+      },
+      {
+       "do": "faint",
+       "at": "talents",
+       "dur": 0.6,
+       "hold": true
+      }
+     ]
+    }
+   },
+   "extras": {
+    "walkers": 5
+   },
+   "camera": {
+    "on": [
+     "d1",
+     "d2"
+    ],
+    "shot": "full",
+    "move": "push"
+   },
+   "fx": [
+    {
+     "stamp": {
+      "text": "0 TALENT",
+      "y": 0.58
+     },
+     "at": "talents.+0.25"
+    }
+   ]
+  },
+  {
+   "set": "plaza",
+   "setOpts": {
+    "stage": true
+   },
+   "mood": "day",
+   "lines": [
+    "So the mayor said:",
+    "everybody *must party.*"
+   ],
+   "cast": {
+    "mayor": {
+     "spot": "podium",
+     "face": "front",
+     "expr": "smirk",
+     "hold": "gavel",
+     "do": [
+      {
+       "do": "slam",
+       "at": "must-0.3",
+       "dur": 0.7,
+       "times": 2
+      },
+      {
+       "expr": "angry",
+       "at": "must"
+      }
+     ]
+    }
+   },
+   "camera": {
+    "on": "mayor",
+    "shot": "full",
+    "angle": "eye",
+    "from": "front",
+    "move": "push",
+    "amount": 0.25,
+    "look": [
+     0,
+     1.0,
+     0
+    ]
+   },
+   "fx": [
+    {
+     "shake": 0.12,
+     "at": "must+0.05"
+    },
+    {
+     "sign": {
+      "text": "PARTYING\nREQUIRED",
+      "icon": "note"
+     },
+     "at": "party.",
+     "until": "end"
+    }
+   ]
+  },
+  {
+   "set": "plaza",
+   "mood": "night",
+   "lines": [
+    "The whole town",
+    "*cheered...*"
+   ],
+   "extras": {
+    "crowd": {
+     "n": 28,
+     "rows": 4,
+     "center": [
+      0,
+      0,
+      4
+     ],
+     "yaw": 0,
+     "spacing": 2.5,
+     "aisle": false,
+     "expr": "happy",
+     "do": [
+      {
+       "do": "dance",
+       "at": 0,
+       "dur": 30
+      },
+      {
+       "do": "cheer",
+       "at": "cheered",
+       "dur": 30,
+       "expr": "laugh"
+      }
+     ]
+    }
+   },
+   "camera": {
+    "on": "crowd",
+    "shot": "establishing",
+    "angle": "high",
+    "move": "crane-up"
+   },
+   "fx": [
+    {
+     "flicker": [
+      "night",
+      "sunset"
+     ],
+     "at": "cheered",
+     "every": 0.16,
+     "until": "end"
+    }
+   ]
+  },
+  {
+   "set": "street",
+   "mood": "night",
+   "lines": [
+    "except *me.*"
+   ],
+   "cast": {
+    "hero": {
+     "spot": "sidewalk",
+     "face": "front",
+     "expr": "cool",
+     "do": [
+      {
+       "do": "dribble",
+       "at": 0,
+       "dur": 30,
+       "rate": 2.8
+      }
+     ]
+    }
+   },
+   "camera": {
+    "on": "hero",
+    "shot": "full",
+    "from": "front-left",
+    "move": "push",
+    "crash": {
+     "at": "me.",
+     "dur": 0.3,
+     "shot": "medium"
+    }
+   },
+   "fx": [
+    {
+     "glint": "hero",
+     "at": "me.+0.3"
+    }
+   ]
+  },
+  {
+   "set": "street",
+   "mood": "night",
+   "lines": [
+    "*Huss.*",
+    "*Huss.*",
+    "*Huss.*",
+    "*HUSS.*"
+   ],
+   "cast": {
+    "hero": {
+     "spot": "sidewalk",
+     "face": "front",
+     "expr": "strain",
+     "do": [
+      {
+       "do": "dribble",
+       "at": 0,
+       "dur": 30,
+       "rate": 3.6
+      }
+     ]
+    }
+   },
+   "camera": {
+    "on": "hero",
+    "shot": "full",
+    "angle": "eye",
+    "move": "push",
+    "amount": 0.3,
+    "crash": {
+     "at": "#3",
+     "dur": 0.3,
+     "shot": "close"
+    }
+   },
+   "fx": [
+    {
+     "punch": 0.1,
+     "at": "#0"
+    },
+    {
+     "punch": 0.1,
+     "at": "#1"
+    },
+    {
+     "punch": 0.12,
+     "at": "#2"
+    },
+    {
+     "shake": 0.14,
+     "at": "#3",
+     "dur": 0.35
+    },
+    {
+     "icon": "sweat",
+     "on": "hero",
+     "at": "#2",
+     "dur": 1.2
+    },
+    {
+     "glint": "hero",
+     "at": "#3+0.4"
+    }
+   ]
+  }
+ ]
+}
