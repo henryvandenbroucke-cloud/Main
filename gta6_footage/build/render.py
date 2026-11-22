@@ -82,7 +82,7 @@ elif MODE == "final":
          "-i", vo,
          "-filter_complex",
          f"[0:v]ass={ass}:fontsdir=/usr/share/fonts/opentype/inter[v];"
-         f"[1:a]apad,atrim=0:{END},afade=t=out:st={END-0.6}:d=0.6[a]",
+         f"[1:a]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000,apad,atrim=0:{END},afade=t=out:st={END-0.6}:d=0.6[a]",
          "-map", "[v]", "-map", "[a]",
          "-c:v", "libx264", "-preset", "slow", "-crf", "15", "-profile:v", "high", "-level", "4.2",
          "-pix_fmt", "yuv420p", "-g", "60", "-bf", "2", "-movflags", "+faststart",
